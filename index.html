@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>币安合约暴涨预警系统 v3.10</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;background:linear-gradient(135deg,#0f0f1a,#1a1a2e);min-height:100vh;color:#e0e0e0}
+        .container{max-width:1600px;margin:0 auto;padding:20px}
+        .header{text-align:center;padding:25px 0;border-bottom:1px solid rgba(255,255,255,.1);margin-bottom:20px}
+        .header h1{font-size:2.2em;background:linear-gradient(90deg,#f0b90b,#fcd535);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+        .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+        .stat{background:rgba(255,255,255,.05);border-radius:10px;padding:14px;text-align:center}
+        .stat .v{font-size:1.6em;font-weight:700;color:#f0b90b}
+        .stat .l{color:#888;font-size:.8em;margin-top:4px}
+        .progress{background:rgba(255,255,255,.05);border-radius:8px;height:20px;margin-bottom:20px;overflow:hidden;display:none}
+        .bar{background:linear-gradient(90deg,#f0b90b,#fcd535);height:100%;transition:width .3s;display:flex;align-items:center;justify-content:center;font-size:.75em;color:#000;font-weight:600}
+        .tabs{display:flex;gap:6px;margin-bottom:15px;flex-wrap:wrap}
+        .tab{padding:8px 16px;background:transparent;border:none;color:#888;cursor:pointer;border-radius:6px;font-size:.85rem}
+        .tab.active{background:rgba(240,185,11,.2);color:#f0b90b}
+        .content{display:none}
+        .content.active{display:block}
+        .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:12px}
+        .card{background:rgba(255,255,255,.05);border-radius:10px;padding:14px;border:1px solid rgba(255,255,255,.08)}
+        .card-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+        .name{font-weight:700;font-size:1em}
+        .price{color:#888;font-size:.85em}
+        .score{padding:3px 10px;border-radius:15px;font-size:.8em;font-weight:700}
+        .s-h{background:linear-gradient(135deg,#00c853,#00e676);color:#000}
+        .s-w{background:linear-gradient(135deg,#ff9800,#ffb74d);color:#000}
+        .s-n{background:rgba(255,255,255,.1);color:#888}
+        .s-c{background:rgba(33,150,243,.2);color:#64b5f6}
+        .s-hot{background:linear-gradient(135deg,#ff5722,#ff9800);color:#fff}
+        .s-crash{background:linear-gradient(135deg,#ef5350,#ff1744);color:#fff}
+        .info{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;font-size:.78em}
+        .row{display:flex;justify-content:space-between;padding:2px 0}
+        .lbl{color:#888}
+        .up{color:#ef5350}
+        .down{color:#26c281}
+        .chain{background:rgba(255,255,255,.03);border-radius:5px;padding:6px;margin-top:6px;font-size:.75em}
+        .chain-row{display:flex;justify-content:space-between;margin:2px 0}
+        .tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.05)}
+        .tag{background:rgba(0,200,83,.15);color:#00e676;padding:2px 6px;border-radius:3px;font-size:.7em}
+        .tag-w{background:rgba(255,152,0,.15);color:#ff9800}
+        .tag-r{background:rgba(239,83,80,.15);color:#ef5350}
+        .btn{padding:10px 24px;font-size:.9rem;font-weight:600;border:none;border-radius:8px;cursor:pointer;transition:all .2s}
+        .btn-p{background:linear-gradient(135deg,#f0b90b,#fcd535);color:#000}
+        .btn-p:hover{transform:translateY(-2px)}
+        .btn-s{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2)}
+        .btn-s:hover{background:rgba(255,255,255,.15)}
+        .ctrl{display:flex;justify-content:center;gap:10px;margin-bottom:20px}
+        .err{background:rgba(239,83,80,.1);border:1px solid rgba(239,83,80,.3);color:#ef5350;padding:10px;border-radius:6px;margin-bottom:15px;display:none}
+        table{width:100%;border-collapse:collapse}
+        th,td{padding:8px 10px;text-align:left;border-bottom:1px solid rgba(255,255,255,.05)}
+        th{color:#888;font-weight:500;font-size:.8em}
+        tr:hover{background:rgba(255,255,255,.03)}
+        @media(max-width:768px){.stats{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}}
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>🚀 币安合约暴涨预警</h1>
+        <p id="status" style="color:#888;margin-top:8px">点击按钮开始分析</p>
+    </div>
+    
+    <div class="err" id="err"></div>
+    
+    <div class="ctrl">
+        <button class="btn btn-p" id="btnRun" onclick="runAll()">🔥 全量分析</button>
+        <button class="btn btn-s" onclick="runRank()">📊 涨跌榜</button>
+        <button class="btn btn-s" onclick="runFunding()">💰 资金费率</button>
+    </div>
+    
+    <div class="stats">
+        <div class="stat"><div class="v" id="t1">-</div><div class="l">分析币种</div></div>
+        <div class="stat"><div class="v" id="t2" style="color:#00c853">-</div><div class="l">暴涨信号</div></div>
+        <div class="stat"><div class="v" id="t3" style="color:#ff9800">-</div><div class="l">底部反弹</div></div>
+        <div class="stat"><div class="v" id="t4" style="color:#ef5350">-</div><div class="l">暴跌预警</div></div></div>
+    </div>
+    
+    <div class="progress" id="progress"><div class="bar" id="bar" style="width:0%"></div></div>
+    
+    <div class="tabs">
+        <button class="tab active" onclick="showTab('sig')">💎 暴涨信号</button>
+        <button class="tab" onclick="showTab('hot')">🔥 热点追踪</button>
+        <button class="tab" onclick="showTab('bottom')">🔼 底部反弹</button>
+        <button class="tab" onclick="showTab('watch')">👀 强势积累</button>
+        <button class="tab" onclick="showTab('crash')">💎 暴跌预警</button>
+        <button class="tab" onclick="showTab('rank')">📊 涨跌榜</button>
+        <button class="tab" onclick="showTab('funding')">💰 资金费率</button>
+    </div>
+    
+    <div id="sig" class="content active">
+        <h3 style="margin:15px 0 10px;color:#ff1744">🚀 暴涨预警 Top20</h3>
+        <div class="grid" id="hotList"></div>
+    </div>
+    
+    <div id="hot" class="content">
+        <h3 style="margin:15px 0 10px;color:#ff9800">🔥 热点追踪</h3>
+        <p style="color:#666;font-size:.85em;margin-bottom:15px">实时涨幅 + 成交量异动 + 资金流入 = 市场焦点</p>
+        <div class="grid" id="hotTrend"></div>
+    </div>
+    
+    <div id="bottom" class="content">
+        <h3 style="margin:15px 0 10px;color:#00e676">🔼 刚脱离底部区域</h3>
+        <p style="color:#666;font-size:.85em;margin-bottom:15px">布林下轨反弹 + RSI超卖 + 量能温和放大 = 潜在爆发</p>
+        <div class="grid" id="rebound"></div>
+    </div>
+    
+    <div id="watch" class="content">
+        <h3 style="margin:15px 0 10px;color:#ff9800">👀 强势积累区</h3>
+        <p style="color:#666;font-size:.85em;margin-bottom:15px">多指标共振积累，随时可能突破</p>
+        <div class="grid" id="watchList"></div>
+    </div>
+    
+    <div id="crash" class="content">
+        <h3 style="margin:15px 0 10px;color:#ef5350">💎 暴跌预警</h3>
+        <p style="color:#666;font-size:.85em;margin-bottom:15px">多指标共振下跌，注意止损风险</p>
+        <div class="grid" id="crashList"></div>
+    </div>
+    
+    <div id="rank" class="content">
+        <h3 style="margin:15px 0 10px">🚀 涨幅榜 Top30</h3>
+        <div id="gainers"></div>
+        <h3 style="margin:20px 0 10px">💔 跌幅榜 Top30</h3>
+        <div id="losers"></div>
+    </div>
+    
+    <div id="funding" class="content">
+        <h3 style="margin:15px 0 10px;color:#ff9800">⏰ 即将清算 (1小时内)</h3>
+        <p style="color:#666;font-size:.85em;margin-bottom:10px">费率结算倒计时，注意开仓成本变化</p>
+        <div id="soonFunding"></div>
+        <h3 style="margin:20px 0 10px;color:#ef5350">🔴 高正费率 (多头被收割风险)</h3>
+        <div id="highFunding"></div>
+        <h3 style="margin:20px 0 10px;color:#26c281">🟢 高负费率 (可能补贴多头)</h3>
+        <div id="lowFunding"></div>
+    </div>
+</div>
+
+<script>
+// ========== 配置 ==========
+const API = 'https://fapi.binance.com';
+const CORS_PROXY = 'https://corsproxy.io/?';
+const BATCH = 10;
+let busy = false;
+
+// ========== 工具函数 ==========
+const $ = id => document.getElementById(id);
+const fmt = (n, d = 2) => (isNaN(n) || n === null) ? '-' : Number(n).toFixed(d);
+const fv = v => v > 1e9 ? (v / 1e9).toFixed(1) + 'B' : v > 1e6 ? (v / 1e6).toFixed(1) + 'M' : (v / 1e3).toFixed(1) + 'K';
+const fc = n => n >= 0 ? `<span class="up">+${fmt(n)}%</span>` : `<span class="down">${fmt(n)}%</span>`;
+const err = msg => { $('err').textContent = msg; $('err').style.display = 'block'; setTimeout(() => $('err').style.display = 'none', 5000); };
+const setProgress = (pct, text) => { $('bar').style.width = pct + '%'; $('bar').textContent = pct + '%'; if (text) $('status').textContent = text; };
+
+// ========== API请求 (支持CORS代理) ==========
+async function apiFetch(path) {
+    const url = API + path;
+    const ctrl = new AbortController();
+    const id = setTimeout(() => ctrl.abort(), 20000);
+    try {
+        // 先尝试直连
+        const r = await window.fetch(url, { signal: ctrl.signal, mode: 'cors' });
+        clearTimeout(id);
+        if (r.ok) return await r.json();
+    } catch (e) {}
+    
+    // 直连失败，用CORS代理
+    clearTimeout(id);
+    const proxyUrl = CORS_PROXY + encodeURIComponent(url);
+    const r2 = await window.fetch(proxyUrl, { signal: AbortController.timeout(20000) });
+    if (!r2.ok) throw new Error('HTTP ' + r2.status);
+    return await r2.json();
+}
+
+// ========== 技术指标库 (增强版) ==========
+const TA = {
+    // RSI
+    rsi: (c, p = 14) => {
+        if (c.length < p + 1) return null;
+        let g = 0, l = 0;
+        for (let i = c.length - p; i < c.length; i++) {
+            const d = c[i] - c[i - 1];
+            if (d > 0) g += d; else l -= d;
+        }
+        const al = l / p;
+        return al === 0 ? 100 : 100 - (100 / (1 + g / p / al));
+    },
+    
+    // EMA
+    ema: (c, p) => {
+        if (c.length < p) return null;
+        const k = 2 / (p + 1);
+        let e = c.slice(0, p).reduce((a, b) => a + b) / p;
+        for (let i = p; i < c.length; i++) e = c[i] * k + e * (1 - k);
+        return e;
+    },
+    
+    // MACD
+    macd: (c) => {
+        const e12 = TA.ema(c, 12), e26 = TA.ema(c, 26), e9 = TA.ema(c, 9);
+        if (!e12 || !e26) return null;
+        const dif = e12 - e26;
+        const dea = e9 || dif;
+        return { dif, macd: dif * 2, hist: dif - dea, signal: e9 };
+    },
+    
+    // 布林带
+    bb: c => {
+        if (c.length < 20) return null;
+        const r = c.slice(-20), sma = r.reduce((a, b) => a + b) / 20;
+        const std = Math.sqrt(r.reduce((s, x) => s + (x - sma) ** 2, 0) / 20);
+        const upper = sma + 2 * std, lower = sma - 2 * std;
+        const latest = c[c.length - 1];
+        return { w: (std / sma) * 100, upper, lower, sma, pos: (latest - sma) / (upper - lower) * 100 };
+    },
+    
+    // KDJ
+    kdj: (c, p = 9) => {
+        if (c.length < p * 2) return null;
+        const recent = c.slice(-p * 3);
+        const low = Math.min(...recent), high = Math.max(...recent);
+        if (high === low) return null;
+        const rsv = (c[c.length - 1] - low) / (high - low) * 100;
+        return { k: rsv * 2 / 3 + 50 / 3, d: rsv * 1 / 3 + 50 * 2 / 3, j: 3 * rsv - 2 * 50 };
+    },
+    
+    // Williams %R
+    wr: (c, p = 14) => {
+        if (c.length < p) return null;
+        const recent = c.slice(-p);
+        const high = Math.max(...recent), low = Math.min(...recent);
+        if (high === low) return null;
+        return -100 * (high - c[c.length - 1]) / (high - low);
+    },
+    
+    // 动量
+    mom: (c, p = 10) => {
+        if (c.length < p + 1) return null;
+        return (c[c.length - 1] - c[c.length - 1 - p]) / c[c.length - 1 - p] * 100;
+    },
+    
+    // Stochastic RSI
+    stochRsi: (c, p = 14) => {
+        if (c.length < p + 1) return null;
+        // 计算RSI序列
+        let g = 0, l = 0, gains = [], losses = [];
+        for (let i = 1; i < c.length; i++) {
+            const d = c[i] - c[i - 1];
+            gains.push(d > 0 ? d : 0);
+            losses.push(d < 0 ? -d : 0);
+        }
+        const rsiVals = [];
+        for (let i = p; i <= gains.length; i++) {
+            const ag = gains.slice(i - p, i).reduce((a, b) => a + b) / p;
+            const al = losses.slice(i - p, i).reduce((a, b) => a + b) / p;
+            rsiVals.push(al === 0 ? 100 : 100 - (100 / (1 + ag / al)));
+        }
+        if (rsiVals.length < p) return null;
+        const recent = rsiVals.slice(-p);
+        const high = Math.max(...recent), low = Math.min(...recent);
+        if (high === low) return { k: 50, d: 50 };
+        const k = 3 * (recent[recent.length - 1] - low) / (high - low) + 50;
+        return { k: isNaN(k) ? 50 : k, d: isNaN(k) ? 50 : k * 0.9 + 50 * 0.1 };
+    },
+    
+    // CCI顺势指标
+    cci: (c, p = 20) => {
+        if (c.length < p) return null;
+        const recent = c.slice(-p);
+        const tp = recent.reduce((a, b) => a + b) / p;
+        const sma = tp;
+        const meanDev = recent.reduce((s, x) => s + Math.abs(x - sma), 0) / p;
+        if (meanDev === 0) return 0;
+        return (c[c.length - 1] - sma) / (0.015 * meanDev);
+    },
+    
+    // ATR平均真实波幅
+    atr: (c, p = 14) => {
+        if (c.length < p + 1) return null;
+        const highs = c.slice(-p - 1), lows = c.slice(-p - 1);
+        let trs = [];
+        for (let i = 1; i < c.length; i++) {
+            const tr = Math.max(
+                c[i] - c[i - 1],
+                Math.abs(c[i] - highs[i]),
+                Math.abs(c[i] - lows[i])
+            );
+            if (i > 0) trs.push(tr);
+        }
+        if (trs.length < p) return null;
+        return trs.slice(-p).reduce((a, b) => a + b) / p;
+    },
+    
+    // ADX平均趋向指数
+    adx: (c, p = 14) => {
+        if (c.length < p * 2) return null;
+        const plusDM = [], minusDM = [], tr = [];
+        for (let i = 1; i < c.length; i++) {
+            const high = c[i], low = c[i - 1], prevHigh = c[i - 1], prevLow = c.slice(i - 1, i)[0];
+            const h = c[i] - c[i - 1], l = c[i - 1] - c[i];
+            plusDM.push(h > l && h > 0 ? h : 0);
+            minusDM.push(l > h && l > 0 ? l : 0);
+            tr.push(Math.max(c[i] - c[i - 1], Math.abs(c[i] - (c[i - 1] || c[i])), Math.abs(c[i - 1] - c[i])));
+        }
+        if (plusDM.length < p * 2) return null;
+        const adxVals = [];
+        let plusDi, minusDi, dx;
+        for (let i = p; i < plusDM.length; i += p) {
+            const pDM = plusDM.slice(i - p, i).reduce((a, b) => a + b, 0);
+            const mDM = minusDM.slice(i - p, i).reduce((a, b) => a + b, 0);
+            const trVal = tr.slice(i - p, i).reduce((a, b) => a + b, 0);
+            plusDi = trVal > 0 ? 100 * pDM / trVal : 0;
+            minusDi = trVal > 0 ? 100 * mDM / trVal : 0;
+            dx = plusDi + minusDi > 0 ? 100 * Math.abs(plusDi - minusDi) / (plusDi + minusDi) : 0;
+            adxVals.push(dx);
+        }
+        if (adxVals.length < 1) return null;
+        return adxVals.reduce((a, b) => a + b) / adxVals.length;
+    },
+    
+    // 近期低点
+    recentLow: c => {
+        if (c.length < 10) return null;
+        const recent = c.slice(-10), min = Math.min(...recent), idx = recent.indexOf(min);
+        return { price: min, barsAgo: 10 - idx - 1 };
+    },
+    
+    // 成交量趋势
+    volTrend: v => {
+        if (v.length < 12) return null;
+        const recent = v.slice(-6), old = v.slice(-12, -6);
+        const avgRecent = recent.reduce((a, b) => a + b) / 6;
+        const avgOld = old.reduce((a, b) => a + b) / 6;
+        return avgOld > 0 ? avgRecent / avgOld : null;
+    },
+    
+    // 成交量均线
+    volMa: (v, p = 20) => {
+        if (v.length < p) return null;
+        return v.slice(-p).reduce((a, b) => a + b) / p;
+    }
+};
+
+// ========== 评分系统 v3.10 (简化版) ==========
+function score(d) {
+    let s = 0, sig = [], level = '中性', isBottomRebound = false, isWatch = false, isCrash = false, crashSignals = 0;
+    const fromLow = d.fromLow || 0;
+    
+    // ========== 1. 暴跌检测 (极严格) ==========
+    if (d.chg4h <= -15 || d.chg24h <= -25) {
+        crashSignals += 6;
+        sig.push(`💥暴跌${Math.abs(d.chg4h <= -15 ? d.chg4h : d.chg24h).toFixed(1)}%`);
+    } else if (d.chg4h <= -10 || d.chg24h <= -18) {
+        crashSignals += 4;
+        sig.push(`📉大跌${Math.abs(d.chg4h <= -10 ? d.chg4h : d.chg24h).toFixed(1)}%`);
+    }
+    
+    if (crashSignals >= 4) {
+        if (d.rsi > 80) crashSignals += 2;
+        if (d.kdj?.j > 95) crashSignals += 2;
+        if (d.macd && d.macd.hist < 0) crashSignals += 2;
+    }
+    
+    if (crashSignals >= 6) {
+        isCrash = true;
+        level = '💎暴跌预警';
+        s = 70 + crashSignals * 3;
+    }
+    
+    // ========== 2. 底部反弹 (严格) ==========
+    if (!isCrash && fromLow > 0 && fromLow < 25) {
+        let oversoldCount = 0;
+        if (d.rsi < 38) oversoldCount++;
+        if (d.kdj?.j < 25) oversoldCount++;
+        if (d.bb?.pos < 18) oversoldCount++;
+        if (d.wr !== null && d.wr < -88) oversoldCount++;
+        
+        if (oversoldCount >= 2) {
+            isBottomRebound = true;
+            s += 15;
+            sig.push(`🔼底部反弹+${fromLow.toFixed(1)}%`);
+        }
+    }
+    
+    // ========== 3. 暴涨信号 ==========
+    if (!isCrash) {
+        let core = 0;
+        
+        if (d.bb?.w < 4) { core++; s += 18; sig.push('📊布林收口'); }
+        else if (d.bb?.w < 6) s += 8;
+        
+        if (d.vr >= 1.8) { core++; s += 16; sig.push(`🔥放量${d.vr.toFixed(1)}x`); }
+        else if (d.vr >= 1.3) { core++; s += 8; }
+        
+        if (d.macd && d.macd.hist > 0) { core++; s += 14; sig.push('💹MACD金叉'); }
+        
+        if (d.rsi >= 40 && d.rsi <= 60) { core++; s += 8; }
+        
+        if (d.mom > 4) { core++; s += 6; sig.push('💨动量强'); }
+        
+        if (d.chg4h >= 2) s += 6;
+        if (d.chg24h >= 5) s += 5;
+        if (d.ma7 && d.ma25 && d.ma7 > d.ma25) s += 5;
+        if (d.fr <= 0.01) s += 3;
+        if (d.fr > 0.05) { s -= 5; sig.push('⚠️高费率'); }
+        
+        s = Math.min(Math.max(s, 0), 130);
+        
+        if (core >= 3 && s >= 50) level = '🚀暴涨预警';
+        else if (core >= 2 && s >= 40) level = '⚡积累中';
+        else if (core >= 1 && s >= 30) { level = '👀观察中'; isWatch = true; }
+    }
+    
+    return { s, sig: sig.slice(0, 6), level, isBottomRebound, isWatch, isCrash, crashSignals };
+}
+
+// ========== 主分析流程 ==========
+async function runAll() {
+    if (busy) return;
+    busy = true;
+    $('btnRun').disabled = true;
+    $('btnRun').textContent = '⏳ 分析中...';
+    $('progress').style.display = 'block';
+    
+    try {
+        setProgress(5, '⏳ 获取交易对信息...');
+        const exchangeInfo = await apiFetch('/fapi/v1/exchangeInfo');
+        const activeSymbols = new Set(exchangeInfo.symbols.filter(s => s.status === 'TRADING').map(s => s.symbol));
+        
+        setProgress(10, '⏳ 获取24h行情...');
+        const [tickers, fData] = await Promise.all([
+            apiFetch('/fapi/v1/ticker/24hr'),
+            apiFetch('/fapi/v1/premiumIndex')
+        ]);
+        
+        if (!Array.isArray(tickers)) throw new Error('获取行情失败');
+        
+        const fmap = {};
+        fData.forEach(f => fmap[f.symbol] = parseFloat(f.lastFundingRate) * 100);
+        
+        // 过滤：USDT合约 + 在交易 + 成交量>50万
+        const coins = tickers
+            .filter(t => t.symbol.endsWith('USDT') && activeSymbols.has(t.symbol) && parseFloat(t.quoteVolume) > 500000)
+            .sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume));
+        
+        $('t1').textContent = coins.length;
+        setProgress(15, `✅ 获取${coins.length}个币种，分析中...`);
+        
+        // 批量分析
+        const results = [];
+        for (let i = 0; i < coins.length; i += BATCH) {
+            const batch = coins.slice(i, i + BATCH);
+            const r = await Promise.all(batch.map(async t => {
+                try {
+                    const [k4, k1] = await Promise.all([
+                        apiFetch(`/fapi/v1/klines?symbol=${t.symbol}&interval=4h&limit=60`),
+                        apiFetch(`/fapi/v1/klines?symbol=${t.symbol}&interval=1h&limit=24`)
+                    ]);
+                    if (!Array.isArray(k4) || k4.length < 20) return null;
+                    
+                    const c4 = k4.map(x => parseFloat(x[4]));
+                    const v4 = k4.map(x => parseFloat(x[5]));
+                    const c1 = k1.length > 0 ? k1.map(x => parseFloat(x[4])) : [];
+                    
+                    // 计算所有指标
+                    const rsi4 = TA.rsi(c4), rsi1 = c1.length > 0 ? TA.rsi(c1) : null;
+                    const bb = TA.bb(c4), macd = TA.macd(c4), kdj = TA.kdj(c4);
+                    const ma7 = TA.ema(c4, 7), ma25 = TA.ema(c4, 25), ma99 = TA.ema(c4, 99);
+                    const wr = TA.wr(c4), mom = TA.mom(c4);
+                    const volTrend = TA.volTrend(v4);
+                    const stochRsi = TA.stochRsi(c4);
+                    const cci = TA.cci(c4);
+                    const adx = TA.adx(c4);
+                    
+                    const avgV4 = v4.reduce((a, b) => a + b) / v4.length;
+                    const recV4 = v4.slice(-4).reduce((a, b) => a + b) / 4;
+                    
+                    const chg4h = c4.length >= 2 ? (c4[c4.length - 1] - c4[c4.length - 2]) / c4[c4.length - 2] * 100 : 0;
+                    const chg1h = c1.length >= 2 ? (c1[c1.length - 1] - c1[c1.length - 2]) / c1[c1.length - 2] * 100 : 0;
+                    const chg24h = parseFloat(t.priceChangePercent);
+                    
+                    const recentLowData = TA.recentLow(c4);
+                    const fromLow = recentLowData ? ((c4[c4.length - 1] - recentLowData.price) / recentLowData.price * 100) : null;
+                    const recentLow = recentLowData ? { ...recentLowData, fromLow } : null;
+                    
+                    const { s, sig, level, isBottomRebound, isWatch, isCrash, strongCnt, crashSignals } = score({
+                        bb, vr: recV4 / avgV4, rsi: rsi4, rsi1, macd, kdj, wr, mom, volTrend,
+                        ma7, ma25, ma99, chg4h, chg1h, chg24h,
+                        price: c4[c4.length - 1], fromLow, fr: fmap[t.symbol] || 0,
+                        stochRsi, cci, adx
+                    });
+                    
+                    return {
+                        sym: t.symbol, price: c4[c4.length - 1],
+                        chg4h, chg1h, c24h: chg24h,
+                        vol: parseFloat(t.quoteVolume), fr: fmap[t.symbol] || 0,
+                        rsi: fmt(rsi4), bb: fmt(bb?.w), vr: fmt(recV4 / avgV4),
+                        kdj: kdj ? fmt(kdj.j, 0) : '-', wr: wr !== null ? fmt(wr, 0) : '-',
+                        mom: mom !== null ? fmt(mom, 1) : '-',
+                        cci: cci !== null && cci !== undefined ? fmt(cci, 0) : '-',
+                        adx: adx !== null && adx !== undefined ? fmt(adx, 0) : '-',
+                        stochRsi: stochRsi ? fmt(stochRsi.k, 0) : '-',
+                        bbPos: bb?.pos || null, fromLow,
+                        s, sig, level, isBottomRebound, isWatch, isCrash, crashSignals
+                    };
+                } catch (e) { return null; }
+            }));
+            results.push(...r.filter(x => x));
+            setProgress(15 + Math.round((i + BATCH) / coins.length * 80), `分析中 ${Math.min(i + BATCH, coins.length)}/${coins.length}`);
+        }
+        
+        // 分类结果 (基于level判断)
+        const hot = results.filter(c => c.level === '🚀暴涨预警').sort((a, b) => b.s - a.s);
+        const watch = results.filter(c => c.level === '⚡积累中' || c.level === '👀观察中').sort((a, b) => b.s - a.s);
+        const bottomRebound = results.filter(c => c.isBottomRebound && !c.isCrash).sort((a, b) => b.s - a.s);
+        const crash = results.filter(c => c.isCrash).sort((a, b) => b.s - a.s);
+        
+        // 热点追踪: 按涨跌幅和成交量筛选
+        const hotTrend = results
+            .filter(c => !c.isCrash && (c.chg4h >= 3 || c.chg24h >= 8) && parseFloat(c.vr) >= 1.5)
+            .sort((a, b) => {
+                // 综合热度: 4H涨幅*2 + 24H涨幅 + 成交量倍数*10
+                const scoreA = a.chg4h * 2 + a.c24h + parseFloat(a.vr) * 10;
+                const scoreB = b.chg4h * 2 + b.c24h + parseFloat(b.vr) * 10;
+                return scoreB - scoreA;
+            })
+            .slice(0, 30);
+        
+        // 渲染
+        renderCards('hotList', hot.slice(0, 20));
+        renderCards('hotTrend', hotTrend);
+        renderCards('watchList', watch.slice(0, 30));
+        renderCards('rebound', bottomRebound.slice(0, 20));
+        renderCards('crashList', crash.slice(0, 20));
+        
+        $('t2').textContent = hot.length;
+        $('t3').textContent = bottomRebound.length;
+        $('t4').textContent = crash.length;
+        setProgress(100, '✅ 分析完成');
+        $('status').textContent = `💎 ${hot.length}暴涨 | ${bottomRebound.length}底反 | ${crash.length}暴跌 | ${new Date().toLocaleTimeString('zh-CN')}`;
+    } catch (e) {
+        err('分析失败: ' + e.message);
+    }
+    
+    busy = false;
+    $('btnRun').disabled = false;
+    $('btnRun').textContent = '🔥 全量分析';
+}
+
+// ========== 涨跌榜 ==========
+async function runRank() {
+    if (busy) return;
+    busy = true;
+    try {
+        $('status').textContent = '⏳ 获取涨跌榜...';
+        const tickers = await apiFetch('/fapi/v1/ticker/24hr');
+        window._cachedTickers = tickers;
+        
+        // 获取当前在交易的合约列表
+        const exchangeInfo = await apiFetch('/fapi/v1/exchangeInfo');
+        const activeSymbols = new Set(exchangeInfo.symbols.filter(s => s.status === 'TRADING').map(s => s.symbol));
+        
+        // 涨跌榜显示USDT合约（过滤低成交量和已下架币种）
+        const coins = tickers
+            .filter(t => t.symbol.endsWith('USDT') && activeSymbols.has(t.symbol) && parseFloat(t.quoteVolume) >= 500000)
+            .map(t => ({
+                sym: t.symbol, price: parseFloat(t.lastPrice),
+                c24h: parseFloat(t.priceChangePercent), vol: parseFloat(t.quoteVolume)
+            }));
+        
+        renderTable('gainers', coins.filter(c => c.c24h > 0).sort((a, b) => b.c24h - a.c24h).slice(0, 30), false);
+        renderTable('losers', coins.filter(c => c.c24h < 0).sort((a, b) => a.c24h - b.c24h).slice(0, 30), true);
+        
+        $('status').textContent = `📊 涨跌榜 | ${new Date().toLocaleTimeString('zh-CN')}`;
+    } catch (e) { err('获取失败: ' + e.message); }
+    busy = false;
+}
+
+// ========== 资金费率 ==========
+async function runFunding() {
+    if (busy) return;
+    busy = true;
+    try {
+        $('status').textContent = '⏳ 获取资金费率...';
+        const fData = await apiFetch('/fapi/v1/premiumIndex');
+        
+        // 计算下次结算倒计时
+        const now = Date.now();
+        const getNextFunding = (nextTs) => {
+            if (!nextTs) return '-';
+            const diff = nextTs - now;
+            if (diff <= 0) return '结算中';
+            const h = Math.floor(diff / 3600000);
+            const m = Math.floor((diff % 3600000) / 60000);
+            return `${h}时${m}分后`;
+        };
+        
+        const all = fData
+            .map(f => ({
+                sym: f.symbol, fr: parseFloat(f.lastFundingRate) * 100,
+                nextFR: getNextFunding(parseFloat(f.nextFundingTime)),
+                nextTs: parseFloat(f.nextFundingTime) || 0
+            }))
+            .filter(f => f.sym.endsWith('USDT'))
+            .sort((a, b) => b.fr - a.fr);
+        
+        renderFundingTable('highFunding', all.filter(f => f.fr > 0.01).slice(0, 25));
+        renderFundingTable('lowFunding', all.filter(f => f.fr < -0.01).sort((a, b) => a.fr - b.fr).slice(0, 25));
+        
+        // 1小时内清算
+        const soonFunding = all
+            .filter(f => f.nextTs > 0 && f.nextTs <= now + 3600000)
+            .sort((a, b) => a.nextTs - b.nextTs)
+            .slice(0, 20);
+        renderSoonTable('soonFunding', soonFunding);
+        
+        $('status').textContent = `💰 资金费率榜 | ${new Date().toLocaleTimeString('zh-CN')}`;
+    } catch (e) { err('获取费率失败: ' + e.message); }
+    busy = false;
+}
+
+// ========== 渲染函数 ==========
+function renderCards(id, coins) {
+    const el = $(id);
+    if (!coins.length) { el.innerHTML = '<p style="color:#666;padding:20px;text-align:center">暂无</p>'; return; }
+    
+    const levelColor = {
+        '🚀暴涨预警': '#ff1744', '🔥强烈看涨': '#ff5722', '⚡积累中': '#ff9800',
+        '👀观察中': '#64b5f6', '⚡共振积累': '#ff9800', '📈强势': '#4caf50', 
+        '👀观察': '#888', '反弹预期': '#9c27b0',
+        '💎暴跌预警': '#ef5350', '📉强势下跌': '#ff5722'
+    };
+    
+    el.innerHTML = coins.map(c => {
+        const isBottom = id === 'rebound';
+        const isCrash = id === 'crashList';
+        const isHotTrend = id === 'hotTrend';
+        const level = isBottom ? '🔼底部反弹' : (isCrash ? c.level : c.level);
+        const cardStyle = isBottom ? 'border-color:#00e676' : (isCrash ? 'border-color:#ef5350' : (isHotTrend ? 'border-color:#ff9800' : ''));
+        
+        return `
+        <div class="card" style="${cardStyle}">
+            <div class="card-hd">
+                <div>
+                    <span class="name">${c.sym.replace('USDT', '')}</span>
+                    <span class="price">$${fmt(c.price)}</span>
+                </div>
+                <div style="text-align:right">
+                    <span class="score ${isCrash ? 's-crash' : (isHotTrend ? 's-hot' : (c.level === '🚀暴涨预警' ? 's-h' : (c.level === '⚡积累中' ? 's-w' : (c.level === '👀观察中' ? 's-c' : 's-n'))))}">${isHotTrend ? '🔥HOT' : c.s + '分'}</span>
+                    ${level ? `<div style="font-size:.7em;color:${levelColor[level] || '#888'};margin-top:2px">${level}</div>` : ''}
+                </div>
+            </div>
+            <div class="info">
+                <div class="row"><span class="lbl">4H</span>${fc(c.chg4h)}</div>
+                <div class="row"><span class="lbl">1H</span>${fc(c.chg1h)}</div>
+                <div class="row"><span class="lbl">24H</span>${fc(c.c24h)}</div>
+                <div class="row"><span class="lbl">RSI</span>${c.rsi} ${isCrash ? (parseFloat(c.rsi) > 65 ? '🔴' : '') : (parseFloat(c.rsi) > 50 ? '🔴' : '🔵')}</div>
+                <div class="row"><span class="lbl">KDJ</span>${c.kdj} ${isCrash ? (parseFloat(c.kdj) > 80 ? '🔴' : '') : (parseFloat(c.kdj) < 20 ? '🟢' : '')}</div>
+                <div class="row"><span class="lbl">CCI</span>${c.cci} ${parseFloat(c.cci) < -100 ? '🟢' : (parseFloat(c.cci) > 100 ? '🔴' : '')}</div>
+            </div>
+            <div class="chain">
+                <div class="chain-row"><span style="color:#888">WR</span><span>${c.wr}</span></div>
+                <div class="chain-row"><span style="color:#888">ADX</span><span>${c.adx}</span></div>
+                <div class="chain-row"><span style="color:#888">Stoch</span><span>${c.stochRsi}</span></div>
+                <div class="chain-row"><span style="color:#888">费率</span><span>${fmt(c.fr, 4)}%</span></div>
+            </div>
+            ${c.fromLow !== null && c.fromLow !== undefined && c.fromLow > 0 && !isCrash ? `<div style="font-size:.75em;color:#00e676;margin-top:4px">🔼 从低点上涨 ${c.fromLow.toFixed(1)}%</div>` : ''}
+            ${isCrash && c.crashSignals >= 4 ? `<div style="font-size:.75em;color:#ef5350;margin-top:4px">💎 ${c.crashSignals}个下跌信号</div>` : ''}
+            <div class="tags">${c.sig.map(s => `<span class="tag ${s.includes('⚠️') || isCrash ? 'tag-r' : (isBottom ? 'tag-w' : '')}">${s}</span>`).join('')}</div>
+        </div>`;
+    }).join('');
+}
+
+function renderTable(id, data, isLoser) {
+    const el = $(id);
+    if (!data.length) { el.innerHTML = '<p style="color:#666">暂无</p>'; return; }
+    
+    el.innerHTML = `<table>
+        <tr><th>#</th><th>币种</th><th>价格</th><th>24H涨跌</th><th>成交额</th></tr>
+        ${data.map((c, i) => `<tr>
+            <td>${i + 1}</td>
+            <td style="font-weight:600">${c.sym.replace('USDT', '')}</td>
+            <td>$${fmt(c.price)}</td>
+            <td class="${c.c24h >= 0 ? 'up' : 'down'}">${fc(c.c24h)}</td>
+            <td>${fv(c.vol)}</td>
+        </tr>`).join('')}
+    </table>`;
+}
+
+function renderFundingTable(id, coins) {
+    const el = $(id);
+    if (!coins.length) { el.innerHTML = '<p style="color:#666">暂无</p>'; return; }
+    const isHigh = id === 'highFunding';
+    const color = isHigh ? '#ef5350' : '#26c281';
+    
+    el.innerHTML = `<table>
+        <tr><th>#</th><th>币种</th><th>费率</th><th>下次结算</th></tr>
+        ${coins.map((c, i) => `<tr>
+            <td>${i + 1}</td>
+            <td style="font-weight:600">${c.sym.replace('USDT', '')}</td>
+            <td style="color:${color};font-weight:700">${c.fr >= 0 ? '+' : ''}${fmt(c.fr, 4)}%</td>
+            <td style="color:#888">${c.nextFR}</td>
+        </tr>`).join('')}
+    </table>`;
+}
+
+function renderSoonTable(id, coins) {
+    const el = $(id);
+    if (!coins.length) { el.innerHTML = '<p style="color:#666">暂无即将清算的币种</p>'; return; }
+    
+    el.innerHTML = `<table>
+        <tr><th>#</th><th>币种</th><th>费率</th><th>剩余时间</th></tr>
+        ${coins.map((c, i) => {
+            const isHigh = c.fr > 0;
+            const urgent = c.nextTs - Date.now() < 1800000; // 30分钟内
+            return `<tr style="${urgent ? 'background:rgba(255,152,0,.1)' : ''}">
+                <td>${i + 1}</td>
+                <td style="font-weight:600">${c.sym.replace('USDT', '')}</td>
+                <td style="color:${isHigh ? '#ef5350' : '#26c281'};font-weight:700">${c.fr >= 0 ? '+' : ''}${fmt(c.fr, 4)}%</td>
+                <td style="color:${urgent ? '#ff9800' : '#888'};font-weight:${urgent ? '700' : '400'}">${c.nextFR}${urgent ? ' ⚠️' : ''}</td>
+            </tr>`;
+        }).join('')}
+    </table>`;
+}
+
+function showTab(id) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+    document.querySelector(`.tab[onclick="showTab('${id}')"]`).classList.add('active');
+    $(id).classList.add('active');
+    
+    // 懒加载
+    if (id === 'funding' && !$('highFunding').innerHTML) runFunding();
+    if (id === 'rank' && !$('gainers').innerHTML) runRank();
+}
+
+// ========== 初始化 ==========
+window.onload = runAll;
+</script>
+</body>
+</html>
