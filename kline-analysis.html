@@ -1007,77 +1007,85 @@ function getSignal(type, value, threshold) {
   return { label: '--', cls: 'sig-neutral', strength: 0 };
 }
 
-// ==================== 综合评分 ====================
+// ==================== 三维共振评分系统 (与主页一致) ====================
 function calcScore(ind) {
-  let s = 0, reasons = [];
-  const { rsi, kdj, wr, macd, bb: bbInd, cci, stoch, mom, td9 } = ind;
-  const chg = ind.chg1h || 0;
-
+  const { rsi, kdj, wr, macd, bb: bbInd, cci, stoch, mom, td9, chg1h, chg4h, chg24h, volumeRatio, takerBuyRatio, fundingRate } = ind;
+  
+  let sig = [], level = '观望', isWatch = false;
+  let score = 0;
+  
+  // 三维核心评分
+  const core = { tech: 0, fund: 0, whale: 0 };
+  
+  // ========== 技术面评分 (权重×2) ==========
+  let techScore = 0;
+  
   // RSI
-  if (rsi != null) {
-    if (rsi < 30) { s += 20; reasons.push('RSI超卖+20'); }
-    else if (rsi < 40) { s += 10; reasons.push('RSI偏弱+10'); }
-    else if (rsi > 70) { s -= 15; reasons.push('RSI超买-15'); }
-    else if (rsi > 60) { s -= 8; reasons.push('RSI偏强-8'); }
-    else if (rsi >= 42 && rsi <= 58) { s += 5; reasons.push('RSI中性区+5'); }
-  }
-
+  if (rsi < 30) { techScore += 2; sig.push('RSI超卖'); }
+  else if (rsi < 40) { techScore += 1; }
+  
   // KDJ
-  if (kdj) {
-    if (kdj.j < 20) { s += 15; reasons.push('KDJ超卖+15'); }
-    else if (kdj.j > 80) { s -= 15; reasons.push('KDJ超买-15'); }
-    else if (kdj.k > kdj.d && kdj.d < 40) { s += 10; reasons.push('KDJ低位金叉+10'); }
-  }
-
-  // WR
-  if (wr != null) {
-    if (wr < -90) { s += 15; reasons.push('WR严重超卖+15'); }
-    else if (wr < -80) { s += 10; reasons.push('WR超卖+10'); }
-    else if (wr > -10) { s -= 10; reasons.push('WR超买-10'); }
-  }
-
+  if (kdj?.j < 20) { techScore += 2; sig.push('KDJ超卖'); }
+  else if (kdj?.k > kdj?.d && kdj?.d < 40) { techScore += 1; }
+  
   // MACD
-  if (macd) {
-    if (macd.hist > 0.5) { s += 20; reasons.push('MACD强势金叉+20'); }
-    else if (macd.hist > 0.1) { s += 12; reasons.push('MACD金叉+12'); }
-    else if (macd.hist > 0) { s += 5; reasons.push('MACD转多+5'); }
-    else if (macd.hist < -0.3) { s -= 15; reasons.push('MACD死叉-15'); }
+  if (macd?.hist > 0.5) { techScore += 3; sig.push('MACD强势金叉'); }
+  else if (macd?.hist > 0) { techScore += 2; sig.push('MACD金叉'); }
+  
+  // 布林带
+  if (bbInd?.w < 2) { techScore += 3; sig.push('布林收口'); }
+  if (bbInd?.pos < 20) { techScore += 1; }
+  
+  // TD9
+  if (td9?.buyActive) { techScore += 2; sig.push('TD9买入'); }
+  if (td9?.buyPerfect) { techScore += 3; sig.push('TD9完成'); }
+  
+  core.tech = Math.min(Math.floor(techScore / 2), 4);
+  
+  // ========== 资金面评分 (权重×1) ==========
+  if (fundingRate < 0) { core.fund = 1; sig.push('低费率'); }
+  if (fundingRate > 0.01) { core.fund = -1; sig.push('高费率'); }
+  
+  // ========== 大户面评分 (权重×1) ==========
+  if (takerBuyRatio >= 0.55) { 
+    core.whale = Math.floor((takerBuyRatio - 0.5) * 10); 
+    sig.push(`Taker吸筹`); 
   }
-
-  // BB
-  if (bbInd) {
-    if (bbInd.w < 1.5) { s += 20; reasons.push('布林极度收口+20'); }
-    else if (bbInd.w < 2.5) { s += 12; reasons.push('布林收口+12'); }
-    if (bbInd.pos < 15) { s += 10; reasons.push('价格触下轨+10'); }
-    else if (bbInd.pos > 85) { s -= 10; reasons.push('价格触上轨-10'); }
+  
+  // 共振分 = tech×2 + fund + whale
+  const resonanceScore = core.tech * 2 + core.fund + core.whale;
+  
+  // 基础分
+  score = resonanceScore * 10;
+  
+  // 涨幅调整
+  if (chg4h >= 15) score -= 15;
+  else if (chg4h >= 10) score -= 8;
+  else if (chg4h >= 7) score -= 3;
+  
+  // 量能加分
+  if (volumeRatio >= 2) score += 5;
+  else if (volumeRatio >= 1.5) score += 3;
+  
+  // 信号判定
+  if (resonanceScore >= 5 && score >= 50) {
+    level = '🚀暴涨预警';
+    score = Math.min(score, 95);
+  } else if (resonanceScore >= 3 && score >= 40) {
+    level = '⚡积累中';
+  } else if (score >= 30) {
+    level = '👀观察中';
+    isWatch = true;
+  } else if (rsi < 40 && macd?.hist > 0) {
+    level = '🔼底部反弹';
+  } else {
+    level = '➖中性';
   }
-
-  // CCI
-  if (cci != null) {
-    if (cci < -100) { s += 12; reasons.push('CCI超卖+12'); }
-    else if (cci > 100) { s -= 12; reasons.push('CCI超买-12'); }
-  }
-
-  // Momentum
-  if (mom != null) {
-    if (mom > 3) { s += 8; reasons.push(`ROC动量+${8}`); }
-    if (mom < -3) { s -= 8; reasons.push(`ROC动量-${8}`); }
-  }
-
-  // TD9 信号
-  if (td9) {
-    if (td9.buyPerfect) { s += 20; reasons.push('TD9买入完成+20'); }
-    else if (td9.buyActive) { s += 10 + td9.buyCount; reasons.push(`TD9买设置(${td9.buyCount}/9)+${10 + td9.buyCount}`); }
-    if (td9.sellPerfect) { s -= 20; reasons.push('TD9卖出完成-20'); }
-    else if (td9.sellActive) { s -= 10 + td9.sellCount; reasons.push(`TD9卖设置(${td9.sellCount}/9)-${10 + td9.sellCount}`); }
-  }
-
-  // 涨幅惩罚/奖励
-  if (chg > 10) { s -= 15; reasons.push('涨幅过大-15'); }
-  else if (chg > 5) { s -= 8; reasons.push('涨幅较大-8'); }
-  else if (chg > 2) { s += 3; reasons.push('涨幅适中+3'); }
-
-  return { score: Math.max(0, Math.min(100, 50 + s)), reasons };
+  
+  // 限制范围
+  score = Math.min(Math.max(score, 0), 100);
+  
+  return { score, level, sig: sig.slice(0, 6), core, resonanceScore, isWatch, reasons: sig };
 }
 
 // ==================== 渲染 K线图 ====================
@@ -1461,17 +1469,16 @@ function renderDetails(ind, klines) {
 
 // ==================== 渲染信号条 ====================
 function renderSignals(scoreObj) {
-  const { score, reasons } = scoreObj;
+  const { score, core } = scoreObj;
+  // 三维信号条
   const bars = [
-    { label: '超卖/超买', value: Math.min(100, Math.abs((50 - (scoreObj.ind?.rsi || 50)) * 2)), color: 'var(--purple)' },
-    { label: 'MACD趋势', value: Math.min(100, Math.max(0, 50 + (scoreObj.ind?.macd?.hist || 0) * 200)), color: 'var(--blue)' },
-    { label: '布林挤压', value: Math.min(100, Math.max(0, 100 - (scoreObj.ind?.bb?.width || 5) * 15)), color: 'var(--yellow)' },
-    { label: 'KDJ位置', value: scoreObj.ind?.kdj?.k || 50, color: 'var(--green)' },
-    { label: 'CCI偏离', value: Math.min(100, Math.max(0, 50 + (scoreObj.ind?.cci || 0) / 3)), color: 'var(--cyan)' },
+    { label: '技术面', value: core?.tech ? Math.min(100, core.tech * 25) : 50, color: 'var(--purple)' },
+    { label: '资金面', value: core?.fund === 1 ? 100 : core?.fund === -1 ? 20 : 50, color: 'var(--blue)' },
+    { label: '大户面', value: core?.whale ? Math.min(100, core.whale * 25 + 50) : 50, color: 'var(--green)' },
   ];
   let html = '';
   bars.forEach(b => {
-    const barColor = b.value > 70 ? 'var(--red)' : b.value < 30 ? 'var(--green)' : b.color;
+    const barColor = b.value > 70 ? 'var(--green)' : b.value < 30 ? 'var(--red)' : b.color;
     html += `<div class="signal-row">
       <span class="signal-label">${b.label}</span>
       <div class="signal-bar"><div class="signal-fill" style="width:${b.value}%; background:${barColor};"></div></div>
@@ -1483,25 +1490,32 @@ function renderSignals(scoreObj) {
 
 // ==================== 渲染总分 ====================
 function renderTotalScore(scoreObj) {
-  const { score, reasons } = scoreObj;
+  const { score, level, sig, core, resonanceScore, reasons } = scoreObj;
   const $val = $('totalScore');
   const $desc = $('totalDesc');
   $val.textContent = score.toFixed(0);
   $val.className = `value ${score >= 65 ? 'buy' : score >= 40 ? 'neutral' : 'sell'}`;
 
-  if (score >= 75) $desc.textContent = '🔥 强烈买入信号';
-  else if (score >= 65) $desc.textContent = '🟢 买入信号';
-  else if (score >= 55) $desc.textContent = '📊 偏多，可关注';
-  else if (score >= 45) $desc.textContent = '➖ 中性，观望';
-  else if (score >= 35) $desc.textContent = '📉 偏空，谨慎';
-  else $desc.textContent = '🔴 卖出信号';
+  // 显示信号等级
+  let levelText = level;
+  if (resonanceScore !== undefined) {
+    levelText += ` (共振:${resonanceScore})`;
+  }
+  $desc.textContent = levelText;
+
+  // 三维核心标签
+  const coreTags = [];
+  if (core?.tech > 0) coreTags.push(`技术${core.tech}`);
+  if (core?.fund > 0) coreTags.push(`资金${core.fund}`);
+  if (core?.whale > 0) coreTags.push(`大户${core.whale}`);
 
   // 原因标签
-  const reasonTags = reasons.slice(0, 4).map(r => {
-    const isPos = r.includes('+');
-    return `<span style="display:inline-block; padding:2px 6px; border-radius:4px; font-size:11px; margin:2px; background:${isPos ? 'rgba(63,185,80,0.12)' : 'rgba(248,81,73,0.12)'}; color:${isPos ? 'var(--green)' : 'var(--red)'};">${r}</span>`;
+  const reasonTags = (sig || reasons || []).slice(0, 4).map(r => {
+    return `<span style="display:inline-block; padding:2px 6px; border-radius:4px; font-size:11px; margin:2px; background:rgba(63,185,80,0.12); color:var(--green);">${r}</span>`;
   }).join('');
-  $desc.innerHTML = `<div style="margin-top:6px;">${$desc.textContent}</div><div style="margin-top:4px;">${reasonTags}</div>`;
+  
+  const coreTag = coreTags.length ? coreTags.join(' · ') : '';
+  $desc.innerHTML = `<div style="margin-top:6px;">${levelText}</div>${coreTag ? `<div style="color:var(--purple); font-size:11px; margin-top:4px;">${coreTag}</div>` : ''}<div style="margin-top:4px;">${reasonTags}</div>`;
 }
 
 // ==================== 主分析函数 ====================
@@ -1612,6 +1626,30 @@ async function analyzeCoin(symbol) {
     ind.chg1h = chg1h;
     ind.chg4h = chg4hK;
     ind.chg24h = chg24h;
+    
+    // 获取资金费率
+    try {
+      const frData = await apiFetch(`/fapi/v1/premiumIndex?symbol=${symbol}`);
+      if (frData) {
+        ind.fundingRate = parseFloat(frData.lastFundingRate || 0);
+      }
+    } catch(e) {
+      ind.fundingRate = 0;
+    }
+    
+    // 计算量比（简化版）
+    const avgVol = volumes1h.slice(-20).reduce((a, b) => a + b, 0) / 20;
+    const recentVol = volumes1h.slice(-5).reduce((a, b) => a + b, 0) / 5;
+    ind.volumeRatio = avgVol > 0 ? recentVol / avgVol : 1;
+    
+    // 估算Taker买入比例（使用涨跌幅估算）
+    if (chg1h > 0 && chg24h > 0) {
+      ind.takerBuyRatio = 0.52 + Math.min(chg1h * 0.05, 0.1);
+    } else if (chg1h < 0 && chg24h < 0) {
+      ind.takerBuyRatio = 0.48 - Math.min(Math.abs(chg1h) * 0.05, 0.1);
+    } else {
+      ind.takerBuyRatio = 0.5;
+    }
 
     // 渲染（每个步骤独立try，防止一个崩溃影响其他）
     try { renderChart(klines1h); } catch(e) { console.error('renderChart:', e); }

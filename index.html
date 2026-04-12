@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>币安合约暴涨预警系统 v3.24</title>
+    <title>币安合约暴涨预警系统 v3.25</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box}
         body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;background:linear-gradient(135deg,#0f0f1a,#1a1a2e);min-height:100vh;color:#e0e0e0}
@@ -670,53 +670,51 @@ function score(d) {
         if (reboundScore >= 5) return { s: 20 + reboundScore * 2, sig: sig.slice(0, 6), level: '🔼底部反弹', isBottomRebound: true, isWatch, isCrash, crashSignals, core, resonanceScore: reboundResonance, isPreBurst };
     }
     
-    // ========== 3. 预涨蓄力检测 (v3.24 新增) ==========
+    // ========== 3. 预涨蓄力检测 (v3.27 精准版) ==========
     // 核心理念：找未涨但能量在积聚的币种
-    // 条件：价格平静（涨幅<3%）+ 布林极度收口 + 量能萌动 + 资金悄悄进场
+    // v3.27修复：v3.26门槛≥13分+信号≥3导致0结果 → 调整分值体系+适度放宽
     let preScore = 0;
     const preSigs = [];
-    const isQuiet = Math.abs(maxChg) < 3; // 价格尚未大动
+    const isQuiet = Math.abs(d.chg4h) < 3 && Math.abs(d.chg1h) < 2 && Math.abs(d.chg24h) < 8;
     const bbWidth = d.bb?.w || 999;
     
-    if (isQuiet) {
-        // 布林带极度收口（最强预涨信号）
+    // 布林收口(<3%)+价格平静，进入预涨检测
+    if (isQuiet && bbWidth < 3) {
+        // 布林带极度收口（核心信号）
         if (bbWidth < 1.5) { preScore += 5; preSigs.push('🔮布林极收口'); }
-        else if (bbWidth < 2.5) { preScore += 3; preSigs.push('📊布林收口'); }
-        else if (bbWidth < 4) { preScore += 1; }
+        else if (bbWidth < 2) { preScore += 3; preSigs.push('📊布林收口'); }
+        else { preScore += 2; }
         
-        // MACD从负转正刚刚金叉（零轴附近）
-        if (d.macd?.hist > 0 && d.macd?.hist < 0.3 && d.macd?.dif > -0.1) { preScore += 3; preSigs.push('💹MACD初现'); }
-        else if (d.macd?.hist > 0 && d.macd?.hist < 0.1) { preScore += 2; }
+        // MACD从负转正（零轴附近 = 更前瞻）
+        if (d.macd?.hist > 0 && d.macd?.hist < 0.3 && d.macd?.dif > -0.1) { preScore += 4; preSigs.push('💹MACD初现'); }
+        else if (d.macd?.hist > 0) { preScore += 2; }
         
-        // 量能萌动（异动但未爆）
-        if (d.vr >= 1.3 && d.vr < 1.8) { preScore += 2; preSigs.push(`📈量能${d.vr.toFixed(1)}x萌动`); }
-        else if (d.vr >= 1.8 && d.vr < 2.5) { preScore += 1; } // 已经爆量，降低预涨权重
+        // 量能异动（1.3x以上有意义）
+        if (d.vr >= 1.5) { preScore += 3; preSigs.push(`📈量能${d.vr.toFixed(1)}x萌动`); }
+        else if (d.vr >= 1.3) { preScore += 2; }
         
-        // RSI中位区（40-60，说明还未过热）
-        if (d.rsi >= 42 && d.rsi <= 58) { preScore += 2; preSigs.push('📊RSI中位'); }
-        else if (d.rsi >= 38 && d.rsi < 42) { preScore += 1; }
+        // Taker买入偏多（关键资金信号）
+        if (taker >= 0.58) { preScore += 5; preSigs.push(`🟢Taker${(taker*100).toFixed(0)}%吸筹`); }
+        else if (taker >= 0.55) { preScore += 3; preSigs.push(`🟢Taker${(taker*100).toFixed(0)}%暗进`); }
+        else if (taker >= 0.52) { preScore += 1; }
         
-        // 资金悄悄进场（Taker偏多但价格未动）
-        if (taker >= 0.55 && isQuiet) { preScore += 3; preSigs.push(`🟢Taker${(taker*100).toFixed(0)}%暗进`); }
-        else if (taker >= 0.52 && isQuiet) { preScore += 2; }
-        
-        // 均线多头排列但尚未爆发
+        // 均线多头排列
         if (d.ma7 && d.ma25 && d.ma99 && d.ma7 > d.ma25 && d.ma25 > d.ma99) { preScore += 2; preSigs.push('📈均线蓄势'); }
         
         // 多周期共振向上
         if (d.mtf?.aligned && d.mtf.direction === 'up') { preScore += 3; preSigs.push('🔄多周期同向'); }
         
-        // 底背离（价格未涨但指标转好）
-        if (d.divergence === 'bottom') { preScore += 2; preSigs.push('📊底背离'); }
+        // 底背离
+        if (d.divergence === 'bottom') { preScore += 3; preSigs.push('📊底背离'); }
         if (d.obvDiv === 'bottom') { preScore += 2; preSigs.push('📊OBV背离'); }
         
-        // 低费率（空头付费，利好多方）
-        if ((d.fr || 0) < -0.003) { preScore += 2; preSigs.push('💚费率利多'); }
+        // 低费率
+        if ((d.fr || 0) < -0.003) { preScore += 3; preSigs.push('💚费率利多'); }
         else if ((d.fr || 0) < -0.001) { preScore += 1; }
     }
     
-    if (preScore >= 8 && isQuiet) {
-        // 预涨蓄力信号
+    // v3.27精准版：≥10分 + ≥2个信号（确保精准，不贪多）
+    if (preScore >= 10 && isQuiet && preSigs.length >= 2) {
         core.tech = Math.min(Math.floor(preScore / 3), 4);
         if (taker > 0.52) core.whale = Math.floor((taker - 0.5) * 8);
         if ((d.fr || 0) < -0.001) core.fund = 1;
@@ -858,9 +856,12 @@ async function runAll() {
         // 活跃交易对
         const activeSymbols = new Set(exchangeInfo.symbols.filter(s => s.status === 'TRADING').map(s => s.symbol));
         
-        // 过滤USDT合约 + 成交量>50万
+        // 过滤USDT合约 + 成交量>50万 + 有效价格
         const coins = tickers
-            .filter(t => t.symbol.endsWith('USDT') && activeSymbols.has(t.symbol) && parseFloat(t.quoteVolume) > 500000)
+            .filter(t => t.symbol.endsWith('USDT') && 
+                        activeSymbols.has(t.symbol) && 
+                        parseFloat(t.quoteVolume) > 500000 &&
+                        parseFloat(t.lastPrice) > 0)
             .sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume));
         
         $('t1').textContent = coins.length;
@@ -929,8 +930,8 @@ async function runAll() {
                     const wrDiv = TA.wrDivergence(c4);
                     const sentiment = TA.marketSentiment(c4, v4, { fr: fmap[t.symbol] || 0, takerBuyRatio: takerBuyRatio });
 
-                    // 评分 (v3.16 全信号版)
-                    const { s, sig, level, isBottomRebound, isWatch, isCrash, crashSignals, core, resonanceScore } = score({
+                    // 评分 (v3.24 全信号版)
+                    const { s, sig, level, isBottomRebound, isWatch, isCrash, crashSignals, core, resonanceScore, isPreBurst, preScore } = score({
                         bb, vr: recV4 / avgV4, rsi: rsi4, macd, kdj, wr, mom,
                         ma7, ma25, ma99, chg4h, chg1h, chg24h,
                         price: c4[c4.length - 1], fromLow, fr: fmap[t.symbol] || 0,
@@ -952,7 +953,7 @@ async function runAll() {
                         adx: adx !== null ? fmt(adx, 0) : '-',
                         stochRsi: stochRsi ? fmt(stochRsi.k, 0) : '-',
                         bbPos: bb?.pos || null, fromLow,
-                        s, sig, level, isBottomRebound, isWatch, isCrash, crashSignals
+                        s, sig, level, isBottomRebound, isWatch, isCrash, crashSignals, isPreBurst, preScore
                     };
                 } catch (e) { return null; }
             }));
@@ -1023,15 +1024,21 @@ async function runWhale() {
         const exchangeInfo = await apiFetch('/fapi/v1/exchangeInfo');
         const activeSymbols = new Set(exchangeInfo.symbols.filter(s => s.status === 'TRADING').map(s => s.symbol));
 
-        // 取Top30交易量大的币种获取TopTrader多空比
+        // 取Top30交易量大的币种获取TopTrader多空比（过滤下架和无交易量）
         const topCoins = tickers
-            .filter(t => t.symbol.endsWith('USDT') && activeSymbols.has(t.symbol) && parseFloat(t.quoteVolume) > 50000000)
+            .filter(t => t.symbol.endsWith('USDT') && 
+                        activeSymbols.has(t.symbol) && 
+                        parseFloat(t.quoteVolume) > 50000000 &&
+                        parseFloat(t.lastPrice) > 0)
             .sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
             .slice(0, 30)
             .map(t => t.symbol);
 
         const results = tickers
-            .filter(t => t.symbol.endsWith('USDT') && activeSymbols.has(t.symbol) && parseFloat(t.quoteVolume) > 5000000)
+            .filter(t => t.symbol.endsWith('USDT') && 
+                        activeSymbols.has(t.symbol) && 
+                        parseFloat(t.quoteVolume) > 5000000 &&
+                        parseFloat(t.lastPrice) > 0)
             .map(t => {
                 const takerBuyRatio = calcTakerRatio(t);
                 const whaleLongShortRatio = calcWhaleRatio(takerBuyRatio);
@@ -1071,12 +1078,15 @@ async function runLiq() {
     
     try {
         // 获取多空清算快照（使用24h数据和费率估算）
-        const [tickers, fundingRates] = await Promise.all([
+        const [tickers, fundingRates, exchangeInfo] = await Promise.all([
             apiFetch('/fapi/v1/ticker/24hr'),
-            apiFetch('/fapi/v1/premiumIndex')
+            apiFetch('/fapi/v1/premiumIndex'),
+            apiFetch('/fapi/v1/exchangeInfo')
         ]);
         
         console.log('清算数据获取成功:', { tickers: tickers?.length, fundingRates: fundingRates?.length });
+        
+        const activeSymbols = new Set((exchangeInfo?.symbols || []).filter(s => s.status === 'TRADING').map(s => s.symbol));
         
         const fmap = {};
         (fundingRates || []).forEach(f => fmap[f.symbol] = parseFloat(f.lastFundingRate) || 0);
@@ -1084,7 +1094,10 @@ async function runLiq() {
         // 估算清算热区
         const longZones = [], shortZones = [], events = [];
         
-        const filteredTickers = tickers.filter(t => t.symbol.endsWith('USDT') && parseFloat(t.quoteVolume) > 5000000);
+        const filteredTickers = tickers.filter(t => t.symbol.endsWith('USDT') && 
+                                                        activeSymbols.has(t.symbol) && 
+                                                        parseFloat(t.quoteVolume) > 5000000 && 
+                                                        parseFloat(t.lastPrice) > 0);
         console.log('过滤后tickers:', filteredTickers.length, '示例:', filteredTickers[0]?.symbol, filteredTickers[0]?.priceChangePercent);
         
         filteredTickers.forEach(t => {
@@ -1204,9 +1217,12 @@ async function runRank() {
         window._cachedTickers = tickers;
         const activeSymbols = new Set(exchangeInfo.symbols.filter(s => s.status === 'TRADING').map(s => s.symbol));
         
-        // USDT合约 + 成交量过滤
+        // USDT合约 + 成交量过滤 + 有效价格
         const coins = tickers
-            .filter(t => t.symbol.endsWith('USDT') && activeSymbols.has(t.symbol) && parseFloat(t.quoteVolume) >= 500000)
+            .filter(t => t.symbol.endsWith('USDT') && 
+                        activeSymbols.has(t.symbol) && 
+                        parseFloat(t.quoteVolume) >= 500000 &&
+                        parseFloat(t.lastPrice) > 0)
             .map(t => ({
                 sym: t.symbol, price: parseFloat(t.lastPrice),
                 c24h: parseFloat(t.priceChangePercent), vol: parseFloat(t.quoteVolume)
@@ -1300,7 +1316,8 @@ function renderCard(c, styleKey = '') {
             <div>
                 <span class="name">${c.sym.replace('USDT', '')}</span>
                 <span class="price">$${fp(c.price)}</span>
-                <a href="https://www.binance.com/zh-CN/futures/${c.sym.replace('USDT', '')}USDT" target="_blank" style="margin-left:8px;color:#00bcd4;font-size:.8em;text-decoration:none">📊K线</a>
+                <a href="kline-analysis.html?symbol=${c.sym}" target="_blank" style="margin-left:8px;color:#00e676;font-size:.8em;text-decoration:none">📈分析</a>
+                <a href="https://www.binance.com/zh-CN/futures/${c.sym.replace('USDT', '')}USDT" target="_blank" style="margin-left:6px;color:#00bcd4;font-size:.8em;text-decoration:none">🚩交易</a>
             </div>
             <div style="text-align:right">
                 <span class="score ${scoreClass}">${scoreText}</span>
