@@ -1,0 +1,21 @@
+# OS
+desktop.ini
+*.lnk
+
+# IDE & WorkBuddy
+.workbuddy/
+.vscode/
+*.code-workspace
+
+# Build & Temp
+temp_*.js
+temp_*.html
+check_*.js
+
+# Misc
+v2rayN*/
+v2rayN*.lnk
+"index_fixed - 副本.html"
+"新建 文本文档.txt"
+"用户配置 1 - Edge.lnk"
+test_buttons.html

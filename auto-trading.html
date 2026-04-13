@@ -1,0 +1,2331 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🤖 自动交易系统</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0d1117;
+  --card: #161b22;
+  --border: #30363d;
+  --text: #e6edf3;
+  --text2: #8b949e;
+  --green: #3fb950;
+  --red: #f85149;
+  --yellow: #d29922;
+  --purple: #a371f7;
+  --blue: #58a6ff;
+  --cyan: #39d353;
+}
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, 'Segoe UI', sans-serif;
+  min-height: 100vh;
+}
+/* ========== Header ========== */
+.header {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.header h1 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--purple);
+}
+.header-info {
+  display: flex;
+  gap: 20px;
+  font-size: 13px;
+}
+.info-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.info-label { color: var(--text2); }
+.info-value { font-weight: 700; font-family: monospace; }
+.info-value.positive { color: var(--green); }
+.info-value.negative { color: var(--red); }
+.btn {
+  background: var(--purple);
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: opacity 0.2s;
+}
+.btn:hover { opacity: 0.85; }
+.btn-success { background: var(--green); }
+.btn-danger { background: var(--red); }
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.btn-ghost:hover { border-color: var(--text2); background: rgba(255,255,255,0.05); }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+/* ========== Main Layout ========== */
+.main {
+  display: grid;
+  grid-template-columns: 1fr 350px;
+  gap: 12px;
+  padding: 12px;
+  max-width: 1800px;
+  margin: 0 auto;
+}
+.panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.panel-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.panel-body { padding: 16px; }
+/* ========== Status Cards ========== */
+.status-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.status-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+}
+.status-card .label { font-size: 12px; color: var(--text2); margin-bottom: 8px; }
+.status-card .value { font-size: 24px; font-weight: 800; }
+.status-card .value.positive { color: var(--green); }
+.status-card .value.negative { color: var(--red); }
+.status-card .value.neutral { color: var(--yellow); }
+.status-card .sub { font-size: 11px; color: var(--text2); margin-top: 4px; }
+/* ========== Trade History ========== */
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.history-table th {
+  text-align: left;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text2);
+  font-weight: 600;
+}
+.history-table td {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.history-table tr:hover { background: rgba(255,255,255,0.02); }
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.badge-buy { background: rgba(63,185,80,0.15); color: var(--green); }
+.badge-sell { background: rgba(248,81,73,0.15); color: var(--red); }
+/* ========== Strategy Config ========== */
+.strategy-section { margin-bottom: 20px; }
+.strategy-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text2);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.form-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.form-row:last-child { border-bottom: none; }
+.form-label { font-size: 13px; color: var(--text2); }
+.param-tip {
+  width: 100%;
+  font-size: 10px;
+  color: var(--text2);
+  margin-left: 24px;
+  margin-top: -4px;
+  opacity: 0.8;
+}
+.form-input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  width: 100px;
+  text-align: right;
+}
+.form-input:focus { outline: none; border-color: var(--purple); }
+.form-select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  min-width: 120px;
+}
+.toggle {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  background: var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.toggle.active { background: var(--green); }
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+.toggle.active::after { transform: translateX(20px); }
+/* ========== Custom Coins ========== */
+.coin-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.coin-tag {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  padding: 6px 12px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.coin-tag:hover { border-color: var(--purple); color: var(--purple); }
+.coin-tag.active { background: var(--purple); border-color: var(--purple); color: #fff; }
+.coin-tag .remove {
+  font-size: 14px;
+  opacity: 0.7;
+}
+.coin-tag .remove:hover { opacity: 1; color: var(--red); }
+.add-coin-row {
+  display: flex;
+  gap: 8px;
+}
+.add-coin-row input {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.add-coin-row input:focus { outline: none; border-color: var(--purple); }
+/* ========== API Config ========== */
+.api-section {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.api-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+.api-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.api-dot.connected { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.api-dot.disconnected { background: var(--red); }
+.api-form { display: flex; flex-direction: column; gap: 10px; }
+.api-input {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  width: 100%;
+}
+.api-input:focus { outline: none; border-color: var(--purple); }
+.api-hint { font-size: 11px; color: var(--text2); margin-top: 4px; }
+/* ========== Bot Controls ========== */
+.bot-controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.bot-card {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+}
+.bot-card .name { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+.bot-card .status { font-size: 11px; color: var(--text2); }
+.bot-card .toggle-btn {
+  width: 100%;
+  padding: 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  margin-top: 8px;
+}
+.bot-card .toggle-btn.start { background: var(--green); color: #fff; }
+.bot-card .toggle-btn.stop { background: var(--red); color: #fff; }
+/* ========== Log Panel ========== */
+.log-panel {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  max-height: 200px;
+  overflow-y: auto;
+  font-family: monospace;
+  font-size: 11px;
+}
+.log-entry { padding: 4px 0; border-bottom: 1px solid var(--border); }
+.log-entry:last-child { border-bottom: none; }
+.log-time { color: var(--text2); margin-right: 8px; }
+.log-buy { color: var(--green); }
+.log-sell { color: var(--red); }
+.log-info { color: var(--blue); }
+.log-warn { color: var(--yellow); }
+/* ========== Mini Chart ========== */
+.mini-chart {
+  height: 120px;
+  background: var(--bg);
+  border-radius: 8px;
+  margin: 12px 0;
+  position: relative;
+  overflow: hidden;
+}
+/* ========== Modal ========== */
+.modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+}
+.modal.show { display: flex; }
+.modal-content {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.modal-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 20px;
+}
+.modal-close {
+  float: right;
+  background: none;
+  border: none;
+  color: var(--text2);
+  font-size: 20px;
+  cursor: pointer;
+}
+.modal-close:hover { color: var(--text); }
+/* ========== Mobile ========== */
+@media (max-width: 900px) {
+  .main { grid-template-columns: 1fr; }
+  .status-cards { grid-template-columns: repeat(2, 1fr); }
+  .header { flex-direction: column; align-items: flex-start; }
+  .header-info { flex-wrap: wrap; }
+}
+/* ========== Real-time Price List ========== */
+.price-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  margin: 4px 0;
+  background: rgba(255,255,255,0.03);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.price-item:hover {
+  background: rgba(255,255,255,0.08);
+}
+.price-sym {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text);
+}
+.price-info {
+  text-align: right;
+}
+.price-val {
+  font-family: monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.price-chg {
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+.price-chg.positive { color: var(--green); }
+.price-chg.negative { color: var(--red); }
+
+/* Search Result Items */
+.search-result-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 10px;
+  margin: 2px 0;
+  background: rgba(255,255,255,0.05);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.2s;
+}
+.search-result-item:hover {
+  background: rgba(255,255,255,0.1);
+}
+
+/* ========== Strategy Guide ========== */
+.strategy-guide {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.strategy-guide-header {
+  padding: 12px 16px;
+  background: rgba(163,113,247,0.1);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  font-size: 14px;
+}
+.strategy-guide-header:hover { background: rgba(163,113,247,0.15); }
+.strategy-guide-header .arrow { transition: transform 0.3s; }
+.strategy-guide.open .arrow { transform: rotate(180deg); }
+.strategy-guide-content {
+  display: none;
+  padding: 16px;
+}
+.strategy-guide.open .strategy-guide-content { display: block; }
+.strategy-tab-bar {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+.strategy-tab {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  color: var(--text2);
+  transition: all 0.2s;
+}
+.strategy-tab:hover { background: var(--border); color: var(--text); }
+.strategy-tab.active { background: var(--purple); color: #fff; }
+.strategy-detail {
+  display: none;
+}
+.strategy-detail.active { display: block; }
+.strategy-section-box {
+  background: rgba(255,255,255,0.03);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+.strategy-section-box h4 {
+  font-size: 13px;
+  color: var(--blue);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.strategy-section-box p, .strategy-section-box li {
+  font-size: 12px;
+  color: var(--text2);
+  line-height: 1.6;
+}
+.strategy-section-box ul {
+  margin: 8px 0 8px 16px;
+}
+.strategy-section-box li { margin-bottom: 4px; }
+.strategy-risk { 
+  background: rgba(248,81,73,0.1); 
+  border: 1px solid rgba(248,81,73,0.3);
+}
+.strategy-risk h4 { color: var(--red) !important; }
+.strategy-tip {
+  background: rgba(210,153,34,0.1);
+  border: 1px solid rgba(210,153,34,0.3);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--yellow);
+  margin-top: 8px;
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <h1>🤖 自动交易系统</h1>
+  <div class="header-info">
+    <div class="info-item">
+      <span class="info-label">行情同步:</span>
+      <span class="info-value" id="wsStatus" style="color: var(--orange);">⚡ 等待连接</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">模拟资金:</span>
+      <span class="info-value" id="simBalance">10,000.00 USDT</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">今日收益:</span>
+      <span class="info-value positive" id="todayProfit">+0.00 (0.00%)</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">总收益:</span>
+      <span class="info-value positive" id="totalProfit">+0.00 (0.00%)</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">运行状态:</span>
+      <span class="info-value" id="botStatus">已停止</span>
+    </div>
+  </div>
+  <div style="margin-left: auto; display: flex; gap: 8px;">
+    <button class="btn btn-ghost" onclick="openModal('apiModal')">API配置</button>
+    <button class="btn btn-ghost" onclick="exportData()">导出记录</button>
+    <button class="btn btn-danger" id="mainToggle" onclick="toggleBot()">启动交易</button>
+  </div>
+</div>
+
+<!-- Main Content -->
+<div class="main">
+  <!-- Left Panel -->
+  <div>
+    <!-- Real-time Prices -->
+    <div class="panel" style="margin-bottom: 12px;">
+      <div class="panel-header">
+        📊 实时行情
+        <button class="btn btn-sm btn-ghost" onclick="toggleCoinSearch()" style="margin-left: auto; padding: 2px 8px; font-size: 11px;">➕ 添加</button>
+      </div>
+      <div class="panel-body" style="padding: 8px;">
+        <!-- 搜索添加币种 -->
+        <div id="coinSearchBox" style="display: none; margin-bottom: 10px;">
+          <div style="display: flex; gap: 6px;">
+            <input type="text" id="coinSearchInput" placeholder="输入币种名称搜索..." 
+                   style="flex: 1; padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg2); color: var(--text); font-size: 12px;"
+                   oninput="searchCoins(this.value)" onkeypress="if(event.key==='Enter')addSearchedCoin()">
+            <button class="btn btn-sm btn-success" onclick="addSearchedCoin()" style="padding: 4px 12px;">添加</button>
+          </div>
+          <div id="searchResults" style="margin-top: 6px; max-height: 150px; overflow-y: auto;"></div>
+        </div>
+        <div id="priceList" style="max-height: 400px; overflow-y: auto;">
+          <div style="text-align: center; color: var(--text2); padding: 20px;">📡 等待行情数据...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status Cards -->
+    <div class="status-cards">
+      <div class="status-card">
+        <div class="label">胜率</div>
+        <div class="value neutral" id="winRate">--%</div>
+        <div class="sub" id="winLoss">0胜/0负</div>
+      </div>
+      <div class="status-card">
+        <div class="label">平均收益</div>
+        <div class="value positive" id="avgProfit">--%</div>
+        <div class="sub">每笔交易</div>
+      </div>
+      <div class="status-card">
+        <div class="label">最大回撤</div>
+        <div class="value negative" id="maxDrawdown">--%</div>
+        <div class="sub">历史最大</div>
+      </div>
+      <div class="status-card">
+        <div class="label">交易次数</div>
+        <div class="value neutral" id="totalTrades">0</div>
+        <div class="sub">今日 0 笔</div>
+      </div>
+    </div>
+
+    <!-- Strategy Guide -->
+    <div class="strategy-guide" id="strategyGuide">
+      <div class="strategy-guide-header" onclick="toggleGuide()">
+        <span>📚 策略说明</span>
+        <span class="arrow">▼</span>
+      </div>
+      <div class="strategy-guide-content">
+        <div class="strategy-tab-bar">
+          <button class="strategy-tab active" onclick="showStrategyTab('grid')">网格策略</button>
+          <button class="strategy-tab" onclick="showStrategyTab('martin')">马丁策略</button>
+          <button class="strategy-tab" onclick="showStrategyTab('signal')">信号跟单</button>
+          <button class="strategy-tab" onclick="showStrategyTab('risk')">风控指南</button>
+        </div>
+        
+        <!-- 网格策略 -->
+        <div class="strategy-detail active" id="tab-grid">
+          <div class="strategy-section-box">
+            <h4>📖 原理说明</h4>
+            <p>网格策略将价格区间划分为多个网格，在每个网格价位自动挂单。当价格触碰到挂单价时自动成交，通过价格波动在网格间高卖低买获利。</p>
+          </div>
+          <div class="strategy-section-box">
+            <h4>⚙️ 参数设置</h4>
+            <ul>
+              <li><b>网格数量：</b>2-20格，建议5-10格。数量越多，每格利润越小但机会越多</li>
+              <li><b>网格间距：</b>0.1%-10%，建议1%-2%。间距越大，风险越高但单次收益更高</li>
+              <li><b>每笔投入比例：</b>每格投入占总资金的比例，建议5%-15%</li>
+              <li><b>止盈/止损：</b>整体仓位的止盈止损比例</li>
+            </ul>
+          </div>
+          <div class="strategy-section-box">
+            <h4>✅ 适用场景</h4>
+            <ul>
+              <li>横盘震荡行情，价格来回波动</li>
+              <li>波动较大但方向不明确的币种</li>
+              <li>希望稳定小赚，不追求暴利</li>
+            </ul>
+          </div>
+          <div class="strategy-section-box strategy-risk">
+            <h4>⚠️ 风险提示</h4>
+            <ul>
+              <li>单边行情可能导致全部仓位被套</li>
+              <li>网格间距过小可能在极端行情被一击穿透</li>
+              <li>需要预留足够资金应对极端波动</li>
+            </ul>
+          </div>
+          <div class="strategy-tip">💡 建议：网格策略适合在明显的震荡行情中使用，可配合布林带判断上下边界</div>
+        </div>
+        
+        <!-- 马丁策略 -->
+        <div class="strategy-detail" id="tab-martin">
+          <div class="strategy-section-box">
+            <h4>📖 原理说明</h4>
+            <p>马丁策略（Martingale）源于赌博，每次亏损后将下单金额翻倍。只要赢一次，就能覆盖之前所有亏损并获得利润。核心逻辑是"必胜"——只要资金无限，终究会盈利。</p>
+          </div>
+          <div class="strategy-section-box">
+            <h4>⚙️ 参数设置</h4>
+            <ul>
+              <li><b>每笔投入比例：</b>首单金额，建议1%-5%，不宜过高</li>
+              <li><b>加仓倍数：</b>每次亏损后的加仓比例，建议1.5-2倍</li>
+              <li><b>最大加仓次数：</b>限制连续加仓次数，建议3-5次</li>
+              <li><b>止盈/止损：</b>单笔止盈建议1%-3%，止损设置整体仓位上限</li>
+            </ul>
+          </div>
+          <div class="strategy-section-box">
+            <h4>✅ 适用场景</h4>
+            <ul>
+              <li>趋势明显但有回调的行情</li>
+              <li>高波动币种，有足够反弹空间</li>
+              <li>有充足资金储备能承受连续加仓</li>
+            </ul>
+          </div>
+          <div class="strategy-section-box strategy-risk">
+            <h4>⚠️ 风险提示</h4>
+            <ul>
+              <li>极高风险！连续亏损可能造成巨大损失</li>
+              <li>10次加仓后，第11次下单金额是首单的1000+倍</li>
+              <li>单边行情可能导致爆仓</li>
+              <li>⚠️ <b>强烈建议设置最大加仓次数和总仓位上限！</b></li>
+            </ul>
+          </div>
+          <div class="strategy-tip">💡 强烈建议：马丁策略务必配合严格的风控，首单金额要小，加仓次数限制在3次以内</div>
+        </div>
+        
+        <!-- 信号跟单 -->
+        <div class="strategy-detail" id="tab-signal">
+          <div class="strategy-section-box">
+            <h4>📖 原理说明</h4>
+            <p>信号跟单策略连接K线分析系统，当检测到买入信号时自动开多，检测到卖出信号时自动平仓或做空。通过技术指标组合判断趋势方向。</p>
+          </div>
+          <div class="strategy-section-box">
+            <h4>⚙️ 参数设置</h4>
+            <ul>
+              <li><b>技术指标过滤：</b>
+                <ul>
+                  <li>RSI超买过滤：RSI超过设定值时不买入（建议70-80）</li>
+                  <li>MACD买入：要求MACD金叉才买入</li>
+                  <li>布林带过滤：价格在中轨下方时不买入</li>
+                  <li>TD9确认：等待TD9卖出计数完成才买入</li>
+                </ul>
+              </li>
+              <li><b>止盈/止损：</b>建议止盈3%-10%，止损1%-3%</li>
+              <li><b>每笔投入比例：</b>建议10%-20%</li>
+            </ul>
+          </div>
+          <div class="strategy-section-box">
+            <h4>✅ 适用场景</h4>
+            <ul>
+              <li>有明显趋势的行情</li>
+              <li>希望自动化执行技术分析策略</li>
+              <li>结合多个指标提高信号准确率</li>
+            </ul>
+          </div>
+          <div class="strategy-section-box strategy-risk">
+            <h4>⚠️ 风险提示</h4>
+            <ul>
+              <li>技术指标存在滞后性，可能在趋势末尾才发出信号</li>
+              <li>指标组合过于严格可能导致错过机会</li>
+              <li>需要根据不同币种调整指标参数</li>
+            </ul>
+          </div>
+          <div class="strategy-tip">💡 建议：多个指标同时满足时信号更可靠，但也会减少交易次数。可先回测找到最佳组合</div>
+        </div>
+        
+        <!-- 风控指南 -->
+        <div class="strategy-detail" id="tab-risk">
+          <div class="strategy-section-box">
+            <h4>🛡️ 核心风控原则</h4>
+            <ul>
+              <li><b>永不重仓：</b>单笔交易不超过总资金的10%-20%</li>
+              <li><b>严格止损：</b>每笔交易必须设置止损，亏损不超过2%</li>
+              <li><b>分散投资：</b>不要把所有资金放在一个策略或一个币种</li>
+              <li><b>预留子弹：</b>始终保留30%-50%资金作为应急储备</li>
+            </ul>
+          </div>
+          <div class="strategy-section-box">
+            <h4>📊 仓位管理</h4>
+            <ul>
+              <li><b>固定比例法：</b>每笔投入固定比例资金（如10%）</li>
+              <li><b>凯利公式：</b>根据胜率和盈亏比计算最优仓位</li>
+              <li><b>金字塔加仓：</b>盈利时加仓，亏损时不加或减仓</li>
+            </ul>
+          </div>
+          <div class="strategy-section-box">
+            <h4>⏰ 交易频率控制</h4>
+            <ul>
+              <li><b>每日最大交易次数：</b>建议5-10次，避免过度交易</li>
+              <li><b>单日最大亏损：</b>亏损达到5%-10%时停止交易</li>
+              <li><b>冷却时间：</b>连续亏损后设置休息时间</li>
+            </ul>
+          </div>
+          <div class="strategy-section-box strategy-risk">
+            <h4>🚨 强制平仓线</h4>
+            <ul>
+              <li>账户总资金回撤超过20%时，建议停止所有策略</li>
+              <li>单笔交易亏损超过5%时必须止损出局</li>
+              <li>遭遇重大新闻事件时暂停自动交易</li>
+            </ul>
+          </div>
+          <div class="strategy-tip">💡 记住：赚钱的关键不是抓住所有机会，而是减少亏损。保住本金永远是第一优先级！</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bot Controls -->
+    <div class="panel">
+      <div class="panel-header">📊 交易机器人</div>
+      <div class="panel-body">
+        <div class="bot-controls">
+          <div class="bot-card">
+            <div class="name">网格策略</div>
+            <div class="status">低风险 稳定收益</div>
+            <button class="toggle-btn start" id="gridBot" onclick="toggleBotModule('grid')">启动</button>
+          </div>
+          <div class="bot-card">
+            <div class="name">马丁策略</div>
+            <div class="status">高风险 高收益</div>
+            <button class="toggle-btn start" id="martinBot" onclick="toggleBotModule('martin')">启动</button>
+          </div>
+          <div class="bot-card">
+            <div class="name">信号跟单</div>
+            <div class="status">跟随K线信号</div>
+            <button class="toggle-btn start" id="signalBot" onclick="toggleBotModule('signal')">启动</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Strategy Config -->
+    <div class="panel" style="margin-top: 12px;">
+      <div class="panel-header">
+        ⚙️ 策略配置
+        <button class="btn btn-sm btn-ghost" onclick="resetStrategy()">重置</button>
+      </div>
+      <div class="panel-body">
+        
+        <!-- 当前交易币种 -->
+        <div class="form-row" style="margin-bottom: 12px;">
+          <span class="form-label">交易币种</span>
+          <select class="form-input" id="tradeSymbol" onchange="onSymbolChange()" style="flex: 1;">
+            <!-- 动态填充 -->
+          </select>
+          <button class="btn btn-sm btn-ghost" onclick="syncTradeSymbol()" title="同步自选币种" style="margin-left: 8px;">🔄</button>
+        </div>
+        
+        <!-- 策略选择标签 -->
+        <div style="display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap;">
+          <button class="btn btn-sm active" id="tabGridBtn" onclick="switchStrategyTab('grid')" style="flex:1; min-width: 80px;">📊 网格</button>
+          <button class="btn btn-sm" id="tabMartinBtn" onclick="switchStrategyTab('martin')" style="flex:1; min-width: 80px;">💰 马丁</button>
+          <button class="btn btn-sm" id="tabSignalBtn" onclick="switchStrategyTab('signal')" style="flex:1; min-width: 80px;">📡 信号</button>
+          <button class="btn btn-sm" id="tabRiskBtn" onclick="switchStrategyTab('risk')" style="flex:1; min-width: 80px;">🛡️ 风控</button>
+        </div>
+
+        <!-- 基础配置（所有策略共用） -->
+        <div id="configBase" class="strategy-config-panel">
+          <div class="strategy-section">
+            <div class="strategy-title">📋 基础配置</div>
+            <div class="form-row">
+              <span class="form-label">交易币种</span>
+              <select class="form-input" id="tradeSymbol" onchange="onSymbolChange()" style="width: 120px;">
+                <!-- 动态填充 -->
+              </select>
+              <span class="param-tip">从自选币种中选择</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">合约倍数</span>
+              <select class="form-input" id="leverageSelect" style="width: 100px;">
+                <option value="10" selected>10x</option>
+                <option value="20">20x</option>
+                <option value="50">50x</option>
+              </select>
+              <span id="leverageInfo" style="font-size: 10px; color: var(--text2); margin-left: 8px;">--</span>
+              <span class="param-tip">杠杆越高收益越大但风险越高</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">全仓模式</span>
+              <div class="toggle active" id="marginMode" onclick="this.classList.toggle('active')"></div>
+              <span class="param-tip">全仓：所有仓位共享保证金 | 逐仓：单仓位单独保证金</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 网格策略配置 -->
+        <div id="configGrid" class="strategy-config-panel" style="display: none;">
+          <div class="strategy-section">
+            <div class="strategy-title">📊 网格策略配置</div>
+            <div class="form-row">
+              <span class="form-label">首单投入比例</span>
+              <input type="number" class="form-input" id="gridInvestRatio" value="5" min="1" max="30" /> %
+              <span class="param-tip">每格下单金额占总资金比例(建议5%)</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">网格数量</span>
+              <input type="number" class="form-input" id="gridCount" value="5" min="2" max="20" />
+              <span class="param-tip">价格区间划分的格数(建议5-10)</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">网格间距</span>
+              <input type="number" class="form-input" id="gridSpacing" value="1" min="0.1" max="10" step="0.1" /> %
+              <span class="param-tip">每格价格间隔百分比(建议1-2%)</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">止盈比例</span>
+              <input type="number" class="form-input" id="gridTakeProfit" value="3" min="0.5" max="20" step="0.1" /> %
+              <span class="param-tip">整体仓位达到此盈利比例时全部平仓</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">止损比例</span>
+              <input type="number" class="form-input" id="gridStopLoss" value="5" min="1" max="30" step="0.1" /> %
+              <span class="param-tip">整体仓位亏损达到此比例时全部平仓</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">自动补单</span>
+              <div class="toggle active" id="gridAutoReorder" onclick="this.classList.toggle('active')"></div>
+              <span class="param-tip">开启：成交后自动挂下一格单</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">逆向网格(做空)</span>
+              <div class="toggle" id="gridReverse" onclick="this.classList.toggle('active')"></div>
+              <span class="param-tip">开启：下跌行情做空获利的网格策略</span>
+            </div>
+          </div>
+          <div style="font-size: 11px; color: var(--text2); margin-top: 8px;">
+            💡 建议：震荡行情使用正向网格，单边行情使用逆向网格
+          </div>
+        </div>
+
+        <!-- 马丁策略配置 -->
+        <div id="configMartin" class="strategy-config-panel" style="display: none;">
+          <div class="strategy-section">
+            <div class="strategy-title" style="color: var(--orange);">⚠️ 马丁策略配置（高风险）</div>
+            <div class="form-row">
+              <span class="form-label">首单投入比例</span>
+              <input type="number" class="form-input" id="martinInvestRatio" value="2" min="0.5" max="10" /> %
+              <span class="param-tip">首单金额占总资金比例(建议2%低风险)</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">加仓倍数</span>
+              <input type="number" class="form-input" id="martinMultiplier" value="2" min="1.5" max="3" step="0.1" />
+              <span class="param-tip">每次加仓金额是前一次的倍数(建议2)</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">最大加仓次数</span>
+              <input type="number" class="form-input" id="martinMaxSteps" value="3" min="1" max="10" />
+              <span class="param-tip">最多加仓几次后不再加仓(建议≤5)</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">单笔止盈</span>
+              <input type="number" class="form-input" id="martinTakeProfit" value="1" min="0.5" max="5" step="0.1" /> %
+              <span class="param-tip">每笔订单达到此盈利时平仓</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">整体止损</span>
+              <input type="number" class="form-input" id="martinStopLoss" value="10" min="5" max="50" step="1" /> %
+              <span class="param-tip">账户总亏损达到此比例时全部平仓</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">保本止损</span>
+              <div class="toggle active" id="martinBreakEven" onclick="this.classList.toggle('active')"></div>
+              <span class="param-tip">盈利后自动将止损线移至成本价</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">趋势过滤</span>
+              <div class="toggle active" id="martinTrendFilter" onclick="this.classList.toggle('active')"></div>
+              <span class="param-tip">只在趋势方向(如MA多头)时加仓</span>
+            </div>
+          </div>
+          <div style="font-size: 11px; color: var(--red); margin-top: 8px;">
+            ⚠️ 警告：10次加仓后资金需求为首单的1000+倍！务必设置最大加仓次数
+          </div>
+        </div>
+
+        <!-- 信号跟单配置 -->
+        <div id="configSignal" class="strategy-config-panel" style="display: none;">
+          <div class="strategy-section">
+            <div class="strategy-title">📡 信号跟单配置</div>
+            <div class="form-row">
+              <span class="form-label">每笔投入比例</span>
+              <input type="number" class="form-input" id="signalInvestRatio" value="10" min="1" max="30" /> %
+              <span class="param-tip">每笔信号订单占总资金比例</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">止盈比例</span>
+              <input type="number" class="form-input" id="signalTakeProfit" value="5" min="1" max="30" step="0.5" /> %
+              <span class="param-tip">盈利达到此比例时自动止盈</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">止损比例</span>
+              <input type="number" class="form-input" id="signalStopLoss" value="2" min="0.5" max="10" step="0.1" /> %
+              <span class="param-tip">亏损达到此比例时自动止损</span>
+            </div>
+          </div>
+          <div class="strategy-section">
+            <div class="strategy-title">🔍 技术指标过滤</div>
+            <div class="form-row">
+              <span class="form-label">RSI超买过滤</span>
+              <input type="number" class="form-input" id="rsiFilter" value="70" min="50" max="90" />
+              <span class="param-tip">RSI高于此值时不买入(建议70)</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">RSI超卖入场</span>
+              <input type="number" class="form-input" id="rsiOversold" value="35" min="10" max="50" />
+              <span class="param-tip">RSI低于此值时考虑买入(建议30)</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">MACD金叉买入</span>
+              <div class="toggle active" id="macdFilter" onclick="this.classList.toggle('active')"></div>
+              <span class="param-tip">DIF上穿DEA时买入信号</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">MACD零轴上方</span>
+              <div class="toggle" id="macdAboveZero" onclick="this.classList.toggle('active')"></div>
+              <span class="param-tip">仅在MACD>0时买入(更保守)</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">布林带中轨过滤</span>
+              <div class="toggle" id="bbFilter" onclick="this.classList.toggle('active')"></div>
+              <span class="param-tip">价格在布林中轨上方时买入</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">TD9卖出完成确认</span>
+              <div class="toggle active" id="td9Filter" onclick="this.classList.toggle('active')"></div>
+              <span class="param-tip">TD9卖出计数完成后再买入</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">KDJ超卖金叉</span>
+              <div class="toggle" id="kdjFilter" onclick="this.classList.toggle('active')"></div>
+              <span class="param-tip">KDJ低位金叉时买入信号</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">量能放大确认</span>
+              <div class="toggle" id="volumeFilter" onclick="this.classList.toggle('active')"></div>
+              <span class="param-tip">买入时要求成交量放大</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">量能倍数</span>
+              <input type="number" class="form-input" id="volumeMultiplier" value="1.5" min="1" max="5" step="0.1" />
+              <span class="param-tip">对比平均量需达到的倍数</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">持仓量过滤</span>
+              <div class="toggle" id="oiFilter" onclick="this.classList.toggle('active')"></div>
+              <span class="param-tip">要求持仓量达到一定规模才交易</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">最低持仓量(M)</span>
+              <input type="number" class="form-input" id="minOpenInterest" value="10" min="1" max="1000" step="1" />
+              <span class="param-tip">USDT价值，10M=1000万</span>
+            </div>
+          </div>
+          <div style="font-size: 11px; color: var(--text2); margin-top: 8px;">
+            💡 建议：指标过滤越多，信号越少但准确率越高
+          </div>
+        </div>
+
+        <!-- 风控配置 -->
+        <div id="configRisk" class="strategy-config-panel" style="display: none;">
+          <div class="strategy-section">
+            <div class="strategy-title">🛡️ 风控配置</div>
+            <div class="form-row">
+              <span class="form-label">每日最大交易</span>
+              <input type="number" class="form-input" id="maxDailyTrades" value="10" min="1" max="50" />
+              <span class="param-tip">每天最多开仓次数(建议10)</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">单日最大亏损</span>
+              <input type="number" class="form-input" id="maxDailyLoss" value="5" min="1" max="30" /> %
+              <span class="param-tip">当天亏损达此值停止交易(建议5%)</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">总资金回撤止损</span>
+              <input type="number" class="form-input" id="maxTotalDrawdown" value="20" min="5" max="50" /> %
+              <span class="param-tip">账户从高点回撤此值停止(建议20%)</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">冷却时间</span>
+              <input type="number" class="form-input" id="cooldown" value="5" min="1" max="60" /> 分钟
+              <span class="param-tip">止损后等待多久再开新单</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">连续亏损暂停</span>
+              <input type="number" class="form-input" id="consecutiveLossStop" value="3" min="1" max="10" />
+              <span class="param-tip">连续亏损N次后暂停交易</span>
+            </div>
+          </div>
+          <div class="strategy-section">
+            <div class="strategy-title">⏰ 交易时段控制</div>
+            <div class="form-row">
+              <span class="form-label">仅限UTC时间</span>
+              <input type="text" class="form-input" id="allowedHours" value="0-23" placeholder="0-23" style="width: 80px;" />
+              <span class="param-tip">允许交易的UTC小时范围</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">允许周末交易</span>
+              <div class="toggle active" id="allowWeekend" onclick="this.classList.toggle('active')"></div>
+              <span class="param-tip">周六日是否允许开仓交易</span>
+            </div>
+          </div>
+          <div class="strategy-section">
+            <div class="strategy-title">🔒 账户保护</div>
+            <div class="form-row">
+              <span class="form-label">模拟模式</span>
+              <div class="toggle active" id="simMode" onclick="this.classList.toggle('active')"></div>
+              <span class="param-tip">开启后只模拟交易不下真实单</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">大额交易确认</span>
+              <input type="number" class="form-input" id="largeTradeConfirm" value="50" min="10" max="100" /> %
+              <span class="param-tip">单笔超过此比例需手动确认</span>
+            </div>
+          </div>
+          <div style="font-size: 11px; color: var(--text2); margin-top: 8px;">
+            💡 提示：模拟模式开启时不会使用真实API下单
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div>
+    <!-- Custom Coins -->
+    <div class="panel">
+      <div class="panel-header">⭐ 自选币种</div>
+      <div class="panel-body">
+        <div class="coin-list" id="customCoins">
+          <span class="coin-tag active" onclick="selectCustomCoin(this, 'BTCUSDT')">BTC <span class="remove">×</span></span>
+          <span class="coin-tag" onclick="selectCustomCoin(this, 'ETHUSDT')">ETH <span class="remove">×</span></span>
+          <span class="coin-tag" onclick="selectCustomCoin(this, 'SOLUSDT')">SOL <span class="remove">×</span></span>
+        </div>
+        <div class="add-coin-row">
+          <input type="text" id="newCoinInput" placeholder="输入币种，如 BTCUSDT" />
+          <button class="btn btn-sm" onclick="addCustomCoin()">添加</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Current Position -->
+    <div class="panel" style="margin-top: 12px;">
+      <div class="panel-header">
+        📍 当前持仓
+        <span id="positionCount" style="font-size:12px;color:var(--text2);">0 个</span>
+      </div>
+      <div class="panel-body" id="positionsList">
+        <div style="text-align:center;color:var(--text2);padding:20px;font-size:13px;">
+          暂无持仓
+        </div>
+      </div>
+    </div>
+
+    <!-- Trade History -->
+    <div class="panel" style="margin-top: 12px;">
+      <div class="panel-header">
+        📜 交易记录
+        <button class="btn btn-sm btn-ghost" onclick="clearHistory()">清空</button>
+      </div>
+      <div class="panel-body" style="padding:0;max-height:300px;overflow-y:auto;">
+        <table class="history-table">
+          <thead>
+            <tr>
+              <th>时间</th>
+              <th>币种</th>
+              <th>类型</th>
+              <th>数量</th>
+              <th>价格</th>
+              <th>盈亏</th>
+            </tr>
+          </thead>
+          <tbody id="historyBody">
+            <tr>
+              <td colspan="6" style="text-align:center;color:var(--text2);padding:20px;">暂无交易记录</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Log Panel -->
+    <div class="panel" style="margin-top: 12px;">
+      <div class="panel-header">📋 运行日志</div>
+      <div class="panel-body">
+        <div class="log-panel" id="logPanel">
+          <div class="log-entry">
+            <span class="log-time">[--:--:--]</span>
+            <span class="log-info">系统初始化完成，等待启动...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- API Modal -->
+<div class="modal" id="apiModal">
+  <div class="modal-content">
+    <button class="modal-close" onclick="closeModal('apiModal')">×</button>
+    <div class="modal-title">🔐 API 密钥配置</div>
+    
+    <div class="api-section">
+      <div class="api-status">
+        <div class="api-dot disconnected" id="apiStatus"></div>
+        <span id="apiStatusText">未连接</span>
+      </div>
+      <div class="api-form">
+        <div>
+          <label style="display:block;font-size:12px;color:var(--text2);margin-bottom:6px;">API Key</label>
+          <input type="password" class="api-input" id="apiKey" placeholder="请输入币安API Key" />
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;color:var(--text2);margin-bottom:6px;">Secret Key</label>
+          <input type="password" class="api-input" id="secretKey" placeholder="请输入币安Secret Key" />
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" id="testMode" checked style="accent-color:var(--purple);" />
+          <label for="testMode" style="font-size:13px;">模拟交易模式（不进行真实交易）</label>
+        </div>
+        <div class="api-hint">
+          ⚠️ 请确保API密钥只有交易权限，不要给予提币权限
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <button class="btn" style="flex:1;" onclick="saveApiConfig()">保存配置</button>
+          <button class="btn btn-ghost" style="flex:1;" onclick="testApiConnection()">测试连接</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="font-size:12px;color:var(--text2);margin-top:16px;">
+      <p style="margin-bottom:8px;">📋 如何获取API密钥：</p>
+      <ol style="padding-left:20px;line-height:1.8;">
+        <li>登录币安官网</li>
+        <li>进入「API管理」</li>
+        <li>创建新的API密钥</li>
+        <li>勾选「允许现货和杠杆交易」</li>
+        <li>将密钥复制到上方输入框</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==================== 全局状态 ====================
+let botRunning = false;
+let bots = {
+  grid: false,
+  martin: false,
+  signal: false
+};
+let positions = [];
+let history = [];
+let customCoins = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
+let selectedCoin = 'BTCUSDT';
+let stats = {
+  initialBalance: 10000,
+  currentBalance: 10000,
+  todayProfit: 0,
+  totalProfit: 0,
+  winCount: 0,
+  lossCount: 0,
+  maxDrawdown: 0,
+  todayTrades: 0,
+  totalTrades: 0
+};
+let apiConfig = {
+  apiKey: '',
+  secretKey: '',
+  testMode: true
+};
+let tradeTimer = null;
+let prices = {};
+
+// ==================== 工具函数 ====================
+const $ = id => document.getElementById(id);
+const fmt = (v, d = 2) => (v == null || isNaN(v)) ? '--' : Number(v).toFixed(d);
+const log = (msg, type = 'info') => {
+  const panel = $('logPanel');
+  const time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `<span class="log-time">[${time}]</span><span class="log-${type}">${msg}</span>`;
+  panel.insertBefore(entry, panel.firstChild);
+  // 只保留最近50条
+  while (panel.children.length > 50) panel.removeChild(panel.lastChild);
+};
+
+// ==================== API请求 ====================
+const CORS_PROXIES = [
+  'https://corsproxy.io/?',
+  'https://api.codetabs.com/v1/proxy?quest='
+];
+
+async function apiFetch(path) {
+  const url = 'https://fapi.binance.com' + path;
+  const timeout = 8000;
+  
+  // 尝试直连
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeout);
+    const r = await fetch(url, { signal: ctrl.signal, mode: 'cors' });
+    clearTimeout(timer);
+    if (r.ok) return await r.json();
+  } catch(e) {}
+  
+  // 尝试代理
+  for (const proxy of CORS_PROXIES) {
+    try {
+      const r = await fetch(proxy + encodeURIComponent(url));
+      if (r.ok) return await r.json();
+    } catch(e) {}
+  }
+  return null;
+}
+
+// ==================== WebSocket实时同步 ====================
+let wsConnection = null;
+let wsReconnectTimer = null;
+let wsReconnectDelay = 5000;
+let wsReconnectMax = 5;
+let wsReconnectCount = 0;
+let wsStatus = 'disconnected';
+
+// WebSocket连接币安合约实时行情
+function connectWebSocket() {
+  // 确保至少有一个币种
+  if (customCoins.length === 0) {
+    customCoins = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
+  }
+  
+  if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
+    return;
+  }
+  
+  // 收集需要订阅的 symbol
+  const symbols = customCoins.map(s => s.toLowerCase());
+  if (symbols.length === 0) {
+    log('⚠️ 请先添加自选币种', 'warn');
+    return;
+  }
+  
+  // 订阅多个币种的24hr迷你Ticker
+  const streams = symbols.map(s => `${s}@miniTicker`).join('/');
+  const wsUrl = `wss://fstream.binance.com/ws/${streams}`;
+  
+  try {
+    wsConnection = new WebSocket(wsUrl);
+    
+    wsConnection.onopen = () => {
+      wsStatus = 'connected';
+      wsReconnectCount = 0;
+      wsReconnectDelay = 5000;
+      updateWsStatus(true);
+      log('📡 WebSocket已连接（实时行情）', 'info');
+    };
+    
+    wsConnection.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.s) {  // 币种代码
+          const symbol = data.s;  // 如 BTCUSDT
+          // 计算24h涨跌幅：(当前-开盘)/开盘*100
+          const openPrice = parseFloat(data.o);
+          const closePrice = parseFloat(data.c);
+          const change = openPrice > 0 ? ((closePrice - openPrice) / openPrice * 100) : 0;
+          
+          prices[symbol] = {
+            price: closePrice,   // 最新价格
+            change: change       // 24h涨跌幅
+          };
+          // 立即更新显示
+          updatePriceDisplay();
+        }
+      } catch(err) {
+        // 忽略解析错误
+      }
+    };
+    
+    wsConnection.onerror = (err) => {
+      console.error('WebSocket错误:', err);
+      wsStatus = 'error';
+      updateWsStatus(false, '⚠️ 连接异常');
+    };
+    
+    wsConnection.onclose = () => {
+      wsStatus = 'closed';
+      updateWsStatus(false, '⚡ 断线重连中...');
+      
+      // 自动重连（最多5次）
+      if (wsReconnectCount < wsReconnectMax) {
+        wsReconnectCount++;
+        log(`🔄 ${wsReconnectCount}/${wsReconnectMax} 尝试重连（${wsReconnectDelay/1000}s后）...`, 'warn');
+        wsReconnectTimer = setTimeout(() => {
+          wsReconnectDelay = Math.min(wsReconnectDelay + 5000, 30000); // 递增延迟，最多30s
+          connectWebSocket();
+        }, wsReconnectDelay);
+      } else {
+        log('❌ WebSocket重连失败，请刷新页面', 'error');
+        updateWsStatus(false, '❌ 连接失败');
+      }
+    };
+  } catch(err) {
+    console.error('WebSocket创建失败:', err);
+    wsStatus = 'error';
+    updateWsStatus(false, '❌ 连接失败');
+  }
+}
+
+// 更新WebSocket状态显示
+function updateWsStatus(connected, msg) {
+  const statusEl = document.getElementById('wsStatus');
+  if (statusEl) {
+    if (msg) {
+      statusEl.textContent = msg;
+    } else {
+      statusEl.textContent = connected ? '📡 实时同步中' : '⚡ 连接断开';
+    }
+    statusEl.style.color = connected ? 'var(--green)' : 'var(--orange)';
+  }
+}
+
+// 断开WebSocket
+function disconnectWebSocket() {
+  if (wsReconnectTimer) {
+    clearTimeout(wsReconnectTimer);
+    wsReconnectTimer = null;
+  }
+  if (wsConnection) {
+    wsConnection.onclose = null; // 防止触发重连
+    wsConnection.close();
+    wsConnection = null;
+  }
+  wsStatus = 'disconnected';
+  updateWsStatus(false, '⚡ 已断开');
+}
+
+// ==================== 价格获取 ====================
+async function fetchPrices() {
+  const result = await apiFetch('/fapi/v1/ticker/24hr');
+  if (!result || !Array.isArray(result)) return;
+  
+  customCoins.forEach(symbol => {
+    const ticker = result.find(t => t.symbol === symbol);
+    if (ticker) {
+      prices[symbol] = {
+        price: parseFloat(ticker.lastPrice),
+        change: parseFloat(ticker.priceChangePercent),
+        volume: parseFloat(ticker.quoteVolume)  // 24h成交量
+      };
+    }
+  });
+  
+  // 获取持仓量数据
+  fetchOpenInterest();
+  
+  updatePriceDisplay();
+}
+
+// 获取持仓量（Open Interest）
+async function fetchOpenInterest() {
+  for (const symbol of customCoins) {
+    try {
+      const oi = await apiFetch(`/fapi/v1/openInterest?symbol=${symbol}`);
+      if (oi) {
+        prices[symbol] = prices[symbol] || {};
+        prices[symbol].openInterest = parseFloat(oi.openInterest) || 0;  // 持仓量（币）
+        prices[symbol].openInterestValue = parseFloat(oi.sumOpenInterestValue) || 0;  // 持仓量（USDT价值）
+      }
+    } catch(err) {
+      // 忽略单个币种失败
+    }
+  }
+  updatePriceDisplay();
+}
+
+// 格式化持仓量显示
+function formatOpenInterest(value) {
+  if (!value) return '--';
+  if (value >= 1e9) return (value / 1e9).toFixed(2) + 'B';
+  if (value >= 1e6) return (value / 1e6).toFixed(2) + 'M';
+  if (value >= 1e3) return (value / 1e3).toFixed(2) + 'K';
+  return value.toFixed(2);
+}
+
+// 计算持仓量信号
+function getOpenInterestSignal(symbol) {
+  const data = prices[symbol];
+  if (!data || !data.openInterestValue) return null;
+  
+  // 持仓量信号逻辑（基于经验值）
+  // 高持仓量意味着市场活跃，大资金参与
+  const oiValue = data.openInterestValue;  // USDT价值
+  
+  return {
+    value: oiValue,
+    formatted: formatOpenInterest(oiValue),
+    level: oiValue > 100e6 ? 'high' : oiValue > 10e6 ? 'medium' : 'low',
+    label: oiValue > 100e6 ? '高OI 🟢' : oiValue > 10e6 ? '中OI 🟡' : '低OI 🔴'
+  };
+}
+
+// ==================== 实时价格显示 ====================
+function updatePriceDisplay() {
+  const container = document.getElementById('priceList');
+  if (!container) return;
+  
+  const timeEl = document.getElementById('priceUpdateTime');
+  if (timeEl) {
+    const now = new Date();
+    timeEl.textContent = `更新: ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+  }
+  
+  if (customCoins.length === 0) {
+    container.innerHTML = '<div style="text-align: center; color: var(--text2); padding: 20px;">➕ 请先添加自选币种</div>';
+    return;
+  }
+  
+  // 按涨跌幅排序
+  const sortedCoins = [...customCoins].sort((a, b) => {
+    return (prices[b]?.change || 0) - (prices[a]?.change || 0);
+  });
+  
+  container.innerHTML = sortedCoins.map(symbol => {
+    const data = prices[symbol];
+    if (!data) return '';
+    
+    const isUp = data.change >= 0;
+    const changeClass = isUp ? 'positive' : 'negative';
+    const arrow = isUp ? '▲' : '▼';
+    
+    // 格式化价格
+    let priceStr = data.price.toString();
+    if (data.price >= 1000) {
+      priceStr = data.price.toFixed(2);
+    } else if (data.price >= 1) {
+      priceStr = data.price.toFixed(4);
+    } else {
+      priceStr = data.price.toFixed(6);
+    }
+    
+    // 持仓量信息
+    const oiSignal = getOpenInterestSignal(symbol);
+    const oiStr = oiSignal ? `<span style="font-size: 9px; color: var(--text2);">OI:${oiSignal.formatted}</span>` : '';
+    
+    return `<div class="price-item" onclick="analyzePriceSymbol('${symbol}')">
+      <div class="price-sym">${symbol.replace('USDT','')}</div>
+      <div class="price-info">
+        <div class="price-val">${priceStr} ${oiStr}</div>
+        <div class="price-chg ${changeClass}">${arrow} ${isUp ? '+' : ''}${data.change.toFixed(2)}%</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// 点击币种跳转K线分析（需要K线分析页）
+function analyzePriceSymbol(symbol) {
+  window.open(`kline-analysis.html?symbol=${symbol}`, '_blank');
+}
+
+// 切换搜索框显示
+function toggleCoinSearch() {
+  const box = document.getElementById('coinSearchBox');
+  if (box) {
+    box.style.display = box.style.display === 'none' ? 'block' : 'none';
+    if (box.style.display === 'block') {
+      document.getElementById('coinSearchInput')?.focus();
+    }
+  }
+}
+
+// 搜索币种
+let searchResults = [];  // 存储搜索结果
+
+async function searchCoins(query) {
+  const resultsEl = document.getElementById('searchResults');
+  if (!resultsEl) return;
+  
+  if (!query || query.length < 1) {
+    resultsEl.innerHTML = '';
+    searchResults = [];
+    return;
+  }
+  
+  // 如果没有缓存的交易对数据，先获取
+  if (!window.allSymbols) {
+    try {
+      const exchangeInfo = await apiFetch('/fapi/v1/exchangeInfo');
+      if (exchangeInfo && exchangeInfo.symbols) {
+        window.allSymbols = exchangeInfo.symbols
+          .filter(s => s.symbol.endsWith('USDT') && s.status === 'TRADING')
+          .map(s => s.symbol.replace('USDT', ''));
+      }
+    } catch(err) {
+      resultsEl.innerHTML = '<div style="color: var(--red); font-size: 11px;">搜索失败，请重试</div>';
+      return;
+    }
+  }
+  
+  const queryUpper = query.toUpperCase();
+  searchResults = window.allSymbols
+    .filter(s => s.includes(queryUpper))
+    .filter(s => !customCoins.includes(s + 'USDT'))
+    .slice(0, 10);
+  
+  if (searchResults.length === 0) {
+    resultsEl.innerHTML = '<div style="color: var(--text2); font-size: 11px;">未找到可添加的币种</div>';
+    return;
+  }
+  
+  resultsEl.innerHTML = searchResults.map(s => 
+    `<div class="search-result-item" onclick="selectSearchResult('${s}')">
+      <span style="font-weight: 600;">${s}</span>
+      <span style="color: var(--text2); font-size: 10px;">USDT</span>
+    </div>`
+  ).join('');
+  
+  // 同时更新输入框
+  if (searchResults.length === 1 && query.length >= 2) {
+    document.getElementById('coinSearchInput').value = searchResults[0];
+  }
+}
+
+// 选择搜索结果
+function selectSearchResult(symbol) {
+  document.getElementById('coinSearchInput').value = symbol;
+  searchResults = [symbol];
+  document.getElementById('searchResults').innerHTML = '';
+}
+
+// 添加搜索的币种
+function addSearchedCoin() {
+  const input = document.getElementById('coinSearchInput');
+  const symbol = input?.value?.toUpperCase().trim();
+  
+  if (!symbol) return;
+  
+  const fullSymbol = symbol.endsWith('USDT') ? symbol : symbol + 'USDT';
+  
+  if (customCoins.includes(fullSymbol)) {
+    log(`⚠️ ${symbol} 已在自选中`, 'warn');
+    return;
+  }
+  
+  // 验证币种是否有效
+  if (window.allSymbols && !window.allSymbols.includes(symbol)) {
+    log(`❌ ${symbol} 不是有效的USDT永续合约`, 'error');
+    return;
+  }
+  
+  addCoin(fullSymbol);
+  input.value = '';
+  document.getElementById('searchResults').innerHTML = '';
+  toggleCoinSearch();
+  log(`✅ 已添加 ${symbol} 到自选`, 'info');
+}
+
+// 快速添加推荐币种
+function quickAddCoin(symbol) {
+  const fullSymbol = symbol.endsWith('USDT') ? symbol : symbol + 'USDT';
+  if (customCoins.includes(fullSymbol)) {
+    log(`⚠️ ${symbol} 已在自选中`, 'warn');
+    return;
+  }
+  addCoin(fullSymbol);
+  // 同步更新交易币种下拉框
+  syncTradeSymbol();
+}
+
+// 同步交易币种下拉框
+function syncTradeSymbol() {
+  const selects = document.querySelectorAll('#tradeSymbol');
+  if (!selects || selects.length === 0) return;
+  
+  // 确保至少有一个币种
+  if (customCoins.length === 0) {
+    customCoins = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
+  }
+  
+  const currentSymbol = selects[0]?.value || 'BTCUSDT';
+  
+  selects.forEach(select => {
+    const currentVal = select.value;
+    select.innerHTML = customCoins.map(s => {
+      const name = s.replace('USDT', '');
+      return `<option value="${s}" ${s === currentVal ? 'selected' : ''}>${name}</option>`;
+    }).join('');
+    
+    // 如果当前值不在列表中，选择第一个
+    if (!customCoins.includes(currentVal) && customCoins.length > 0) {
+      select.value = customCoins[0];
+    }
+  });
+  
+  log(`🔄 交易币种已同步（${customCoins.length}个）`, 'info');
+  
+  // 切换到选中的币种
+  onSymbolChange();
+}
+
+// 添加币种时同步
+function addCoin(symbol) {
+  if (customCoins.includes(symbol)) return;
+  customCoins.push(symbol);
+  saveState();
+  syncTradeSymbol();  // 同步更新交易币种下拉框
+  updatePriceDisplay();
+}
+
+// 删除币种时同步
+function removeCoin(symbol) {
+  customCoins = customCoins.filter(s => s !== symbol);
+  saveState();
+  syncTradeSymbol();  // 同步更新交易币种下拉框
+  updatePriceDisplay();
+}
+
+function updateStats() {
+  const profit = stats.currentBalance - stats.initialBalance;
+  const profitPct = (profit / stats.initialBalance * 100);
+  const todayPct = (stats.todayProfit / stats.initialBalance * 100);
+  
+  $('simBalance').textContent = fmt(stats.currentBalance, 2) + ' USDT';
+  
+  const todayEl = $('todayProfit');
+  todayEl.textContent = `${profit >= 0 ? '+' : ''}${fmt(stats.todayProfit)} (${fmt(todayPct)}%)`;
+  todayEl.className = `info-value ${todayPct >= 0 ? 'positive' : 'negative'}`;
+  
+  const totalEl = $('totalProfit');
+  totalEl.textContent = `${profit >= 0 ? '+' : ''}${fmt(profit)} (${fmt(profitPct)}%)`;
+  totalEl.className = `info-value ${profitPct >= 0 ? 'positive' : 'negative'}`;
+  
+  const winRate = stats.winCount + stats.lossCount > 0 
+    ? (stats.winCount / (stats.winCount + stats.lossCount) * 100) : 0;
+  $('winRate').textContent = fmt(winRate, 1) + '%';
+  $('winLoss').textContent = `${stats.winCount}胜/${stats.lossCount}负`;
+  
+  $('avgProfit').textContent = stats.totalTrades > 0 
+    ? fmt(stats.totalProfit / stats.totalTrades, 2) + '%' : '--%';
+  $('maxDrawdown').textContent = fmt(stats.maxDrawdown, 2) + '%';
+  $('totalTrades').textContent = stats.totalTrades;
+}
+
+function updatePositions() {
+  const container = $('positionsList');
+  $('positionCount').textContent = `${positions.length} 个`;
+  
+  if (positions.length === 0) {
+    container.innerHTML = `<div style="text-align:center;color:var(--text2);padding:20px;font-size:13px;">暂无持仓</div>`;
+    return;
+  }
+  
+  let html = '';
+  positions.forEach((pos, i) => {
+    const pnl = (prices[pos.symbol]?.price - pos.entryPrice) / pos.entryPrice * 100;
+    const pnlClass = pnl >= 0 ? 'positive' : 'negative';
+    html += `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);">
+        <div>
+          <div style="font-weight:700;">${pos.symbol.replace('USDT','')}</div>
+          <div style="font-size:11px;color:var(--text2);">买入价: ${pos.entryPrice.toFixed(6)}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-weight:700;" class="${pnlClass}">${pnl >= 0 ? '+' : ''}${fmt(pnl)}%</div>
+          <div style="font-size:11px;color:var(--text2);">数量: ${pos.amount}</div>
+        </div>
+        <button class="btn btn-sm btn-danger" onclick="closePosition(${i})">平仓</button>
+      </div>
+    `;
+  });
+  container.innerHTML = html;
+}
+
+function updateHistory() {
+  const tbody = $('historyBody');
+  if (history.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text2);padding:20px;">暂无交易记录</td></tr>`;
+    return;
+  }
+  
+  let html = '';
+  history.slice().reverse().forEach(h => {
+    html += `
+      <tr>
+        <td>${new Date(h.time).toLocaleString('zh-CN', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</td>
+        <td>${h.symbol.replace('USDT','')}</td>
+        <td><span class="badge ${h.type === 'buy' ? 'badge-buy' : 'badge-sell'}">${h.type === 'buy' ? '买入' : '卖出'}</span></td>
+        <td>${h.amount}</td>
+        <td>${h.price.toFixed(6)}</td>
+        <td class="${h.pnl >= 0 ? 'positive' : 'negative'}" style="color:${h.pnl >= 0 ? 'var(--green)' : 'var(--red)'}">${h.pnl >= 0 ? '+' : ''}${fmt(h.pnl)}%</td>
+      </tr>
+    `;
+  });
+  tbody.innerHTML = html;
+}
+
+// ==================== 交易逻辑 ====================
+function generateSignal() {
+  // 模拟交易信号生成
+  const signals = ['buy', 'sell', 'hold'];
+  const random = Math.random();
+  if (random < 0.1) return 'buy';
+  if (random < 0.2) return 'sell';
+  return 'hold';
+}
+
+async function executeTrade(signal) {
+  if (!botRunning || positions.length >= 3) return;
+  
+  const symbol = selectedCoin;
+  const price = prices[symbol]?.price || 50000 + Math.random() * 1000;
+  const investRatio = parseFloat($('investRatio').value) / 100;
+  const takeProfitPct = parseFloat($('takeProfit').value);
+  const stopLossPct = parseFloat($('stopLoss').value);
+  
+  if (signal === 'buy' && !positions.find(p => p.symbol === symbol)) {
+    const amount = (stats.currentBalance * investRatio) / price;
+    positions.push({
+      symbol,
+      entryPrice: price,
+      amount,
+      takeProfit: price * (1 + takeProfitPct / 100),
+      stopLoss: price * (1 - stopLossPct / 100),
+      time: Date.now()
+    });
+    
+    history.push({
+      time: Date.now(),
+      symbol,
+      type: 'buy',
+      amount,
+      price,
+      pnl: 0
+    });
+    
+    stats.totalTrades++;
+    stats.todayTrades++;
+    log(`✅ 买入 ${symbol} @ ${price.toFixed(6)}，数量 ${amount.toFixed(4)}`);
+  }
+  
+  // 检查止盈止损
+  for (let i = positions.length - 1; i >= 0; i--) {
+    const pos = positions[i];
+    const currentPrice = prices[pos.symbol]?.price || pos.entryPrice;
+    const pnl = (currentPrice - pos.entryPrice) / pos.entryPrice * 100;
+    
+    if (pnl >= takeProfitPct || pnl <= -stopLossPct) {
+      const profit = (currentPrice - pos.entryPrice) * pos.amount;
+      stats.currentBalance += profit;
+      stats.todayProfit += profit;
+      stats.totalProfit += profit;
+      
+      if (profit > 0) {
+        stats.winCount++;
+      } else {
+        stats.lossCount++;
+      }
+      
+      history.push({
+        time: Date.now(),
+        symbol: pos.symbol,
+        type: 'sell',
+        amount: pos.amount,
+        price: currentPrice,
+        pnl
+      });
+      
+      log(`${profit >= 0 ? '🎯' : '❌'} 卖出 ${pos.symbol} @ ${currentPrice.toFixed(6)}，盈亏 ${profit >= 0 ? '+' : ''}${profit.toFixed(2)} USDT (${pnl.toFixed(2)}%)`);
+      
+      positions.splice(i, 1);
+    }
+  }
+  
+  updateStats();
+  updatePositions();
+  updateHistory();
+  saveState();
+}
+
+function runTradingLoop() {
+  if (!botRunning) return;
+  
+  const signal = generateSignal();
+  executeTrade(signal);
+  
+  // 根据策略配置调整交易频率
+  const cooldown = parseInt($('cooldown').value) * 1000;
+  const maxDaily = parseInt($('maxDailyTrades').value);
+  
+  if (stats.todayTrades >= maxDaily) {
+    log('⚠️ 今日交易次数已达上限', 'warn');
+    return;
+  }
+  
+  tradeTimer = setTimeout(runTradingLoop, cooldown + Math.random() * 2000);
+}
+
+// ==================== 开关控制 ====================
+function toggleBot() {
+  botRunning = !botRunning;
+  const btn = $('mainToggle');
+  const statusEl = $('botStatus');
+  
+  if (botRunning) {
+    btn.textContent = '停止交易';
+    btn.className = 'btn btn-success';
+    statusEl.textContent = '运行中';
+    statusEl.style.color = 'var(--green)';
+    log('🚀 自动交易系统已启动', 'info');
+    fetchPrices();
+    runTradingLoop();
+  } else {
+    btn.textContent = '启动交易';
+    btn.className = 'btn btn-danger';
+    statusEl.textContent = '已停止';
+    statusEl.style.color = 'var(--red)';
+    log('⏹️ 自动交易系统已停止', 'warn');
+    if (tradeTimer) clearTimeout(tradeTimer);
+  }
+}
+
+function toggleBotModule(module) {
+  bots[module] = !bots[module];
+  const btn = $(module + 'Bot');
+  if (bots[module]) {
+    btn.textContent = '停止';
+    btn.className = 'toggle-btn stop';
+    log(`✅ ${module === 'grid' ? '网格策略' : module === 'martin' ? '马丁策略' : '信号跟单'} 已启用`);
+  } else {
+    btn.textContent = '启动';
+    btn.className = 'toggle-btn start';
+    log(`⏸️ ${module === 'grid' ? '网格策略' : module === 'martin' ? '马丁策略' : '信号跟单'} 已停用`);
+  }
+}
+
+// 策略说明展开/折叠
+function toggleGuide() {
+  const guide = document.getElementById('strategyGuide');
+  guide.classList.toggle('open');
+}
+
+// 策略说明标签切换
+function showStrategyTab(tab) {
+  // 更新标签按钮
+  document.querySelectorAll('.strategy-tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+  
+  // 更新内容
+  document.querySelectorAll('.strategy-detail').forEach(d => d.classList.remove('active'));
+  document.getElementById('tab-' + tab)?.classList.add('active');
+}
+
+// 策略配置标签切换
+function switchStrategyTab(tab) {
+  // 更新标签按钮样式
+  ['Grid', 'Martin', 'Signal', 'Risk'].forEach(t => {
+    const btn = document.getElementById('tab' + t + 'Btn');
+    if (btn) btn.classList.remove('active');
+  });
+  document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1) + 'Btn')?.classList.add('active');
+  
+  // 更新配置面板
+  ['Base', 'Grid', 'Martin', 'Signal', 'Risk'].forEach(t => {
+    const panel = document.getElementById('config' + t);
+    if (panel) panel.style.display = 'none';
+  });
+  const targetPanel = document.getElementById('config' + tab.charAt(0).toUpperCase() + tab.slice(1));
+  if (targetPanel) targetPanel.style.display = 'block';
+}
+
+// 币种切换时更新杠杆选项
+function onSymbolChange() {
+  const symbol = document.getElementById('tradeSymbol')?.value;
+  if (symbol) {
+    updateLeverageOptions(symbol);
+    const maxLev = getSymbolMaxLeverage(symbol);
+    const minLev = getSymbolMinLeverage(symbol);
+    document.getElementById('leverageInfo').textContent = `(${minLev}-${maxLev}x)`;
+  }
+}
+
+function closePosition(index) {
+  const pos = positions[index];
+  if (!pos) return;
+  
+  const currentPrice = prices[pos.symbol]?.price || pos.entryPrice * 0.99;
+  const profit = (currentPrice - pos.entryPrice) * pos.amount;
+  
+  stats.currentBalance += profit;
+  stats.todayProfit += profit;
+  stats.totalProfit += profit;
+  
+  if (profit > 0) stats.winCount++;
+  else stats.lossCount++;
+  
+  const pnl = (currentPrice - pos.entryPrice) / pos.entryPrice * 100;
+  history.push({
+    time: Date.now(),
+    symbol: pos.symbol,
+    type: 'sell',
+    amount: pos.amount,
+    price: currentPrice,
+    pnl
+  });
+  
+  positions.splice(index, 1);
+  
+  log(`🔒 手动平仓 ${pos.symbol}，盈亏 ${profit >= 0 ? '+' : ''}${profit.toFixed(2)} USDT`);
+  
+  updateStats();
+  updatePositions();
+  updateHistory();
+  saveState();
+}
+
+// ==================== 自选币种 ====================
+function selectCustomCoin(el, symbol) {
+  document.querySelectorAll('.coin-tag').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  selectedCoin = symbol;
+  log(`📌 已选择交易币种: ${symbol}`, 'info');
+}
+
+function addCustomCoin() {
+  const input = $('newCoinInput');
+  let symbol = input.value.trim().toUpperCase();
+  if (!symbol) return;
+  if (!symbol.endsWith('USDT')) symbol += 'USDT';
+  
+  if (customCoins.includes(symbol)) {
+    log(`⚠️ ${symbol} 已在自选列表中`, 'warn');
+    return;
+  }
+  
+  customCoins.push(symbol);
+  const container = $('customCoins');
+  const tag = document.createElement('span');
+  tag.className = 'coin-tag';
+  tag.innerHTML = `${symbol.replace('USDT','')} <span class="remove">×</span>`;
+  tag.onclick = () => selectCustomCoin(tag, symbol);
+  container.appendChild(tag);
+  
+  input.value = '';
+  log(`➕ 已添加 ${symbol} 到自选列表`);
+  fetchPrices();
+}
+
+function removeCustomCoin(symbol) {
+  customCoins = customCoins.filter(c => c !== symbol);
+  // 重新渲染
+  const container = $('customCoins');
+  container.innerHTML = customCoins.map(s => 
+    `<span class="coin-tag ${s === selectedCoin ? 'active' : ''}" onclick="selectCustomCoin(this, '${s}')">${s.replace('USDT','')} <span class="remove" onclick="event.stopPropagation();removeCustomCoin('${s}')">×</span></span>`
+  ).join('');
+  log(`➖ 已从自选列表移除 ${symbol}`);
+}
+
+// ==================== API配置 ====================
+function openModal(id) { $(id).classList.add('show'); }
+function closeModal(id) { $(id).classList.remove('show'); }
+
+function saveApiConfig() {
+  apiConfig.apiKey = $('apiKey').value;
+  apiConfig.secretKey = $('secretKey').value;
+  apiConfig.testMode = $('testMode').checked;
+  
+  localStorage.setItem('tradingApiConfig', JSON.stringify(apiConfig));
+  log('💾 API配置已保存');
+}
+
+function testApiConnection() {
+  const apiKey = $('apiKey').value;
+  const secretKey = $('secretKey').value;
+  
+  if (!apiKey || !secretKey) {
+    log('⚠️ 请先填写API密钥', 'warn');
+    return;
+  }
+  
+  log('🔄 正在测试API连接...', 'info');
+  
+  // 模拟连接测试
+  setTimeout(() => {
+    const status = $('apiStatus');
+    const statusText = $('apiStatusText');
+    status.className = 'api-dot connected';
+    statusText.textContent = '连接成功 (模拟)';
+    log('✅ API连接测试成功', 'info');
+  }, 1500);
+}
+
+// ==================== 杠杆倍数获取 ====================
+// 存储各币种的杠杆信息
+let leverageCache = {};
+
+// 获取币安支持的杠杆倍数
+async function fetchLeverageInfo() {
+  const symbol = 'BTCUSDT'; // BTC作为示例获取通用倍数范围
+  try {
+    // 获取该币种的最大最小杠杆
+    const info = await apiFetch(`/fapi/v1/leverageBracket?symbol=${symbol}`);
+    if (info && info[0]) {
+      const brackets = info[0].brackets || [];
+      const minLev = Math.min(...brackets.map(b => b.initialLeverage));
+      const maxLev = Math.max(...brackets.map(b => b.initialLeverage));
+      
+      // 更新全局杠杆范围
+      window.minLeverage = minLev;
+      window.maxLeverage = maxLev;
+      
+      // 填充杠杆选择器
+      updateLeverageOptions('BTCUSDT');
+      
+      log(`📊 杠杆范围: ${minLev}x - ${maxLev}x`, 'info');
+    }
+  } catch(err) {
+    console.error('获取杠杆信息失败:', err);
+    // 使用默认值
+    window.minLeverage = 1;
+    window.maxLeverage = 125;
+    updateLeverageOptions('BTCUSDT');
+  }
+}
+
+// 更新杠杆选项
+function updateLeverageOptions(symbol) {
+  const select = document.getElementById('leverageSelect');
+  const infoEl = document.getElementById('leverageInfo');
+  if (!select) return;
+  
+  const minLev = window.minLeverage || 1;
+  const maxLev = window.maxLeverage || 125;
+  
+  // 清空选项
+  select.innerHTML = '';
+  
+  // 常用杠杆选项
+  const commonLevels = [1, 2, 3, 5, 10, 20, 50, 75, 100, 125];
+  
+  // 根据实际支持范围添加选项
+  commonLevels.forEach(lev => {
+    if (lev >= minLev && lev <= maxLev) {
+      const opt = document.createElement('option');
+      opt.value = lev;
+      opt.textContent = `${lev}x`;
+      if (lev === 10) opt.selected = true;
+      select.appendChild(opt);
+    }
+  });
+  
+  // 如果常用选项中没有覆盖最大，设置一个最大选项
+  if (maxLev > 125 && !commonLevels.includes(maxLev)) {
+    const opt = document.createElement('option');
+    opt.value = maxLev;
+    opt.textContent = `${maxLev}x (最大)`;
+    select.appendChild(opt);
+  }
+  
+  // 更新提示信息
+  if (infoEl) {
+    infoEl.textContent = `支持 ${minLev}x-${maxLev}x`;
+  }
+}
+
+// 币种切换时更新杠杆
+function onSymbolChange() {
+  const symbol = document.getElementById('tradeSymbol')?.value || 'BTCUSDT';
+  log(`🔄 切换币种: ${symbol}`, 'info');
+  
+  // 重新获取该币种的杠杆信息
+  fetchSymbolLeverage(symbol);
+}
+
+// 获取特定币种的杠杆信息
+async function fetchSymbolLeverage(symbol) {
+  try {
+    const info = await apiFetch(`/fapi/v1/leverageBracket?symbol=${symbol}`);
+    if (info && info[0]) {
+      const brackets = info[0].brackets || [];
+      const minLev = Math.min(...brackets.map(b => b.initialLeverage));
+      const maxLev = Math.max(...brackets.map(b => b.initialLeverage));
+      
+      window.minLeverage = minLev;
+      window.maxLeverage = maxLev;
+      
+      updateLeverageOptions(symbol);
+      
+      log(`📊 ${symbol} 杠杆范围: ${minLev}x - ${maxLev}x`, 'info');
+    }
+  } catch(err) {
+    console.error('获取币种杠杆失败:', err);
+  }
+}
+
+// ==================== 策略重置 ====================
+function resetStrategy() {
+  $('investRatio').value = 10;
+  $('takeProfit').value = 2;
+  $('stopLoss').value = 1;
+  $('gridCount').value = 5;
+  $('gridSpacing').value = 1;
+  $('rsiFilter').value = 70;
+  $('maxDailyTrades').value = 10;
+  $('maxDailyLoss').value = 5;
+  $('cooldown').value = 5;
+  log('⚙️ 策略配置已重置为默认值');
+}
+
+// ==================== 数据持久化 ====================
+function saveState() {
+  const state = { stats, positions, history, customCoins, selectedCoin };
+  localStorage.setItem('tradingState', JSON.stringify(state));
+}
+
+function loadState() {
+  try {
+    const saved = localStorage.getItem('tradingState');
+    if (saved) {
+      const state = JSON.parse(saved);
+      stats = state.stats || stats;
+      positions = state.positions || [];
+      history = state.history || [];
+      customCoins = state.customCoins || customCoins;
+      selectedCoin = state.selectedCoin || selectedCoin;
+      
+      // 恢复UI
+      updateStats();
+      updatePositions();
+      updateHistory();
+      
+      // 恢复自选币种
+      const container = $('customCoins');
+      container.innerHTML = customCoins.map(s => 
+        `<span class="coin-tag ${s === selectedCoin ? 'active' : ''}" onclick="selectCustomCoin(this, '${s}')">${s.replace('USDT','')} <span class="remove" onclick="event.stopPropagation();removeCustomCoin('${s}')">×</span></span>`
+      ).join('');
+    }
+    
+    const savedApi = localStorage.getItem('tradingApiConfig');
+    if (savedApi) {
+      apiConfig = JSON.parse(savedApi);
+      $('apiKey').value = apiConfig.apiKey || '';
+      $('secretKey').value = apiConfig.secretKey || '';
+      $('testMode').checked = apiConfig.testMode !== false;
+    }
+  } catch(e) {
+    console.error('加载状态失败:', e);
+  }
+}
+
+function exportData() {
+  const data = {
+    exportTime: new Date().toISOString(),
+    stats,
+    history,
+    positions
+  };
+  
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `trading-export-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  
+  log('📥 交易数据已导出');
+}
+
+function clearHistory() {
+  if (!confirm('确定要清空所有交易记录吗？')) return;
+  history = [];
+  stats.winCount = 0;
+  stats.lossCount = 0;
+  stats.totalTrades = 0;
+  stats.todayTrades = 0;
+  updateHistory();
+  updateStats();
+  saveState();
+  log('🗑️ 交易记录已清空');
+}
+
+// ==================== 初始化 ====================
+function init() {
+  loadState();
+  
+  // 确保至少有默认币种
+  if (customCoins.length === 0) {
+    customCoins = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
+  }
+  
+  // 获取杠杆信息
+  fetchLeverageInfo().then(() => {
+    updateLeverageOptions(document.getElementById('tradeSymbol')?.value || 'BTCUSDT');
+    onSymbolChange();
+  });
+  
+  // 立即获取初始价格（避免等待WebSocket）
+  fetchPrices();
+  updatePriceDisplay();
+  
+  // WebSocket实时同步（优先）
+  if (customCoins.length > 0) {
+    connectWebSocket();
+  }
+  
+  // 每30秒备用同步（WebSocket断开时的备用方案）
+  setInterval(() => {
+    fetchPrices();
+  }, 30000);
+  
+  // 每分钟检查日期，更新今日统计
+  setInterval(() => {
+    const now = new Date();
+    if (now.getHours() === 0 && now.getMinutes() === 0) {
+      stats.todayProfit = 0;
+      stats.todayTrades = 0;
+      updateStats();
+    }
+  }, 60000);
+  
+  log('🤖 自动交易系统初始化完成', 'info');
+}
+
+// 监听自选币种变化，重新连接WebSocket
+function addCoin(symbol) {
+  if (!symbol || symbol.length < 4) return;
+  symbol = symbol.toUpperCase();
+  if (!symbol.endsWith('USDT')) symbol += 'USDT';
+  if (!customCoins.includes(symbol)) {
+    customCoins.push(symbol);
+    saveState();
+    updateWatchList();
+    // 重新连接WebSocket
+    disconnectWebSocket();
+    connectWebSocket();
+    fetchPrices();
+  }
+}
+
+function removeCoin(symbol) {
+  const idx = customCoins.indexOf(symbol);
+  if (idx > -1) {
+    customCoins.splice(idx, 1);
+    saveState();
+    updateWatchList();
+    // 重新连接WebSocket
+    disconnectWebSocket();
+    if (customCoins.length > 0) {
+      connectWebSocket();
+    }
+  }
+}
+
+init();
+</script>
+</body>
+</html>
