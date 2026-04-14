@@ -1804,11 +1804,16 @@ async function init() {
 let wsReconnecting = false;  // 防止重复重连
 let wsRetryCount = 0;
 const MAX_WS_RETRIES = 5;     // 最大重试次数
+let pollingInterval = null;   // 轮询定时器
+let usePolling = false;       // 是否使用轮询模式
 
 function connectWebSocket(symbol) {
   // 如果已经在重连中，跳过
   if (wsReconnecting) return;
-  
+
+  // 停止轮询模式（WebSocket优先）
+  stopPolling();
+
   if (ws) {
     ws.onclose = null;  // 先解绑onclose，防止触发重复重连
     ws.close();
@@ -1920,18 +1925,18 @@ function connectWebSocket(symbol) {
       
       // 增加重试计数
       wsRetryCount++;
-      
-      // 如果重试次数过多，不再重连
+
+      // 如果重试次数过多，切换到轮询模式
       if (wsRetryCount > MAX_WS_RETRIES) {
-        console.warn('WebSocket重连次数过多，停止重试');
-        updateWsStatus(false, '重连失败，请刷新页面');
+        console.warn('WebSocket重连次数过多，自动切换到轮询模式');
+        startPolling();
         return;
       }
-      
+
       // 断线后使用递增延迟重连（5s, 10s, 15s, 20s, 25s）
       const delay = Math.min(wsRetryCount * 5, 30) * 1000;
       console.log(`WebSocket断开，${delay/1000}秒后重连（第${wsRetryCount}次）`);
-      
+
       wsReconnecting = true;
       setTimeout(() => {
         wsReconnecting = false;
@@ -1941,7 +1946,8 @@ function connectWebSocket(symbol) {
   } catch(e) {
     console.error('WebSocket连接失败:', e);
     wsConnected = false;
-    updateWsStatus(false);
+    // 连接失败时直接切换到轮询模式
+    startPolling();
   }
 }
 
@@ -1954,6 +1960,48 @@ function updateWsStatus(connected, msg) {
       existing.textContent = connected ? '🔴 实时同步中' : '⚪ 已断开';
     }
     existing.style.color = connected ? 'var(--green)' : 'var(--text2)';
+  }
+}
+
+// 轮询模式：WebSocket不可用时自动切换
+function startPolling() {
+  if (pollingInterval) return;
+  usePolling = true;
+  updateWsStatus(false, '⚡ 轮询模式');
+  console.log('WebSocket不可用，切换到轮询模式（5秒刷新）');
+
+  // 先立即刷新一次
+  refreshKlineData();
+
+  // 每5秒轮询一次
+  pollingInterval = setInterval(() => {
+    if (currentSymbol) {
+      refreshKlineData();
+    }
+  }, 5000);
+}
+
+function stopPolling() {
+  if (pollingInterval) {
+    clearInterval(pollingInterval);
+    pollingInterval = null;
+  }
+  usePolling = false;
+}
+
+// 刷新K线数据（用于轮询）
+async function refreshKlineData() {
+  if (!currentSymbol) return;
+  try {
+    const pair = currentSymbol.replace('USDT', '');
+    const interval = tfMap[currentTf] || '1h';
+    const data = await apiFetch(`/fapi/v1/klines?symbol=${pair}USDT&interval=${interval}&limit=200`);
+    if (data && data.length > 0) {
+      lastKlines = data;
+      updateKlineChart();
+    }
+  } catch(e) {
+    console.warn('轮询刷新失败:', e);
   }
 }
 
