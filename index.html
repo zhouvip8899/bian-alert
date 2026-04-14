@@ -76,6 +76,7 @@
         <button class="btn btn-s" id="btnRank">📊 涨跌榜</button>
         <button class="btn btn-s" id="btnFunding">💰 资金费率</button>
         <button class="btn btn-s" id="btnWhale">🐋 大户数据</button>
+        <button class="btn btn-s" id="btnOI">📈 增仓看多</button>
     </div>
     
     <div class="stats">
@@ -99,6 +100,7 @@
         <button class="tab" onclick="showTab('crash')">💎 暴跌预警</button>
         <button class="tab" onclick="showTab('rank')">📊 涨跌榜</button>
         <button class="tab" onclick="showTab('funding')">💰 资金费率</button>
+        <button class="tab" onclick="showTab('oi')">📈 增仓看多</button>
     </div>
     
     <div id="sig" class="content active">
@@ -122,6 +124,12 @@
         <h3 style="margin:15px 0 10px;color:#00bcd4">🐋 大户资金流向</h3>
         <p style="color:#666;font-size:.85em;margin-bottom:15px">大户多空比 + 持仓变化 = 聪明钱信号</p>
         <div class="grid" id="whaleList"></div>
+    </div>
+
+    <div id="oi" class="content">
+        <h3 style="margin:15px 0 10px;color:#00c853">📈 增仓看多</h3>
+        <p style="color:#666;font-size:.85em;margin-bottom:15px">价格涨 + 持仓增 = 资金主动做多信号</p>
+        <div class="grid" id="oiList"></div>
     </div>
 
     
@@ -1196,6 +1204,99 @@ async function runWhale() {
     busy = false;
 }
 
+// ========== 增仓看多：价格涨 + 持仓增 ==========
+async function getOIChange(symbol) {
+    try {
+        const data = await apiFetch(`/futures/data/openInterestHist?symbol=${symbol}&period=5m&limit=2`);
+        if (data && data.length >= 2) {
+            const current = parseFloat(data[0].sumOpenInterestValue);
+            const prev = parseFloat(data[1].sumOpenInterestValue);
+            if (prev > 0) {
+                return ((current - prev) / prev * 100);
+            }
+        }
+        return null;
+    } catch (e) {
+        return null;
+    }
+}
+
+async function runOI() {
+    if (busy) return;
+    busy = true;
+    currentProxyIndex = 0;
+    $('status').textContent = '⏳ 获取增仓看多数据...';
+
+    try {
+        const tickers = await apiFetch('/fapi/v1/ticker/24hr');
+        const exchangeInfo = await apiFetch('/fapi/v1/exchangeInfo');
+        const activeSymbols = new Set(exchangeInfo.symbols.filter(s => s.status === 'TRADING').map(s => s.symbol));
+        const STABLE_PAIRS = new Set(['BTCUSDT','ETHUSDT','BNBUSDT','USDCUSDT','BUSDUSDT','TUSDUSDT','USDPUSDT','USDTUSDC','USDTBUSD','USTUSDT','LUNAUSDT','DAIUSDT','FRAXUSDT','USDDUSDT','USDCUSDT']);
+
+        // 筛选有流动性的币种
+        const coins = tickers
+            .filter(t => t.symbol.endsWith('USDT') &&
+                        !STABLE_PAIRS.has(t.symbol) &&
+                        activeSymbols.has(t.symbol) &&
+                        parseFloat(t.quoteVolume) > 10000000 &&
+                        parseFloat(t.lastPrice) > 0)
+            .sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
+            .slice(0, 50);
+
+        // 获取每个币种的持仓变化（并发）
+        const oiResults = await Promise.all(coins.map(async t => {
+            const oiChange = await getOIChange(t.symbol);
+            return {
+                sym: t.symbol,
+                price: parseFloat(t.lastPrice),
+                c24h: parseFloat(t.priceChangePercent),
+                vol: parseFloat(t.quoteVolume),
+                oiChange,
+                score: (oiChange || 0) + parseFloat(t.priceChangePercent) * 0.5
+            };
+        }));
+
+        // 筛选：价格涨 且 持仓增
+        const bullish = oiResults
+            .filter(c => c.c24h > 0 && c.oiChange !== null && c.oiChange > 0)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 30);
+
+        renderOICards('oiList', bullish);
+        showTab('oi');
+        $('status').textContent = `📈 增仓看多 | ${bullish.length}个币种 | ${new Date().toLocaleTimeString('zh-CN')}`;
+    } catch (e) {
+        err('获取增仓数据失败: ' + e.message);
+    }
+
+    busy = false;
+}
+
+function renderOICards(id, coins) {
+    const renderCard = c => {
+        const cls = c.oiChange > 5 ? 's-h' : 's-w';
+        return `<div class="card" style="border-color:#00c853">
+            <div class="card-hd">
+                <div>
+                    <span class="name">${c.sym.replace('USDT', '')}</span>
+                    <span class="price">$${fp(c.price)}</span>
+                    <a href="kline-analysis.html?symbol=${c.sym.replace('USDT', '')}" target="_blank" style="margin-left:8px;color:#00c853;font-size:.8em;text-decoration:none">📊K线</a>
+                </div>
+                <div style="text-align:right">
+                    <span class="score ${cls}">${c.c24h > 0 ? '+' : ''}${c.c24h.toFixed(1)}%</span>
+                    <div style="font-size:.7em;color:#00c853;margin-top:2px">24H涨跌</div>
+                </div>
+            </div>
+            <div class="chain">
+                <div class="chain-row"><span style="color:#00c853">📈持仓增</span><span style="color:${c.oiChange > 0 ? '#00c853' : '#ef5350'}">${c.oiChange > 0 ? '+' : ''}${c.oiChange?.toFixed(1) || 0}%</span></div>
+                <div class="chain-row"><span style="color:#888">24H涨跌</span><span style="color:${c.c24h > 0 ? '#00c853' : '#ef5350'}">${c.c24h > 0 ? '+' : ''}${c.c24h.toFixed(2)}%</span></div>
+                <div class="chain-row"><span style="color:#888">综合分</span><span>${c.score.toFixed(0)}</span></div>
+            </div>
+        </div>`;
+    };
+    $(id).innerHTML = coins.length ? coins.map(renderCard).join('') : '<p style="color:#666;text-align:center;padding:20px">暂无数据</p>';
+}
+
 async function runRank() {
     if (busy) return;
     busy = true;
@@ -1373,7 +1474,7 @@ function renderWhaleCards(id, coins) {
                 <div>
                     <span class="name">${c.sym.replace('USDT', '')}</span>
                     <span class="price">$${fp(c.price)}</span>
-                    <a href="https://www.binance.com/zh-CN/futures/${c.sym.replace('USDT', '')}USDT" target="_blank" style="margin-left:8px;color:#00bcd4;font-size:.8em;text-decoration:none">📊K线</a>
+                    <a href="kline-analysis.html?symbol=${c.sym.replace('USDT', '')}" target="_blank" style="margin-left:8px;color:#00bcd4;font-size:.8em;text-decoration:none">📊K线</a>
                 </div>
                 <div style="text-align:right">
                     <span class="score ${cls}">${(tbr * 100).toFixed(0)}%</span>
@@ -1406,6 +1507,7 @@ function showTab(id) {
     if (id === 'funding' && !$('highFunding').innerHTML) runFunding();
     if (id === 'rank' && !$('gainers').innerHTML) runRank();
     if (id === 'whale' && !$('whaleList').innerHTML) runWhale();
+    if (id === 'oi' && !$('oiList').innerHTML) runOI();
 }
 
 // ========== 初始化 ==========
@@ -1415,6 +1517,7 @@ window.onload = function() {
     $('btnRank').onclick = runRank;
     $('btnFunding').onclick = runFunding;
     $('btnWhale').onclick = runWhale;
+    $('btnOI').onclick = runOI;
     $('status').textContent = '✅ 准备就绪，点击按钮开始分析';
 };
 
