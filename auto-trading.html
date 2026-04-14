@@ -1259,10 +1259,12 @@ const log = (msg, type = 'info') => {
   while (panel.children.length > 50) panel.removeChild(panel.lastChild);
 };
 
-// ==================== API请求 ====================
+// ==================== API请求 (直连优先，代理兜底) ====================
 const CORS_PROXIES = [
-  'https://corsproxy.io/?',
-  'https://api.codetabs.com/v1/proxy?quest='
+  'https://139.rams.cc.cd/?url=',        // 用户自建代理1
+  'https://135.rams.cc.cd/?url=',        // 用户自建代理2
+  'https://136.rams.cc.cd/?url=',        // 用户自建代理3
+  'https://137.rams.cc.cd/?url='          // 用户自建代理4
 ];
 
 async function apiFetch(path) {
