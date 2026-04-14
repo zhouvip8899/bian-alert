@@ -6,8 +6,10 @@
 
 const BINANCE_HOSTS = [
   'fapi.binance.com',    // 币安合约
+  'fapi.binance.cn',     // 币安合约(国内镜像)
   'api.binance.com',     // 币安现货
-  'fstream.binance.com'  // 合约数据流
+  'api.binance.cn',      // 币安现货(国内镜像)
+  'fstream.binance.com' // 合约数据流
 ];
 
 export async function onRequest(context) {
