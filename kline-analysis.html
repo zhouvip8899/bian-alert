@@ -168,6 +168,45 @@ window.TA = (function() {
     }
     return obv;
   };
+  // OBV数组版（用于背离检测）
+  const OBVArray = (close,vol) => {
+    const arr=[0];
+    for(let i=1;i<close.length;i++){
+      if(close[i]>close[i-1]) arr.push(arr[i-1]+vol[i]);
+      else if(close[i]<close[i-1]) arr.push(arr[i-1]-vol[i]);
+      else arr.push(arr[i-1]);
+    }
+    return arr;
+  };
+  // 背离检测: 返回 'bull'顶背离(价格新高OBV未新高) / 'bear'底背离(价格新低OBV未新低) / null
+  const detectDivergence = (close, vol, period=20) => {
+    if(close.length < period+1) return null;
+    const obvArr = OBVArray(close, vol);
+    const n = close.length;
+    const p1 = n-1, p0 = n-1-period;
+    // 顶背离：价格创新高，但OBV没创新高 → 庄家逃顶
+    if(close[p1]>close[p0] && obvArr[p1]<obvArr[p0]) return 'bear';
+    // 底背离：价格创新低，但OBV没创新低 → 庄家抄底
+    if(close[p1]<close[p0] && obvArr[p1]>obvArr[p0]) return 'bull';
+    return null;
+  };
+  // 量价背离检测
+  const detectVolPriceDivergence = (close, vol, period=10) => {
+    if(close.length < period+1) return null;
+    const n = close.length;
+    const priceTrend = close[n-1] - close[n-1-period];
+    const volAvgOld = vol.slice(n-1-period, n-1-Math.floor(period/2)).reduce((a,b)=>a+b,0)/Math.ceil(period/2);
+    const volAvgNew = vol.slice(n-1-Math.floor(period/2), n).reduce((a,b)=>a+b,0)/Math.ceil(period/2);
+    // 价格涨，成交量萎缩 → 上涨无量，可能逃顶
+    if(priceTrend>0 && volAvgNew < volAvgOld*0.7) return 'priceUp_volDown';
+    // 价格跌，成交量萎缩 → 下跌缩量，可能抄底
+    if(priceTrend<0 && volAvgNew < volAvgOld*0.7) return 'priceDown_volDown';
+    // 价格跌，成交量放大 → 恐慌出货
+    if(priceTrend<0 && volAvgNew > volAvgOld*1.5) return 'priceDown_volUp';
+    // 价格涨，成交量放大 → 正常上涨
+    if(priceTrend>0 && volAvgNew > volAvgOld*1.3) return 'priceUp_volUp';
+    return null;
+  };
   const ROC = (data,period=10) => {
     if(data.length<period+1)return null;
     return(data[data.length-1]-data[data.length-period-1])/data[data.length-period-1]*100;
@@ -191,7 +230,8 @@ window.TA = (function() {
   return{
     rsi:RSI,sma:SMA,ema:EMA,macd:MACD,bb:BollingerBands,
     kdj:KDJ,wr:WilliamsR,cci:CCI,stochRsi:StochRSI,
-    atr:ATR,adx:ADX,obv:OBV,roc:ROC,mom:MOM,
+    atr:ATR,adx:ADX,obv:OBV,obvArray:OBVArray,roc:ROC,mom:MOM,
+    detectDivergence,detectVolPriceDivergence,
     tdSequential:tdSequentialFn
   };
 })();
@@ -672,6 +712,12 @@ body {
     <div class="detail-section">
       <div class="detail-header">🔄 TD9转指标 / TD Sequential</div>
       <div id="td9Panel" style="padding:12px 14px;"></div>
+    </div>
+
+    <!-- 庄家信号面板 -->
+    <div class="detail-section">
+      <div class="detail-header">🎯 庄家行为检测</div>
+      <div id="smartMoneyPanel" style="padding:10px 14px;"></div>
     </div>
 
     <!-- Oscillators Table -->
@@ -1355,6 +1401,90 @@ function renderIndicators(ind) {
   $('indicatorGrid').innerHTML = html;
 }
 
+// ==================== 渲染庄家信号面板 ====================
+function renderSmartMoney(ind) {
+  const panel = document.getElementById('smartMoneyPanel');
+  if (!panel) return;
+
+  const signals = [];
+
+  // 1. OBV背离检测
+  if (ind.obvDivergence === 'bull') {
+    signals.push({ icon: '🐋', label: 'OBV底背离', desc: '价格新低 OBV未新低', type: 'bull', meaning: '庄家抄底信号' });
+  } else if (ind.obvDivergence === 'bear') {
+    signals.push({ icon: '🦈', label: 'OBV顶背离', desc: '价格新高 OBV未新高', type: 'bear', meaning: '庄家逃顶信号' });
+  } else {
+    signals.push({ icon: '⚖️', label: 'OBV正常', desc: '价格与OBV同向', type: 'neutral', meaning: '无明显背离' });
+  }
+
+  // 2. 量价背离检测
+  const vpd = ind.volPriceDivergence;
+  if (vpd === 'priceUp_volDown') {
+    signals.push({ icon: '⚠️', label: '上涨缩量', desc: '价格涨但成交量萎缩', type: 'bear', meaning: '可能是拉高出货' });
+  } else if (vpd === 'priceDown_volDown') {
+    signals.push({ icon: '📉', label: '下跌缩量', desc: '价格跌成交量萎缩', type: 'bull', meaning: '无人接盘可能见底' });
+  } else if (vpd === 'priceDown_volUp') {
+    signals.push({ icon: '🚨', label: '下跌放量', desc: '价格跌成交量放大', type: 'bear', meaning: '恐慌抛售注意风险' });
+  } else if (vpd === 'priceUp_volUp') {
+    signals.push({ icon: '🚀', label: '上涨放量', desc: '价格涨成交量也放大', type: 'bull', meaning: '健康上涨有量配合' });
+  } else {
+    signals.push({ icon: '➖', label: '量价平衡', desc: '无明显量价背离', type: 'neutral', meaning: '市场平稳' });
+  }
+
+  // 3. 持仓量OI变化
+  if (ind.oiChange1h != null) {
+    const oiIcon = ind.oiChange1h > 2 ? '📈' : ind.oiChange1h < -2 ? '📉' : '➖';
+    const oiType = ind.oiChange1h > 2 ? 'bull' : ind.oiChange1h < -2 ? 'bear' : 'neutral';
+    const oiMeaning = ind.oiChange1h > 2
+      ? (ind.chg1h > 0 ? '价格涨+持仓增，主力做多' : '价格跌+持仓增，空头入场')
+      : ind.oiChange1h < -2
+      ? (ind.chg1h > 0 ? '价格涨+持仓减，多头获利了结' : '价格跌+持仓减，多头止损')
+      : '持仓变化不明显';
+    signals.push({ icon: oiIcon, label: `OI变化 ${ind.oiChange1h > 0 ? '+' : ''}${ind.oiChange1h.toFixed(2)}%`, desc: ind.oiChange4h != null ? `4H变化: ${ind.oiChange4h > 0 ? '+' : ''}${ind.oiChange4h.toFixed(2)}%` : '', type: oiType, meaning: oiMeaning });
+  }
+
+  // 4. 资金费率信号
+  if (ind.fundingRate != null) {
+    const fr = ind.fundingRate * 100;
+    if (fr > 0.15) {
+      signals.push({ icon: '🔥', label: `资金费率 +${fr.toFixed(3)}%`, desc: '多头过热极高', type: 'bear', meaning: '极端多头情绪，警惕庄家逃顶' });
+    } else if (fr < -0.05) {
+      signals.push({ icon: '❄️', label: `资金费率 ${fr.toFixed(3)}%`, desc: '空头过热', type: 'bull', meaning: '空头情绪极端，可能反弹' });
+    } else if (fr > 0.08) {
+      signals.push({ icon: '⚡', label: `资金费率 +${fr.toFixed(3)}%`, desc: '多头偏热', type: 'warn', meaning: '多头偏热，注意回调风险' });
+    }
+  }
+
+  // 综合评判
+  const bullCount = signals.filter(s => s.type === 'bull').length;
+  const bearCount = signals.filter(s => s.type === 'bear').length;
+  let conclusion = '';
+  if (bullCount >= 2 && bearCount === 0) {
+    conclusion = `<div style="margin-top:10px;padding:8px;background:rgba(0,230,118,.1);border-radius:6px;border-left:3px solid var(--green);color:var(--green);font-size:12px">🎯 综合判断：<b>疑似庄家抄底布局</b>，可关注买入机会</div>`;
+  } else if (bearCount >= 2 && bullCount === 0) {
+    conclusion = `<div style="margin-top:10px;padding:8px;background:rgba(239,83,80,.1);border-radius:6px;border-left:3px solid var(--red);color:var(--red);font-size:12px">🎯 综合判断：<b>疑似庄家出货逃顶</b>，建议谨慎持仓</div>`;
+  } else if (bullCount > bearCount) {
+    conclusion = `<div style="margin-top:10px;padding:8px;background:rgba(0,230,118,.06);border-radius:6px;font-size:12px;color:var(--text2)">🎯 综合判断：偏多信号，可适度关注</div>`;
+  } else if (bearCount > bullCount) {
+    conclusion = `<div style="margin-top:10px;padding:8px;background:rgba(239,83,80,.06);border-radius:6px;font-size:12px;color:var(--text2)">🎯 综合判断：偏空信号，保持谨慎</div>`;
+  } else {
+    conclusion = `<div style="margin-top:10px;padding:8px;background:rgba(255,255,255,.04);border-radius:6px;font-size:12px;color:var(--text2)">🎯 综合判断：信号中性，继续观察</div>`;
+  }
+
+  const typeColor = { bull: 'var(--green)', bear: 'var(--red)', warn: '#ff9800', neutral: 'var(--text2)' };
+
+  panel.innerHTML = signals.map(s => `
+    <div style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.06)">
+      <span style="font-size:16px;line-height:1.4">${s.icon}</span>
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:600;color:${typeColor[s.type]}">${s.label}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:1px">${s.desc}</div>
+        <div style="font-size:11px;color:${typeColor[s.type]};opacity:.8;margin-top:1px">${s.meaning}</div>
+      </div>
+    </div>
+  `).join('') + conclusion;
+}
+
 // ==================== 渲染摆动指标表 ====================
 function renderOscillators(ind) {
   const rows = [
@@ -1494,6 +1624,8 @@ function renderDetails(ind, klines) {
     ['24H 涨跌', `${chg24h >= 0 ? '+' : ''}${chg24h.toFixed(2)}%`],
     ['24H成交量', `${(volume/1000).toFixed(0)}K`],
     ['持仓量OI', ind.openInterest ? (ind.openInterest > 1000000000 ? (ind.openInterest/1000000000).toFixed(1)+'B' : (ind.openInterest > 1000000 ? (ind.openInterest/1000000).toFixed(1)+'M' : (ind.openInterest/1000).toFixed(1)+'K')) : '--'],
+    ['OI 1H变化', ind.oiChange1h != null ? `${ind.oiChange1h > 0 ? '+' : ''}${ind.oiChange1h.toFixed(2)}%` : '--'],
+    ['OI 4H变化', ind.oiChange4h != null ? `${ind.oiChange4h > 0 ? '+' : ''}${ind.oiChange4h.toFixed(2)}%` : '--'],
     ['布林上轨', ind.bb?.upper?.toFixed(price > 10 ? 2 : 6)],
     ['布林中轨', ind.bb?.sma?.toFixed(price > 10 ? 2 : 6)],
     ['布林下轨', ind.bb?.lower?.toFixed(price > 10 ? 2 : 6)],
@@ -1669,7 +1801,11 @@ async function analyzeCoin(symbol) {
       ema25: safe(() => TA.ema(closes1h, 25)),
       td9: safe(() => TA.tdSequential(closes1h)),
       obv: safe(() => { const arr = TA.obv(closes1h, volumes1h); return Array.isArray(arr) ? arr[arr.length - 1] : arr; }),
+      obvArr: safe(() => TA.obvArray(closes1h, volumes1h)),
       bb4h: klines4h ? safe(() => TA.bb(klines4h.map(k => parseFloat(k[4])))) : null,
+      // 背离检测
+      obvDivergence: safe(() => TA.detectDivergence(closes1h, volumes1h, 20)),
+      volPriceDivergence: safe(() => TA.detectVolPriceDivergence(closes1h, volumes1h, 10)),
     };
 
     // 计算涨跌幅（使用24hr API的真实数据）
@@ -1695,14 +1831,25 @@ async function analyzeCoin(symbol) {
       ind.fundingRate = 0;
     }
     
-    // 获取持仓量
+    // 获取持仓量 + 历史OI变化
     try {
-      const oiData = await apiFetch(`/fapi/v1/openInterest?symbol=${symbol}`);
+      const [oiData, oiHistData] = await Promise.all([
+        apiFetch(`/fapi/v1/openInterest?symbol=${symbol}`),
+        apiFetch(`/futures/data/openInterestHist?symbol=${symbol}&period=1h&limit=8`).catch(() => null)
+      ]);
       if (oiData) {
         ind.openInterest = parseFloat(oiData.openInterest);
       }
+      if (oiHistData && Array.isArray(oiHistData) && oiHistData.length >= 2) {
+        const oiVals = oiHistData.map(d => parseFloat(d.sumOpenInterest));
+        ind.oiChange1h = oiVals.length >= 2 ? (oiVals[oiVals.length-1] - oiVals[oiVals.length-2]) / oiVals[oiVals.length-2] * 100 : null;
+        ind.oiChange4h = oiVals.length >= 5 ? (oiVals[oiVals.length-1] - oiVals[oiVals.length-5]) / oiVals[oiVals.length-5] * 100 : null;
+        ind.oiTrend = ind.oiChange1h > 1 ? 'up' : ind.oiChange1h < -1 ? 'down' : 'flat';
+      }
     } catch(e) {
       ind.openInterest = null;
+      ind.oiChange1h = null;
+      ind.oiChange4h = null;
     }
     
     // 计算量比（简化版）
@@ -1726,6 +1873,7 @@ async function analyzeCoin(symbol) {
     try { renderTD9(ind); } catch(e) { console.error('renderTD9:', e); }
     try { renderTrend(ind, closes1h); } catch(e) { console.error('renderTrend:', e); }
     try { renderDetails(ind, klines1h); } catch(e) { console.error('renderDetails:', e); }
+    try { renderSmartMoney(ind); } catch(e) { console.error('renderSmartMoney:', e); }
 
     try {
       const scoreObj = { ...calcScore(ind), ind };
