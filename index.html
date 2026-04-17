@@ -1289,6 +1289,7 @@ function renderOICards(id, coins) {
                     <span class="name">${c.sym.replace('USDT', '')}</span>
                     <span class="price">$${fp(c.price)}</span>
                     <a href="kline-analysis.html?symbol=${c.sym.replace('USDT', '')}" target="_blank" style="margin-left:8px;color:#00c853;font-size:.8em;text-decoration:none">📊K线</a>
+                    <a href="coin-detail.html?symbol=${c.sym.replace('USDT', '')}" target="_blank" style="margin-left:6px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
                 </div>
                 <div style="text-align:right">
                     <span class="score ${cls}">${c.c24h > 0 ? '+' : ''}${c.c24h.toFixed(1)}%</span>
@@ -1463,6 +1464,7 @@ function renderSmallCapCards(coins) {
                     <span class="name">${c.sym.replace('USDT','')}</span>
                     <span class="price">$${fp(c.price)}</span>
                     <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:8px;color:#e040fb;font-size:.8em;text-decoration:none">📊K线</a>
+                    <a href="coin-detail.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:6px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
                 </div>
                 <div style="text-align:right">
                     <span class="score ${scoreCls}">${c.score}分</span>
@@ -1659,9 +1661,7 @@ function renderWhaleCards(id, coins) {
                     <span class="name">${c.sym.replace('USDT', '')}</span>
                     <span class="price">$${fp(c.price)}</span>
                     <a href="kline-analysis.html?symbol=${c.sym.replace('USDT', '')}" target="_blank" style="margin-left:8px;color:#00bcd4;font-size:.8em;text-decoration:none">📊K线</a>
-                </div>
-                <div style="text-align:right">
-                    <span class="score ${cls}">${(tbr * 100).toFixed(0)}%</span>
+                    <a href="coin-detail.html?symbol=${c.sym.replace('USDT', '')}" target="_blank" style="margin-left:6px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
                     <div style="font-size:.7em;color:${color};margin-top:2px">${tbr > 0.52 ? '🐋看多' : tbr < 0.48 ? '🦈看空' : '⚖️中性'}</div>
                 </div>
             </div>
