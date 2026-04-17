@@ -77,6 +77,7 @@
         <button class="btn btn-s" id="btnFunding">💰 资金费率</button>
         <button class="btn btn-s" id="btnWhale">🐋 大户数据</button>
         <button class="btn btn-s" id="btnOI">📈 增仓看多</button>
+        <button class="btn btn-s" id="btnSmallCap">🌱 小市值启动</button>
     </div>
     
     <div class="stats">
@@ -101,6 +102,7 @@
         <button class="tab" onclick="showTab('rank')">📊 涨跌榜</button>
         <button class="tab" onclick="showTab('funding')">💰 资金费率</button>
         <button class="tab" onclick="showTab('oi')">📈 增仓看多</button>
+        <button class="tab" onclick="showTab('smallcap')">🌱 小市值启动</button>
     </div>
     
     <div id="sig" class="content active">
@@ -130,6 +132,12 @@
         <h3 style="margin:15px 0 10px;color:#00c853">📈 增仓看多</h3>
         <p style="color:#666;font-size:.85em;margin-bottom:15px">价格涨 + 持仓增 = 资金主动做多信号</p>
         <div class="grid" id="oiList"></div>
+    </div>
+
+    <div id="smallcap" class="content">
+        <h3 style="margin:15px 0 10px;color:#e040fb">🌱 小市值启动侦测</h3>
+        <p style="color:#666;font-size:.85em;margin-bottom:15px">小市值 + 价格未大涨 + 量能突增 + 主买偏强 = 疑似启动蓄力</p>
+        <div class="grid" id="smallCapList"></div>
     </div>
 
     
@@ -1297,6 +1305,182 @@ function renderOICards(id, coins) {
     $(id).innerHTML = coins.length ? coins.map(renderCard).join('') : '<p style="color:#666;text-align:center;padding:20px">暂无数据</p>';
 }
 
+// ========== 小市值启动侦测 ==========
+async function runSmallCap() {
+    if (busy) return;
+    busy = true;
+    currentProxyIndex = 0;
+    $('status').textContent = '⏳ 正在扫描小市值启动信号...';
+
+    try {
+        const [tickers, exchangeInfo] = await Promise.all([
+            apiFetch('/fapi/v1/ticker/24hr'),
+            apiFetch('/fapi/v1/exchangeInfo')
+        ]);
+        const activeSymbols = new Set(
+            exchangeInfo.symbols.filter(s => s.status === 'TRADING').map(s => s.symbol)
+        );
+        const STABLE_PAIRS = new Set([
+            'BTCUSDT','ETHUSDT','BNBUSDT','SOLUSDT','XRPUSDT','DOGEUSDT',
+            'ADAUSDT','AVAXUSDT','LINKUSDT','UNIUSDT','LTCUSDT','BCHUSDT',
+            'USDCUSDT','BUSDUSDT','TUSDUSDT','DAIUSDT','USDTUSDC'
+        ]);
+
+        // 小市值筛选：24H成交额 < 5000万U，且剔除主流/稳定币
+        const smallCaps = tickers.filter(t =>
+            t.symbol.endsWith('USDT') &&
+            !STABLE_PAIRS.has(t.symbol) &&
+            activeSymbols.has(t.symbol) &&
+            parseFloat(t.quoteVolume) < 50000000 &&   // 小于5000万U
+            parseFloat(t.quoteVolume) > 500000 &&      // 至少50万U（有流动性）
+            parseFloat(t.lastPrice) > 0
+        );
+
+        if (smallCaps.length === 0) {
+            $('smallCapList').innerHTML = '<p style="color:#666;text-align:center;padding:20px">暂无符合条件的小市值币种</p>';
+            showTab('smallcap');
+            busy = false;
+            return;
+        }
+
+        // 并发获取K线数据分析启动信号
+        const BATCH = 20;
+        const results = [];
+        for (let i = 0; i < Math.min(smallCaps.length, 120); i += BATCH) {
+            const batch = smallCaps.slice(i, i + BATCH);
+            const batchResults = await Promise.all(batch.map(async t => {
+                try {
+                    const [k1h, k15m] = await Promise.all([
+                        apiFetch(`/fapi/v1/klines?symbol=${t.symbol}&interval=1h&limit=24`),
+                        apiFetch(`/fapi/v1/klines?symbol=${t.symbol}&interval=15m&limit=16`)
+                    ]);
+                    if (!Array.isArray(k1h) || k1h.length < 10) return null;
+
+                    // 1H K线指标
+                    const vols1h = k1h.map(x => parseFloat(x[5]));
+                    const close1h = k1h.map(x => parseFloat(x[4]));
+                    const avgVol = vols1h.slice(0, -1).reduce((a, b) => a + b, 0) / (vols1h.length - 1);
+                    const curVol = vols1h[vols1h.length - 1];
+                    const volRatio = avgVol > 0 ? curVol / avgVol : 0; // 量比
+
+                    // 近1H涨跌
+                    const chg1h = close1h.length >= 2
+                        ? (close1h[close1h.length - 1] - close1h[close1h.length - 2]) / close1h[close1h.length - 2] * 100
+                        : 0;
+
+                    // 15分钟 Taker 主买比估算（最近4根K线买卖量）
+                    let takerBuy = 0.5;
+                    if (Array.isArray(k15m) && k15m.length >= 4) {
+                        const rec = k15m.slice(-4);
+                        const buyVol = rec.reduce((s, x) => s + parseFloat(x[9]), 0);
+                        const totalVol = rec.reduce((s, x) => s + parseFloat(x[5]), 0);
+                        takerBuy = totalVol > 0 ? buyVol / totalVol : 0.5;
+                    }
+
+                    // 近4根15m K线价格趋势
+                    let trend = 0;
+                    if (Array.isArray(k15m) && k15m.length >= 4) {
+                        const rec = k15m.slice(-4).map(x => parseFloat(x[4]));
+                        trend = rec[rec.length - 1] > rec[0] ? 1 : -1;
+                    }
+
+                    // 启动评分
+                    let score = 0;
+                    const c24h = parseFloat(t.priceChangePercent);
+
+                    if (volRatio >= 3.0) score += 40;
+                    else if (volRatio >= 2.0) score += 30;
+                    else if (volRatio >= 1.5) score += 15;
+                    else if (volRatio < 1.0) score -= 10;
+
+                    if (takerBuy >= 0.60) score += 30;
+                    else if (takerBuy >= 0.55) score += 20;
+                    else if (takerBuy >= 0.52) score += 10;
+                    else if (takerBuy < 0.45) score -= 15;
+
+                    if (chg1h > 0.5 && chg1h < 5) score += 20;   // 近1H微涨（不能涨太多）
+                    else if (chg1h >= 5) score += 5;               // 已经涨较多，加分少
+                    else if (chg1h < 0) score -= 10;
+
+                    if (trend > 0) score += 10;
+
+                    // 价格未大涨才算"没拉盘"
+                    if (c24h > 10) score -= 20;    // 已经拉了就降权
+                    else if (c24h > 5) score -= 8;
+                    else if (c24h > 0 && c24h <= 5) score += 5; // 微涨更好
+
+                    return {
+                        sym: t.symbol,
+                        price: parseFloat(t.lastPrice),
+                        c24h,
+                        chg1h,
+                        vol: parseFloat(t.quoteVolume),
+                        volRatio,
+                        takerBuy: (takerBuy * 100).toFixed(1),
+                        score
+                    };
+                } catch(e) {
+                    return null;
+                }
+            }));
+            results.push(...batchResults.filter(Boolean));
+        }
+
+        // 筛选：评分>=35 且 量比>=1.5 且 主买>=52%
+        const launched = results
+            .filter(c => c.score >= 35 && c.volRatio >= 1.5 && parseFloat(c.takerBuy) >= 52)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 30);
+
+        renderSmallCapCards(launched);
+        showTab('smallcap');
+        $('status').textContent = `🌱 小市值启动 | 找到${launched.length}个候选 | ${new Date().toLocaleTimeString('zh-CN')}`;
+    } catch(e) {
+        err('小市值扫描失败: ' + e.message);
+    }
+    busy = false;
+}
+
+function renderSmallCapCards(coins) {
+    if (!coins.length) {
+        $('smallCapList').innerHTML = '<p style="color:#666;text-align:center;padding:20px">暂无启动信号，稍后再试</p>';
+        return;
+    }
+    $('smallCapList').innerHTML = coins.map(c => {
+        const scoreCls = c.score >= 70 ? 's-h' : c.score >= 50 ? 's-w' : 's-c';
+        const volColor = c.volRatio >= 3 ? '#00e676' : c.volRatio >= 2 ? '#ff9800' : '#888';
+        const takerColor = parseFloat(c.takerBuy) >= 58 ? '#00e676' : parseFloat(c.takerBuy) >= 52 ? '#ff9800' : '#888';
+        const signalTags = [];
+        if (c.volRatio >= 3) signalTags.push('<span class="tag">🔥量比' + c.volRatio.toFixed(1) + 'x</span>');
+        else if (c.volRatio >= 1.5) signalTags.push('<span class="tag tag-w">📊量比' + c.volRatio.toFixed(1) + 'x</span>');
+        if (parseFloat(c.takerBuy) >= 58) signalTags.push('<span class="tag">💪主买' + c.takerBuy + '%</span>');
+        if (c.chg1h > 0.5 && c.chg1h < 5) signalTags.push('<span class="tag tag-w">⬆️近1H微涨</span>');
+        if (c.c24h < 3 && c.c24h > 0) signalTags.push('<span class="tag">💤未启动</span>');
+
+        return `<div class="card" style="border-color:#e040fb">
+            <div class="card-hd">
+                <div>
+                    <span class="name">${c.sym.replace('USDT','')}</span>
+                    <span class="price">$${fp(c.price)}</span>
+                    <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:8px;color:#e040fb;font-size:.8em;text-decoration:none">📊K线</a>
+                </div>
+                <div style="text-align:right">
+                    <span class="score ${scoreCls}">${c.score}分</span>
+                    <div style="font-size:.7em;color:#e040fb;margin-top:2px">启动评分</div>
+                </div>
+            </div>
+            <div class="chain">
+                <div class="chain-row"><span style="color:#e040fb">🌱量比</span><span style="color:${volColor}">${c.volRatio.toFixed(2)}x</span></div>
+                <div class="chain-row"><span style="color:#888">主买比</span><span style="color:${takerColor}">${c.takerBuy}%</span></div>
+                <div class="chain-row"><span style="color:#888">近1H</span><span style="color:${c.chg1h > 0 ? '#00c853' : '#ef5350'}">${c.chg1h > 0 ? '+' : ''}${c.chg1h.toFixed(2)}%</span></div>
+                <div class="chain-row"><span style="color:#888">24H</span><span style="color:${c.c24h > 0 ? '#00c853' : '#ef5350'}">${c.c24h > 0 ? '+' : ''}${c.c24h.toFixed(2)}%</span></div>
+                <div class="chain-row"><span style="color:#888">成交额</span><span style="color:#aaa">${c.vol > 1e6 ? (c.vol/1e6).toFixed(1)+'M' : (c.vol/1e3).toFixed(0)+'K'}</span></div>
+            </div>
+            ${signalTags.length ? `<div class="tags">${signalTags.join('')}</div>` : ''}
+        </div>`;
+    }).join('');
+}
+
 async function runRank() {
     if (busy) return;
     busy = true;
@@ -1508,6 +1692,7 @@ function showTab(id) {
     if (id === 'rank' && !$('gainers').innerHTML) runRank();
     if (id === 'whale' && !$('whaleList').innerHTML) runWhale();
     if (id === 'oi' && !$('oiList').innerHTML) runOI();
+    if (id === 'smallcap' && !$('smallCapList').innerHTML) runSmallCap();
 }
 
 // ========== 初始化 ==========
@@ -1518,6 +1703,7 @@ window.onload = function() {
     $('btnFunding').onclick = runFunding;
     $('btnWhale').onclick = runWhale;
     $('btnOI').onclick = runOI;
+    $('btnSmallCap').onclick = runSmallCap;
     $('status').textContent = '✅ 准备就绪，点击按钮开始分析';
 };
 
