@@ -1951,19 +1951,24 @@ async function init() {
 // ==================== 实时K线WebSocket ====================
 let wsReconnecting = false;  // 防止重复重连
 let wsRetryCount = 0;
-const MAX_WS_RETRIES = 5;     // 最大重试次数
-let pollingInterval = null;   // 轮询定时器
+let wsConnId = 0;             // 连接ID，防止旧回调覆盖
+const MAX_WS_RETRIES = 5;      // 最大重试次数
+let pollingInterval = null;    // 轮询定时器
 let usePolling = false;       // 是否使用轮询模式
 
-function connectWebSocket(symbol) {
-  // 如果已经在重连中，跳过
-  if (wsReconnecting) return;
+function connectWebSocket(symbol, forceReconnect) {
+  // 如果已有活跃连接且非强制重连，跳过
+  if (ws && ws.readyState === WebSocket.OPEN && !forceReconnect) return;
 
   // 停止轮询模式（WebSocket优先）
   stopPolling();
 
+  // 递增连接ID，使旧回调失效
+  const myConnId = ++wsConnId;
+
   if (ws) {
-    ws.onclose = null;  // 先解绑onclose，防止触发重复重连
+    ws.onclose = null;
+    ws.onerror = null;
     ws.close();
     ws = null;
   }
@@ -1980,6 +1985,8 @@ function connectWebSocket(symbol) {
     ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
+      // 忽略过期连接的回调
+      if (myConnId !== wsConnId) return;
       wsConnected = true;
       wsReconnecting = false;
       wsRetryCount = 0;
@@ -1988,6 +1995,8 @@ function connectWebSocket(symbol) {
     };
 
     ws.onmessage = (evt) => {
+      // 忽略过期连接的消息
+      if (myConnId !== wsConnId) return;
       try {
         const msg = JSON.parse(evt.data);
         if (!msg.k) return;
@@ -2058,19 +2067,21 @@ function connectWebSocket(symbol) {
       }
     };
 
-    ws.onerror = (e) => {
-      console.warn('WebSocket错误:', e);
+    ws.onerror = () => {
+      if (myConnId !== wsConnId) return;
+      console.warn('WebSocket错误');
       wsConnected = false;
       updateWsStatus(false);
     };
 
     ws.onclose = () => {
+      if (myConnId !== wsConnId) return;
       wsConnected = false;
       updateWsStatus(false);
-      
+
       // 防止重复触发重连
       if (wsReconnecting) return;
-      
+
       // 增加重试计数
       wsRetryCount++;
 
@@ -2087,12 +2098,14 @@ function connectWebSocket(symbol) {
 
       wsReconnecting = true;
       setTimeout(() => {
+        if (myConnId !== wsConnId) return; // 再次校验
         wsReconnecting = false;
-        if (currentSymbol) connectWebSocket(currentSymbol);
+        if (currentSymbol) connectWebSocket(currentSymbol, true);
       }, delay);
     };
   } catch(e) {
     console.error('WebSocket连接失败:', e);
+    if (myConnId !== wsConnId) return;
     wsConnected = false;
     // 连接失败时直接切换到轮询模式
     startPolling();
