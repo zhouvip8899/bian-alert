@@ -1956,11 +1956,19 @@ let usePolling = false;       // 是否使用轮询模式
 let wsAttemptCount = 0;       // 本次连接内的重试次数，达到2次则放弃本次连接切换轮询
 
 function connectWebSocket(symbol, forceReconnect) {
+  console.log('[WS] connectWebSocket 入口:', symbol, 'force=', forceReconnect, 'usePolling=', usePolling, 'wsAttemptCount=', wsAttemptCount);
+
   // 如果已有活跃连接且非强制重连，跳过
-  if (ws && ws.readyState === WebSocket.OPEN && !forceReconnect) return;
+  if (ws && ws.readyState === WebSocket.OPEN && !forceReconnect) {
+    console.log('[WS] 已有活跃连接，跳过');
+    return;
+  }
 
   // 停止轮询模式（WebSocket优先）
-  stopPolling();
+  if (usePolling) {
+    console.log('[WS] 停止轮询，切换WebSocket');
+    stopPolling();
+  }
 
   // 递增连接ID，使旧回调失效
   const myConnId = ++wsConnId;
@@ -1968,6 +1976,7 @@ function connectWebSocket(symbol, forceReconnect) {
   wsAttemptCount = 0;
 
   if (ws) {
+    console.log('[WS] 关闭旧连接:', ws.readyState);
     ws.onclose = null;
     ws.onerror = null;
     ws.close();
@@ -2069,17 +2078,18 @@ function connectWebSocket(symbol, forceReconnect) {
       }
     };
 
-    ws.onerror = () => {
+    ws.onerror = (e) => {
       if (myConnId !== wsConnId) return;
-      console.warn('WebSocket错误');
+      console.warn('WebSocket错误', e);
       wsConnected = false;
       updateWsStatus(false);
     };
 
-    ws.onclose = () => {
+    ws.onclose = (e) => {
       if (myConnId !== wsConnId) return;
       wsConnected = false;
-      updateWsStatus(false);
+      // 打印详细信息：code=1000正常关闭，1006异常断开，其他值可能是代理/Cloudflare断开
+      console.warn(`WebSocket关闭 code=${e.code} reason=${e.reason || '(无)'}`);
 
       // 防止重复触发重连
       if (wsReconnecting) return;
@@ -2101,8 +2111,8 @@ function connectWebSocket(symbol, forceReconnect) {
 
       wsReconnecting = true;
       setTimeout(() => {
-        if (myConnId !== wsConnId) return; // 再次校验
         wsReconnecting = false;
+        if (myConnId !== wsConnId) return; // 再次校验
         if (currentSymbol) connectWebSocket(currentSymbol, true);
       }, delay);
     };
