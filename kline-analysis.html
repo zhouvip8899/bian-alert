@@ -1953,7 +1953,7 @@ let wsReconnecting = false;  // 防止重复重连
 let wsConnId = 0;             // 连接ID，防止旧回调覆盖
 let pollingInterval = null;    // 轮询定时器
 let usePolling = false;       // 是否使用轮询模式
-let wsFailedCount = 0;        // 累计失败次数，达到2次则放弃WebSocket
+let wsAttemptCount = 0;       // 本次连接内的重试次数，达到2次则放弃本次连接切换轮询
 
 function connectWebSocket(symbol, forceReconnect) {
   // 如果已有活跃连接且非强制重连，跳过
@@ -1965,7 +1965,7 @@ function connectWebSocket(symbol, forceReconnect) {
   // 递增连接ID，使旧回调失效
   const myConnId = ++wsConnId;
   // 手动连接时重置失败计数（强制重置，不累积）
-  wsFailedCount = 0;
+  wsAttemptCount = 0;
 
   if (ws) {
     ws.onclose = null;
@@ -1990,8 +1990,8 @@ function connectWebSocket(symbol, forceReconnect) {
       if (myConnId !== wsConnId) return;
       wsConnected = true;
       wsReconnecting = false;
-      // 连上后重置失败计数（这是关键！coin-detail 的逻辑）
-      wsFailedCount = 0;
+      // 连上后重置本轮失败计数
+      wsAttemptCount = 0;
       updateWsStatus(true);
       console.log('WebSocket已连接:', symbol, interval);
     };
@@ -2084,19 +2084,20 @@ function connectWebSocket(symbol, forceReconnect) {
       // 防止重复触发重连
       if (wsReconnecting) return;
 
-      // 累计失败次数
-      wsFailedCount++;
+      // 本次连接内的重试次数
+      wsAttemptCount++;
 
-      // 超过2次失败，放弃WebSocket，切换到轮询模式
-      if (wsFailedCount >= 2) {
-        console.warn('WebSocket连续失败' + wsFailedCount + '次，停止重连，切换到轮询模式');
+      // 超过2次失败，放弃本次连接，切换到轮询模式
+      if (wsAttemptCount >= 2) {
+        console.warn('WebSocket本次连接重试' + wsAttemptCount + '次，停止重连，切换到轮询模式');
+        usePolling = true;
         startPolling();
         return;
       }
 
       // 断线后延迟重连（5s）
       const delay = 5000;
-      console.log(`WebSocket断开，${delay/1000}秒后重连（第${wsFailedCount}次）`);
+      console.log(`WebSocket断开，${delay/1000}秒后重连（第${wsAttemptCount}次）`);
 
       wsReconnecting = true;
       setTimeout(() => {
@@ -2110,8 +2111,9 @@ function connectWebSocket(symbol, forceReconnect) {
     if (myConnId !== wsConnId) return;
     wsConnected = false;
     // 连接失败时直接切换到轮询模式
-    wsFailedCount++;
-    if (wsFailedCount >= 2) {
+    wsAttemptCount++;
+    if (wsAttemptCount >= 2) {
+      usePolling = true;
       startPolling();
     }
   }
