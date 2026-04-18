@@ -383,7 +383,7 @@ function closeKlineWs() { if (klineWs) { klineWs.close(); klineWs = null; } }
 
 function connectWebSocket(symbol) {
   setWsStatus('', '连接中...');
-  var wsUrl = 'https://139.rams.cc.cd/?url=wss://fstream.binance.com:9443/ws/' + symbol.toLowerCase() + '@ticker';
+  var wsUrl = 'wss://139.rams.cc.cd/?url=wss://fstream.binance.com:9443/ws/' + symbol.toLowerCase() + '@ticker';
   try {
     ws = new WebSocket(wsUrl);
     ws.onopen = function() { wsRetry = 0; setWsStatus('online', '实时在线'); };
@@ -395,7 +395,7 @@ function connectWebSocket(symbol) {
 
 function connectKlineWs(symbol, tf) {
   var si = ({"15m":"15m","1h":"1h","4h":"4h","1d":"1d"})[tf] || '1h';
-  var wsUrl = 'https://139.rams.cc.cd/?url=wss://fstream.binance.com:9443/ws/' + symbol.toLowerCase() + '@kline_' + si;
+  var wsUrl = 'wss://139.rams.cc.cd/?url=wss://fstream.binance.com:9443/ws/' + symbol.toLowerCase() + '@kline_' + si;
   try {
     klineWs = new WebSocket(wsUrl);
     klineWs.onmessage = function(ev) {
