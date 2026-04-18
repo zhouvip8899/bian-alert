@@ -1969,13 +1969,14 @@ function connectWebSocket(symbol, forceReconnect) {
   if (usePolling) {
     console.log('[WS] 停止轮询，切换WebSocket');
     stopPolling();
+    usePolling = false;
+    // 用户主动切换币种时，重置重试计数（重新开始）
+    wsAttemptCount = 0;
+    wsReconnectDelay = 5000;
   }
 
   // 递增连接ID，使旧回调失效
   const myConnId = ++wsConnId;
-  // 手动连接时重置失败计数（强制重置，不累积）
-  wsAttemptCount = 0;
-  wsReconnectDelay = 5000; // 重置延迟
 
   if (ws) {
     console.log('[WS] 关闭旧连接:', ws.readyState);
@@ -2001,9 +2002,7 @@ function connectWebSocket(symbol, forceReconnect) {
       if (myConnId !== wsConnId) return;
       wsConnected = true;
       wsReconnecting = false;
-      // 连上后重置本轮失败计数和延迟
-      wsAttemptCount = 0;
-      wsReconnectDelay = 5000;
+      // ⚠️ 不在这里重置 wsAttemptCount！让它在 timer 触发时重置
       updateWsStatus(true);
       console.log('WebSocket已连接:', symbol, interval);
     };
@@ -2091,32 +2090,34 @@ function connectWebSocket(symbol, forceReconnect) {
     ws.onclose = (e) => {
       if (myConnId !== wsConnId) return;
       wsConnected = false;
-      // 打印详细信息：code=1000正常关闭，1006异常断开，其他值可能是代理/Cloudflare断开
       console.warn(`WebSocket关闭 code=${e.code} reason=${e.reason || '(无)'}`);
 
       // 防止重复触发重连
       if (wsReconnecting) return;
 
-      // 本次连接内的重试次数
-      wsAttemptCount++;
-
-      // 超过2次失败，放弃本次连接，切换到轮询模式
-      if (wsAttemptCount >= 2) {
-        console.warn('WebSocket本次连接重试' + wsAttemptCount + '次，停止重连，切换到轮询模式');
-        usePolling = true;
-        startPolling();
-        return;
-      }
-
       // 指数退避：延迟翻倍，最大30秒
       const delay = wsReconnectDelay;
       wsReconnectDelay = Math.min(wsReconnectDelay * 2, 30000);
-      console.log(`WebSocket断开，${delay/1000}秒后重连（第${wsAttemptCount}次，下一次${wsReconnectDelay/1000}秒）`);
+      console.log(`WebSocket断开，${delay/1000}秒后重连`);
 
       wsReconnecting = true;
       setTimeout(() => {
         wsReconnecting = false;
-        if (myConnId !== wsConnId) return; // 再次校验
+        if (myConnId !== wsConnId) return; // 忽略过期timer
+
+        // ⚠️ 关键：只在 timer 触发时计入重试次数（不是 onclose 中）
+        wsAttemptCount++;
+        console.log(`[WS] 重试计数 wsAttemptCount=${wsAttemptCount}`);
+
+        if (wsAttemptCount >= 2) {
+          console.warn('WebSocket连续重试2次失败，切换到轮询模式');
+          usePolling = true;
+          startPolling();
+          return;
+        }
+
+        // 重置延迟（每次 timer 触发是新的"尝试"）
+        wsReconnectDelay = 5000;
         if (currentSymbol) connectWebSocket(currentSymbol, true);
       }, delay);
     };
@@ -2124,12 +2125,24 @@ function connectWebSocket(symbol, forceReconnect) {
     console.error('WebSocket连接失败:', e);
     if (myConnId !== wsConnId) return;
     wsConnected = false;
-    // 连接失败时直接切换到轮询模式
-    wsAttemptCount++;
-    if (wsAttemptCount >= 2) {
-      usePolling = true;
-      startPolling();
-    }
+    // 连接构造失败也走 timer，让 wsAttemptCount 统一在 timer 中递增
+    if (wsReconnecting) return;
+    wsReconnecting = true;
+    const delay = wsReconnectDelay;
+    wsReconnectDelay = Math.min(wsReconnectDelay * 2, 30000);
+    setTimeout(() => {
+      wsReconnecting = false;
+      if (myConnId !== wsConnId) return;
+      wsAttemptCount++;
+      console.log(`[WS] 重试计数(构造失败) wsAttemptCount=${wsAttemptCount}`);
+      if (wsAttemptCount >= 2) {
+        usePolling = true;
+        startPolling();
+        return;
+      }
+      wsReconnectDelay = 5000;
+      if (currentSymbol) connectWebSocket(currentSymbol, true);
+    }, delay);
   }
 }
 
