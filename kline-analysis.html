@@ -1950,11 +1950,10 @@ async function init() {
 
 // ==================== 实时K线WebSocket ====================
 let wsReconnecting = false;  // 防止重复重连
-let wsRetryCount = 0;
 let wsConnId = 0;             // 连接ID，防止旧回调覆盖
-const MAX_WS_RETRIES = 5;      // 最大重试次数
 let pollingInterval = null;    // 轮询定时器
 let usePolling = false;       // 是否使用轮询模式
+let wsFailedCount = 0;        // 累计失败次数，达到2次则放弃WebSocket
 
 function connectWebSocket(symbol, forceReconnect) {
   // 如果已有活跃连接且非强制重连，跳过
@@ -1965,6 +1964,8 @@ function connectWebSocket(symbol, forceReconnect) {
 
   // 递增连接ID，使旧回调失效
   const myConnId = ++wsConnId;
+  // 手动连接时重置失败计数（强制重置，不累积）
+  wsFailedCount = 0;
 
   if (ws) {
     ws.onclose = null;
@@ -1989,7 +1990,6 @@ function connectWebSocket(symbol, forceReconnect) {
       if (myConnId !== wsConnId) return;
       wsConnected = true;
       wsReconnecting = false;
-      wsRetryCount = 0;
       updateWsStatus(true);
       console.log('WebSocket已连接:', symbol, interval);
     };
@@ -2082,19 +2082,19 @@ function connectWebSocket(symbol, forceReconnect) {
       // 防止重复触发重连
       if (wsReconnecting) return;
 
-      // 增加重试计数
-      wsRetryCount++;
+      // 累计失败次数
+      wsFailedCount++;
 
-      // 如果重试次数过多，切换到轮询模式
-      if (wsRetryCount > MAX_WS_RETRIES) {
-        console.warn('WebSocket重连次数过多，自动切换到轮询模式');
+      // 超过2次失败，放弃WebSocket，切换到轮询模式
+      if (wsFailedCount >= 2) {
+        console.warn('WebSocket连续失败' + wsFailedCount + '次，停止重连，切换到轮询模式');
         startPolling();
         return;
       }
 
-      // 断线后使用递增延迟重连（5s, 10s, 15s, 20s, 25s）
-      const delay = Math.min(wsRetryCount * 5, 30) * 1000;
-      console.log(`WebSocket断开，${delay/1000}秒后重连（第${wsRetryCount}次）`);
+      // 断线后延迟重连（5s）
+      const delay = 5000;
+      console.log(`WebSocket断开，${delay/1000}秒后重连（第${wsFailedCount}次）`);
 
       wsReconnecting = true;
       setTimeout(() => {
@@ -2108,7 +2108,10 @@ function connectWebSocket(symbol, forceReconnect) {
     if (myConnId !== wsConnId) return;
     wsConnected = false;
     // 连接失败时直接切换到轮询模式
-    startPolling();
+    wsFailedCount++;
+    if (wsFailedCount >= 2) {
+      startPolling();
+    }
   }
 }
 

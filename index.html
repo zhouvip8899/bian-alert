@@ -874,13 +874,16 @@ const _rt = {
             } catch(e) {}
         };
 
-        this.ws.onerror = () => { this.active = false; };
+        this.ws.onerror = () => { this.active = false; this.wsFailCount = (this.wsFailCount || 0) + 1; };
 
         this.ws.onclose = () => {
-            if (this.active) {
-                // 断线5秒后自动重连
-                setTimeout(() => { if (_rt.active) _rt.connect(_rt.symbols); }, 5000);
+            if (!this.active) return;
+            if (this.wsFailCount >= 2) {
+                console.warn('WebSocket连续失败' + this.wsFailCount + '次，停止重连，请手动刷新');
+                return;
             }
+            // 断线5秒后自动重连
+            setTimeout(() => { if (_rt.active) _rt.connect(_rt.symbols); }, 5000);
         };
 
         // 每2秒批量刷新卡片
