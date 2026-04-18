@@ -1951,13 +1951,10 @@ async function init() {
 // ==================== 实时K线WebSocket ====================
 let wsReconnecting = false;  // 防止重复重连
 let wsConnId = 0;             // 连接ID，防止旧回调覆盖
-let pollingInterval = null;    // 轮询定时器
-let usePolling = false;       // 是否使用轮询模式
-let wsAttemptCount = 0;       // 本次连接内的重试次数
 let wsReconnectDelay = 5000;   // 重连延迟（指数退避，ms）
 
 function connectWebSocket(symbol, forceReconnect) {
-  console.log('[WS] connectWebSocket 入口:', symbol, 'force=', forceReconnect, 'usePolling=', usePolling, 'wsAttemptCount=', wsAttemptCount);
+  console.log('[WS] connectWebSocket 入口:', symbol, 'force=', forceReconnect);
 
   // 如果已有活跃连接且非强制重连，跳过
   if (ws && ws.readyState === WebSocket.OPEN && !forceReconnect) {
@@ -1965,18 +1962,9 @@ function connectWebSocket(symbol, forceReconnect) {
     return;
   }
 
-  // 停止轮询模式（WebSocket优先）
-  if (usePolling) {
-    console.log('[WS] 停止轮询，切换WebSocket');
-    stopPolling();
-    usePolling = false;
-    // 用户主动切换币种时，重置重试计数（重新开始）
-    wsAttemptCount = 0;
-    wsReconnectDelay = 5000;
-  }
-
-  // 递增连接ID，使旧回调失效
+  // 递增连接ID，使旧回调失效，同时重置重连延迟
   const myConnId = ++wsConnId;
+  wsReconnectDelay = 5000;
 
   if (ws) {
     console.log('[WS] 关闭旧连接:', ws.readyState);
@@ -2002,7 +1990,6 @@ function connectWebSocket(symbol, forceReconnect) {
       if (myConnId !== wsConnId) return;
       wsConnected = true;
       wsReconnecting = false;
-      // ⚠️ 不在这里重置 wsAttemptCount！让它在 timer 触发时重置
       updateWsStatus(true);
       console.log('WebSocket已连接:', symbol, interval);
     };
@@ -2104,20 +2091,6 @@ function connectWebSocket(symbol, forceReconnect) {
       setTimeout(() => {
         wsReconnecting = false;
         if (myConnId !== wsConnId) return; // 忽略过期timer
-
-        // ⚠️ 关键：只在 timer 触发时计入重试次数（不是 onclose 中）
-        wsAttemptCount++;
-        console.log(`[WS] 重试计数 wsAttemptCount=${wsAttemptCount}`);
-
-        if (wsAttemptCount >= 2) {
-          console.warn('WebSocket连续重试2次失败，切换到轮询模式');
-          usePolling = true;
-          startPolling();
-          return;
-        }
-
-        // 重置延迟（每次 timer 触发是新的"尝试"）
-        wsReconnectDelay = 5000;
         if (currentSymbol) connectWebSocket(currentSymbol, true);
       }, delay);
     };
@@ -2125,7 +2098,7 @@ function connectWebSocket(symbol, forceReconnect) {
     console.error('WebSocket连接失败:', e);
     if (myConnId !== wsConnId) return;
     wsConnected = false;
-    // 连接构造失败也走 timer，让 wsAttemptCount 统一在 timer 中递增
+    // 构造失败也走指数退避重连
     if (wsReconnecting) return;
     wsReconnecting = true;
     const delay = wsReconnectDelay;
@@ -2133,14 +2106,6 @@ function connectWebSocket(symbol, forceReconnect) {
     setTimeout(() => {
       wsReconnecting = false;
       if (myConnId !== wsConnId) return;
-      wsAttemptCount++;
-      console.log(`[WS] 重试计数(构造失败) wsAttemptCount=${wsAttemptCount}`);
-      if (wsAttemptCount >= 2) {
-        usePolling = true;
-        startPolling();
-        return;
-      }
-      wsReconnectDelay = 5000;
       if (currentSymbol) connectWebSocket(currentSymbol, true);
     }, delay);
   }
@@ -2158,33 +2123,7 @@ function updateWsStatus(connected, msg) {
   }
 }
 
-// 轮询模式：WebSocket不可用时自动切换
-function startPolling() {
-  if (pollingInterval) return;
-  usePolling = true;
-  updateWsStatus(false, '⚡ 轮询模式');
-  console.log('WebSocket不可用，切换到轮询模式（5秒刷新）');
-
-  // 先立即刷新一次
-  refreshKlineData();
-
-  // 每5秒轮询一次
-  pollingInterval = setInterval(() => {
-    if (currentSymbol) {
-      refreshKlineData();
-    }
-  }, 5000);
-}
-
-function stopPolling() {
-  if (pollingInterval) {
-    clearInterval(pollingInterval);
-    pollingInterval = null;
-  }
-  usePolling = false;
-}
-
-// 刷新K线数据（用于轮询）
+// 刷新K线数据（手动刷新）
 async function refreshKlineData() {
   if (!currentSymbol) return;
   try {
@@ -2196,7 +2135,7 @@ async function refreshKlineData() {
       updateKlineChart();
     }
   } catch(e) {
-    console.warn('轮询刷新失败:', e);
+    console.warn('刷新失败:', e);
   }
 }
 
