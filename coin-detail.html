@@ -142,6 +142,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft Ya
 .loading-mask.hidden { display:none; }
 
 /* ===== 响应式 ===== */
+.status-bar { max-width:1200px;margin:0 auto;padding:6px 20px;background:#fff;border-top:1px solid #e8e8e8;display:flex;align-items:center;gap:8px;font-size:12px;color:#555; }
+.ws-dot { width:8px;height:8px;border-radius:50%;background:#ccc;flex-shrink:0; }
+.ws-dot.online { background:#52c41a;animation:pulse 2s infinite; }
+.ws-dot.error { background:#f5222d; }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:.4} }
 @media(max-width:900px){
   .panels { grid-template-columns:1fr 1fr; }
   .liq-panels { grid-template-columns:1fr 1fr; }
@@ -244,6 +249,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft Ya
   </div>
 </div>
 
+<!-- 实时状态栏 -->
+<div class="status-bar" id="statusBar">
+  <span class="ws-dot" id="wsDot"></span>
+  <span id="wsStatusText">连接中...</span>
+  <span style="margin-left:auto;color:#999;font-size:11px" id="lastUpdate">--</span>
+</div>
+
 <script>
 // ==================== 配置 ====================
 const CORS_PROXIES = [
@@ -256,6 +268,7 @@ const CORS_PROXIES = [
 let currentSymbol = 'BTCUSDT';
 let currentTf = '1h';
 let chart = null, candleSeries = null, volumeSeries = null;
+let ws = null, klineWs = null, wsRetry = 0, panelTimer = null, lastTick = null;
 
 // ==================== API ====================
 async function apiFetch(path, base='fapi') {
@@ -307,6 +320,30 @@ function colorClass(v) {
   return v > 0 ? 'val-up' : v < 0 ? 'val-down' : 'val-neutral';
 }
 
+function updateLivePrice(tick) {
+  lastTick = tick;
+  var price = parseFloat(tick.c || 0), change = parseFloat(tick.P || 0);
+  var vol = parseFloat(tick.q || 0), high = parseFloat(tick.h || 0), low = parseFloat(tick.l || 0);
+  var elP = document.getElementById('coinPrice');
+  if (elP) { elP.textContent = '$' + fmtPrice(price); elP.className = change >= 0 ? 'val-up' : 'val-down'; }
+  var elC = document.getElementById('coinChange');
+  if (elC) { elC.textContent = (change >= 0 ? '+' : '') + fmtNum(change, 2) + '%'; elC.className = 'coin-price-change' + (change >= 0 ? ' up' : ''); }
+  var sv = document.querySelectorAll('#coinStats .stat-item .s-val');
+  if (sv[0]) sv[0].textContent = '$' + fmtMoney(vol * 1e6);
+  if (high > 0 && sv[2]) sv[2].textContent = '$' + fmtPrice(high);
+  if (low > 0 && sv[3]) sv[3].textContent = '$' + fmtPrice(low);
+  setWsStatus('online', '实时在线');
+  var lu = document.getElementById('lastUpdate');
+  if (lu) lu.textContent = '更新于 ' + new Date().toLocaleTimeString('zh-CN');
+}
+
+function setWsStatus(state, msg) {
+  var dot = document.getElementById('wsDot'), txt = document.getElementById('wsStatusText');
+  if (!dot || !txt) return;
+  dot.className = 'ws-dot ' + (state === 'online' ? 'online' : state === 'error' ? 'error' : '');
+  txt.textContent = msg || (state === 'online' ? '实时在线' : '连接中');
+}
+
 // ==================== 主加载 ====================
 async function loadSymbol() {
   const input = document.getElementById('symbolInput').value.trim().toUpperCase();
@@ -316,6 +353,9 @@ async function loadSymbol() {
   document.getElementById('loadingTip').textContent = '正在获取 ' + currentSymbol + ' 数据...';
   document.getElementById('chartLabel').textContent = currentSymbol + ' / USDT 永续合约';
   document.title = currentSymbol.replace('USDT','') + ' 币种详情';
+
+  closeWs();
+  closeKlineWs();
 
   try {
     await Promise.all([
@@ -332,6 +372,60 @@ async function loadSymbol() {
 
   document.getElementById('loadingMask').classList.add('hidden');
   document.getElementById('updateTime').textContent = '更新于 ' + new Date().toLocaleTimeString('zh-CN');
+
+  connectWebSocket(currentSymbol);
+  connectKlineWs(currentSymbol, currentTf);
+  startPanelRefresh();
+}
+
+function closeWs() { if (ws) { ws.close(); ws = null; } wsRetry = 0; }
+function closeKlineWs() { if (klineWs) { klineWs.close(); klineWs = null; } }
+
+function connectWebSocket(symbol) {
+  setWsStatus('', '连接中...');
+  var wsUrl = 'https://139.rams.cc.cd/?url=wss://fstream.binance.com:9443/ws/' + symbol.toLowerCase() + '@ticker';
+  try {
+    ws = new WebSocket(wsUrl);
+    ws.onopen = function() { wsRetry = 0; setWsStatus('online', '实时在线'); };
+    ws.onmessage = function(ev) { try { var d=JSON.parse(ev.data); if(d.e==='24hrTicker') updateLivePrice(d); } catch(ex){} };
+    ws.onerror = function() { setWsStatus('error', '连接失败'); };
+    ws.onclose = function() { if(wsRetry<5){wsRetry++;setTimeout(function(){connectWebSocket(symbol);},2000*wsRetry);}else{setWsStatus('error','离线');} };
+  } catch(ex) { setWsStatus('error', '不支持WebSocket'); }
+}
+
+function connectKlineWs(symbol, tf) {
+  var si = ({"15m":"15m","1h":"1h","4h":"4h","1d":"1d"})[tf] || '1h';
+  var wsUrl = 'https://139.rams.cc.cd/?url=wss://fstream.binance.com:9443/ws/' + symbol.toLowerCase() + '@kline_' + si;
+  try {
+    klineWs = new WebSocket(wsUrl);
+    klineWs.onmessage = function(ev) {
+      try {
+        var d=JSON.parse(ev.data);
+        if(d.e==='kline'&&d.k){
+          var k=d.k,ts=Math.floor(k.t/1000);
+          var candle={time:ts,open:parseFloat(k.o),high:parseFloat(k.h),low:parseFloat(k.l),close:parseFloat(k.c)};
+          var vol={time:ts,value:parseFloat(k.v),color:parseFloat(k.c)>=parseFloat(k.o)?'rgba(239,83,80,0.4)':'rgba(38,194,129,0.4)'};
+          if(candleSeries)candleSeries.update(candle);
+          if(volumeSeries)volumeSeries.update(vol);
+          var lb={"15m":"15m","1h":"1H","4h":"4H","1d":"日线"};
+          document.getElementById('klineStatus').textContent='实时 '+(lb[tf]||tf)+' '+new Date().toLocaleTimeString('zh-CN');
+        }
+      } catch(ex){}
+    };
+    klineWs.onclose=function(){};
+    klineWs.onerror=function(){if(klineWs)klineWs.close();};
+  } catch(ex){}
+}
+
+function startPanelRefresh() {
+  if (panelTimer) clearInterval(panelTimer);
+  panelTimer = setInterval(function() {
+    if (!currentSymbol) return;
+    Promise.all([loadContractPanel(), loadLSRatio(), loadFunding()]).then(function() {
+      var lu = document.getElementById('lastUpdate');
+      if (lu) lu.textContent = '面板刷新 ' + new Date().toLocaleTimeString('zh-CN');
+    })["catch"](function() {});
+  }, 30000);
 }
 
 // ==================== 基础信息 ====================
@@ -641,7 +735,9 @@ function changeTf(tf) {
   currentTf = tf;
   document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
   event.target.classList.add('active');
+  closeKlineWs();
   loadKline(currentSymbol, tf);
+  connectKlineWs(currentSymbol, tf);
 }
 
 // ==================== 初始化 ====================
@@ -663,6 +759,9 @@ window.onload = function() {
   // 回车搜索
   document.getElementById('symbolInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') loadSymbol();
+  });
+  window.addEventListener('beforeunload', function() {
+    closeWs(); closeKlineWs(); if (panelTimer) clearInterval(panelTimer);
   });
 };
 </script>
