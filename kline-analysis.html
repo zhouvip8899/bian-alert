@@ -1990,6 +1990,8 @@ function connectWebSocket(symbol, forceReconnect) {
       if (myConnId !== wsConnId) return;
       wsConnected = true;
       wsReconnecting = false;
+      // 连上后重置失败计数（这是关键！coin-detail 的逻辑）
+      wsFailedCount = 0;
       updateWsStatus(true);
       console.log('WebSocket已连接:', symbol, interval);
     };
