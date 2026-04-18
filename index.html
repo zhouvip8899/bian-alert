@@ -847,7 +847,7 @@ const _rt = {
             const sym = s.toLowerCase();
             return [`${sym}@ticker`, `${sym}@kline_1m`];
         });
-        const wsUrl = 'wss://fstream.binance.com/stream?streams=' + streams.join('/');
+        const wsUrl = 'wss://139.rams.cc.cd/?url=wss://fstream.binance.com/stream?streams=' + streams.join('/');
 
         try { this.ws = new WebSocket(wsUrl); }
         catch(e) { console.warn('WebSocket连接失败', e); return; }

@@ -1974,7 +1974,7 @@ function connectWebSocket(symbol) {
 
   // 币安合约WebSocket（多 streams 合并）
   const streams = `${pair}@kline_${interval}`;
-  const wsUrl = `wss://fstream.binance.com/ws/${streams}`;
+  const wsUrl = `wss://139.rams.cc.cd/?url=wss://fstream.binance.com/ws/${streams}`;
 
   try {
     ws = new WebSocket(wsUrl);
