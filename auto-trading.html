@@ -1318,7 +1318,7 @@ function connectWebSocket() {
   
   // 订阅多个币种的24hr迷你Ticker
   const streams = symbols.map(s => `${s}@miniTicker`).join('/');
-  const wsUrl = `wss://fstream.binance.com/ws/${streams}`;
+  const wsUrl = `wss://139.rams.cc.cd/?url=wss://fstream.binance.com/ws/${streams}`;
   
   try {
     wsConnection = new WebSocket(wsUrl);
