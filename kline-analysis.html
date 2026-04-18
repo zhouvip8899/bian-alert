@@ -1953,7 +1953,8 @@ let wsReconnecting = false;  // 防止重复重连
 let wsConnId = 0;             // 连接ID，防止旧回调覆盖
 let pollingInterval = null;    // 轮询定时器
 let usePolling = false;       // 是否使用轮询模式
-let wsAttemptCount = 0;       // 本次连接内的重试次数，达到2次则放弃本次连接切换轮询
+let wsAttemptCount = 0;       // 本次连接内的重试次数
+let wsReconnectDelay = 5000;   // 重连延迟（指数退避，ms）
 
 function connectWebSocket(symbol, forceReconnect) {
   console.log('[WS] connectWebSocket 入口:', symbol, 'force=', forceReconnect, 'usePolling=', usePolling, 'wsAttemptCount=', wsAttemptCount);
@@ -1974,6 +1975,7 @@ function connectWebSocket(symbol, forceReconnect) {
   const myConnId = ++wsConnId;
   // 手动连接时重置失败计数（强制重置，不累积）
   wsAttemptCount = 0;
+  wsReconnectDelay = 5000; // 重置延迟
 
   if (ws) {
     console.log('[WS] 关闭旧连接:', ws.readyState);
@@ -1999,8 +2001,9 @@ function connectWebSocket(symbol, forceReconnect) {
       if (myConnId !== wsConnId) return;
       wsConnected = true;
       wsReconnecting = false;
-      // 连上后重置本轮失败计数
+      // 连上后重置本轮失败计数和延迟
       wsAttemptCount = 0;
+      wsReconnectDelay = 5000;
       updateWsStatus(true);
       console.log('WebSocket已连接:', symbol, interval);
     };
@@ -2105,9 +2108,10 @@ function connectWebSocket(symbol, forceReconnect) {
         return;
       }
 
-      // 断线后延迟重连（5s）
-      const delay = 5000;
-      console.log(`WebSocket断开，${delay/1000}秒后重连（第${wsAttemptCount}次）`);
+      // 指数退避：延迟翻倍，最大30秒
+      const delay = wsReconnectDelay;
+      wsReconnectDelay = Math.min(wsReconnectDelay * 2, 30000);
+      console.log(`WebSocket断开，${delay/1000}秒后重连（第${wsAttemptCount}次，下一次${wsReconnectDelay/1000}秒）`);
 
       wsReconnecting = true;
       setTimeout(() => {
