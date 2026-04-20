@@ -59,6 +59,16 @@
         tr:hover{background:rgba(255,255,255,.03)}
         .s-pre{background:linear-gradient(135deg,#7c4dff,#b388ff);color:#fff}
         .tag-pre{background:rgba(124,77,255,.15);color:#b388ff}
+        /* 费率热力图颜色条 */
+        .fr-bar{height:6px;border-radius:3px;background:#333;overflow:hidden;margin-top:3px}
+        .fr-bar-fill{height:100%;transition:width .3s}
+        .fr-pct{font-size:.85em;color:#888;margin-left:4px}
+        /* 多空极端指示 */
+        .ls-indicator{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+        /* 多周期共振箭头 */
+        .mtf-up{color:#00e676;font-weight:700}
+        .mtf-down{color:#ef5350;font-weight:700}
+        .mtf-neutral{color:#888}
         @media(max-width:768px){.stats{grid-template-columns:repeat(3,1fr)}.grid{grid-template-columns:1fr}.header h1{font-size:1.6em}.container{padding:12px}}
         @media(max-width:600px){.stats{grid-template-columns:repeat(2,1fr)}.header h1{font-size:1.4em}.stat .v{font-size:1.3em}.card{padding:10px}.info{grid-template-columns:repeat(2,1fr)}.ctrl{flex-wrap:wrap}.btn{padding:8px 16px;font-size:.85rem}}
         @media(max-width:480px){.stats{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}.header h1{font-size:1.2em}.header{padding:15px 0}.container{padding:8px}.card{font-size:.9em}.chain{font-size:.85em}}
@@ -94,7 +104,9 @@
         <button class="btn btn-s" id="btnFunding">💰 资金费率</button>
         <button class="btn btn-s" id="btnWhale">🐋 大户数据</button>
         <button class="btn btn-s" id="btnOI">📈 增仓看多</button>
-        <button class="btn btn-s" id="btnSmallCap">🌱 小市值启动</button>
+        <button class="btn btn-s" id="btnSmallCap">🌱 小市值</button>
+        <button class="btn btn-s" id="btnRSI">📉 RSI极值</button>
+        <button class="btn btn-s" id="btnVolSpike">🔥 量能异动</button>
     </div>
     
     <div class="stats">
@@ -120,6 +132,12 @@
         <button class="tab" onclick="showTab('funding')">💰 资金费率</button>
         <button class="tab" onclick="showTab('oi')">📈 增仓看多</button>
         <button class="tab" onclick="showTab('smallcap')">🌱 小市值启动</button>
+        <button class="tab" onclick="showTab('rsi')">📉 RSI极值</button>
+        <button class="tab" onclick="showTab('volspike')">🔥 量能异动</button>
+        <button class="tab" onclick="showTab('fundinghm')">🌡️ 费率热力</button>
+        <button class="tab" onclick="showTab('lsex')">⚖️ 多空极端</button>
+        <button class="tab" onclick="showTab('mtf')">🔄 多周期共振</button>
+        <button class="tab" onclick="showTab('liqzone')">💀 清算密集</button>
     </div>
     
     <div id="sig" class="content active">
@@ -191,6 +209,48 @@
         <div id="highFunding"></div>
         <h3 style="margin:20px 0 10px;color:#26c281">🟢 高负费率 (可能补贴多头)</h3>
         <div id="lowFunding"></div>
+    </div>
+
+    <div id="rsi" class="content">
+        <h3 style="margin:15px 0 10px;color:#ff1744">📉 RSI 极度超买 Top20</h3>
+        <p style="color:#666;font-size:.85em;margin-bottom:10px">RSI ≥ 70 代表多方过热，随时可能回调（配合资金费率预警效果更佳）</p>
+        <div id="rsiOverbought"></div>
+        <h3 style="margin:20px 0 10px;color:#00c853">📈 RSI 极度超卖 Top20</h3>
+        <p style="color:#666;font-size:.85em;margin-bottom:10px">RSI ≤ 30 代表空方耗尽，潜在反弹机会（需MACD转多确认）</p>
+        <div id="rsiOversold"></div>
+    </div>
+
+    <div id="volspike" class="content">
+        <h3 style="margin:15px 0 10px;color:#ff9800">🔥 量能异动 Top20</h3>
+        <p style="color:#666;font-size:.85em;margin-bottom:15px">当前成交量超越近期均值 3 倍以上，属于异常放大，需结合方向判断</p>
+        <div class="grid" id="volSpikeList"></div>
+    </div>
+
+    <div id="fundinghm" class="content">
+        <h3 style="margin:15px 0 10px;color:#ff5722">🔥 高正费率 Top30（多头被收割风险）</h3>
+        <p style="color:#666;font-size:.85em;margin-bottom:15px">费率 > 0.05% 表示空头主导，多头持仓成本高，暴涨后追多需谨慎</p>
+        <div id="fundingHighHM"></div>
+        <h3 style="margin:20px 0 10px;color:#00c853">🟢 高负费率 Top30（可能补贴多头）</h3>
+        <p style="color:#666;font-size:.85em;margin-bottom:15px">费率 < -0.05% 表示多头主导，空头补贴，反弹行情中空方容易爆仓</p>
+        <div id="fundingLowHM"></div>
+    </div>
+
+    <div id="lsex" class="content">
+        <h3 style="margin:15px 0 10px;color:#00bcd4">⚖️ 多空比极端 Top20</h3>
+        <p style="color:#666;font-size:.85em;margin-bottom:15px">Taker买入 > 55% 或 < 45% 代表主力方向偏强，属于异动信号</p>
+        <div class="grid" id="lsExtremeList"></div>
+    </div>
+
+    <div id="mtf" class="content">
+        <h3 style="margin:15px 0 10px;color:#9c27b0">🔄 多周期共振趋势</h3>
+        <p style="color:#666;font-size:.85em;margin-bottom:15px">4H + 1H 趋势同向 = 多周期共振，方向一致性高，信号更可靠</p>
+        <div class="grid" id="mtfList"></div>
+    </div>
+
+    <div id="liqzone" class="content">
+        <h3 style="margin:15px 0 10px;color:#f44336">💀 清算密集区 Top20</h3>
+        <p style="color:#666;font-size:.85em;margin-bottom:15px">价格靠近布林±2STD极端位置，突破后可能触发大量清算（高波动预警区）</p>
+        <div class="grid" id="liqZoneList"></div>
     </div>
 </div>
 
@@ -1505,6 +1565,544 @@ function renderSmallCapCards(coins) {
     }).join('');
 }
 
+// ========== RSI 极度值 ==========
+async function runRSI() {
+    if (busy) return;
+    busy = true;
+    currentProxyIndex = 0;
+    $('status').textContent = '⏳ 正在扫描RSI极值信号...';
+    try {
+        const [tickers, exchangeInfo] = await Promise.all([
+            apiFetch('/fapi/v1/ticker/24hr'),
+            apiFetch('/fapi/v1/exchangeInfo')
+        ]);
+        const activeSymbols = new Set(exchangeInfo.symbols.filter(s => s.status === 'TRADING').map(s => s.symbol));
+        const STABLE_PAIRS = new Set(['BTCUSDT','ETHUSDT','BNBUSDT','SOLUSDT','XRPUSDT','DOGEUSDT','ADAUSDT','AVAXUSDT','LINKUSDT','UNIUSDT','LTCUSDT','BCHUSDT','USDCUSDT','BUSDUSDT','TUSDUSDT','USDPUSDT','USDTUSDC','USDTBUSD','USTUSDT','LUNAUSDT','DAIUSDT','FRAXUSDT','USDDUSDT']);
+
+        // 并发获取所有K线数据
+        const coins = tickers.filter(t =>
+            t.symbol.endsWith('USDT') &&
+            !STABLE_PAIRS.has(t.symbol) &&
+            activeSymbols.has(t.symbol) &&
+            parseFloat(t.quoteVolume) >= 500000 &&
+            parseFloat(t.lastPrice) > 0
+        );
+
+        const BATCH = 20;
+        const results = [];
+        for (let i = 0; i < Math.min(coins.length, 120); i += BATCH) {
+            const batch = coins.slice(i, i + BATCH);
+            const batchResults = await Promise.all(batch.map(async t => {
+                try {
+                    const k = await apiFetch(`/fapi/v1/klines?symbol=${t.symbol}&interval=1h&limit=30`);
+                    if (!Array.isArray(k) || k.length < 14) return null;
+                    const closes = k.map(x => parseFloat(x[4]));
+                    const rsi = TA.rsi(closes, 14);
+                    if (rsi === null) return null;
+                    const macd = TA.macd(closes);
+                    return {
+                        sym: t.symbol,
+                        price: parseFloat(t.lastPrice),
+                        c24h: parseFloat(t.priceChangePercent),
+                        rsi,
+                        macdHist: macd?.hist || 0,
+                        macdHistStr: macd?.hist > 0 ? '💹' : macd?.hist < 0 ? '📉' : '➖'
+                    };
+                } catch { return null; }
+            }));
+            results.push(...batchResults.filter(Boolean));
+        }
+
+        const overbought = results
+            .filter(c => c.rsi >= 70)
+            .sort((a, b) => b.rsi - a.rsi)
+            .slice(0, 20);
+
+        const oversold = results
+            .filter(c => c.rsi <= 30)
+            .sort((a, b) => a.rsi - b.rsi)
+            .slice(0, 20);
+
+        const rsiTable = (coins, isOver) => {
+            if (!coins.length) return '<p style="color:#666;text-align:center;padding:15px">暂无</p>';
+            const th = isOver ? '#ff1744' : '#00c853';
+            const tip = isOver ? '⚠️多方过热，注意回调' : '📈空方耗尽，关注反弹';
+            return `<table style="width:100%">
+                <tr style="background:rgba(255,255,255,.03)"><th>#</th><th>币种</th><th>价格</th><th>24H涨跌</th><th>RSI</th><th>MACD</th></tr>
+                ${coins.map((c, i) => {
+                    const rsiColor = isOver ? (c.rsi >= 85 ? '#ff1744' : '#ff9800') : (c.rsi <= 20 ? '#00c853' : '#26c281');
+                    return `<tr style="background:${isOver && c.rsi >= 85 ? 'rgba(255,23,68,.1)' : 'transparent'}">
+                        <td style="padding:6px 8px;color:#888">${i+1}</td>
+                        <td style="padding:6px 8px"><b>${c.sym.replace('USDT','')}</b></td>
+                        <td style="padding:6px 8px">$${fp(c.price)}</td>
+                        <td style="padding:6px 8px">${fc(c.c24h)}</td>
+                        <td style="padding:6px 8px;font-weight:700;color:${rsiColor}">${c.rsi.toFixed(1)}${isOver && c.rsi >= 85 ? '🔥' : ''}</td>
+                        <td style="padding:6px 8px">${c.macdHistStr}</td>
+                    </tr>`;
+                }).join('')}
+            </table>
+            <p style="color:#888;font-size:.8em;margin-top:8px;text-align:center">${tip}</p>`;
+        };
+
+        $('rsiOverbought').innerHTML = rsiTable(overbought, true);
+        $('rsiOversold').innerHTML = rsiTable(oversold, false);
+        showTab('rsi');
+        $('status').textContent = `📉 RSI极值 | 超买${overbought.length}个 / 超卖${oversold.length}个 | ${new Date().toLocaleTimeString('zh-CN')}`;
+    } catch(e) { err('RSI扫描失败: ' + e.message); }
+    busy = false;
+}
+
+// ========== 量能异动 ==========
+async function runVolSpike() {
+    if (busy) return;
+    busy = true;
+    currentProxyIndex = 0;
+    $('status').textContent = '⏳ 正在扫描量能异动...';
+    try {
+        const [tickers, exchangeInfo] = await Promise.all([
+            apiFetch('/fapi/v1/ticker/24hr'),
+            apiFetch('/fapi/v1/exchangeInfo')
+        ]);
+        const activeSymbols = new Set(exchangeInfo.symbols.filter(s => s.status === 'TRADING').map(s => s.symbol));
+        const STABLE_PAIRS = new Set(['BTCUSDT','ETHUSDT','BNBUSDT','SOLUSDT','XRPUSDT','DOGEUSDT','ADAUSDT','AVAXUSDT','LINKUSDT','UNIUSDT','LTCUSDT','BCHUSDT','USDCUSDT','BUSDUSDT','TUSDUSDT']);
+
+        const coins = tickers.filter(t =>
+            t.symbol.endsWith('USDT') &&
+            !STABLE_PAIRS.has(t.symbol) &&
+            activeSymbols.has(t.symbol) &&
+            parseFloat(t.quoteVolume) >= 200000 &&
+            parseFloat(t.lastPrice) > 0
+        );
+
+        const BATCH = 20;
+        const results = [];
+        for (let i = 0; i < Math.min(coins.length, 120); i += BATCH) {
+            const batch = coins.slice(i, i + BATCH);
+            const batchResults = await Promise.all(batch.map(async t => {
+                try {
+                    const k = await apiFetch(`/fapi/v1/klines?symbol=${t.symbol}&interval=1h&limit=24`);
+                    if (!Array.isArray(k) || k.length < 12) return null;
+                    const vols = k.map(x => parseFloat(x[5]));
+                    const closes = k.map(x => parseFloat(x[4]));
+                    const avgVol = vols.slice(0, -1).reduce((a, b) => a + b, 0) / Math.max(vols.length - 1, 1);
+                    const curVol = vols[vols.length - 1];
+                    const volRatio = avgVol > 0 ? curVol / avgVol : 0;
+                    const taker = calcTakerRatio(t);
+                    const c24h = parseFloat(t.priceChangePercent);
+
+                    // 综合评分：量比 + 方向
+                    let score = 0;
+                    if (volRatio >= 4) score += 50;
+                    else if (volRatio >= 3) score += 35;
+                    else if (volRatio >= 2) score += 20;
+                    if (taker > 0.55 && c24h > 0) score += 20;
+                    else if (taker < 0.45 && c24h < 0) score += 15;
+                    else if (taker > 0.52) score += 10;
+                    if (c24h > 5) score += 10;
+                    if (c24h < -5) score -= 10;
+
+                    return { sym: t.symbol, price: parseFloat(t.lastPrice), c24h, volRatio, vol: parseFloat(t.quoteVolume), taker: taker * 100, score };
+                } catch { return null; }
+            }));
+            results.push(...batchResults.filter(Boolean));
+        }
+
+        const spiked = results
+            .filter(c => c.volRatio >= 2.0)
+            .sort((a, b) => b.volRatio - a.volRatio)
+            .slice(0, 20);
+
+        $('volSpikeList').innerHTML = spiked.length ? spiked.map(c => {
+            const scoreCls = c.score >= 60 ? 's-h' : c.score >= 40 ? 's-w' : 's-c';
+            const volColor = c.volRatio >= 4 ? '#00e676' : c.volRatio >= 3 ? '#ff9800' : '#888';
+            const takerColor = c.taker >= 55 ? '#00e676' : c.taker <= 45 ? '#ef5350' : '#888';
+            const direction = c.taker >= 55 && c.c24h > 0 ? '🟢多头异动' : c.taker <= 45 && c.c24h < 0 ? '🔴空头异动' : '⚖️双向放量';
+            return `<div class="card" style="border-color:#ff9800">
+                <div class="card-hd">
+                    <div>
+                        <span class="name">${c.sym.replace('USDT','')}</span>
+                        <span class="price">$${fp(c.price)}</span>
+                        <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:8px;color:#ff9800;font-size:.8em;text-decoration:none">📊K线</a>
+                        <a href="coin-detail.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
+                        <a href="tv-custom-indicators.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:4px;color:#00bcd4;font-size:.8em;text-decoration:none">📡雷达</a>
+                    </div>
+                    <div style="text-align:right">
+                        <span class="score ${scoreCls}">${c.score}分</span>
+                        <div style="font-size:.7em;color:#888;margin-top:2px">量能评分</div>
+                    </div>
+                </div>
+                <div class="chain">
+                    <div class="chain-row"><span style="color:#ff9800">🔥量比</span><span style="color:${volColor};font-weight:700">${c.volRatio.toFixed(2)}x</span></div>
+                    <div class="chain-row"><span style="color:#888">主买比</span><span style="color:${takerColor}">${c.taker.toFixed(1)}%</span></div>
+                    <div class="chain-row"><span style="color:#888">24H涨跌</span>${fc(c.c24h)}</div>
+                    <div class="chain-row"><span style="color:#888">成交额</span><span style="color:#aaa">${c.vol > 1e6 ? (c.vol/1e6).toFixed(1)+'M' : (c.vol/1e3).toFixed(0)+'K'}</span></div>
+                </div>
+                <div class="tags">
+                    <span class="tag" style="background:rgba(255,152,0,.15);color:#ff9800">${direction}</span>
+                    ${c.volRatio >= 4 ? '<span class="tag" style="background:rgba(0,200,83,.15);color:#00e676">🔥🔥异常爆量</span>' : '<span class="tag tag-w">📊量能放大</span>'}
+                </div>
+            </div>`;
+        }).join('') : '<p style="color:#666;text-align:center;padding:20px">暂无量能异动</p>';
+
+        showTab('volspike');
+        $('status').textContent = `🔥 量能异动 | ${spiked.length}个异动信号 | ${new Date().toLocaleTimeString('zh-CN')}`;
+    } catch(e) { err('量能异动扫描失败: ' + e.message); }
+    busy = false;
+}
+
+// ========== 资金费率热力图 ==========
+async function runFundingHM() {
+    if (busy) return;
+    busy = true;
+    currentProxyIndex = 0;
+    $('status').textContent = '⏳ 获取资金费率热力图...';
+    try {
+        const fData = await apiFetch('/fapi/v1/premiumIndex');
+        const STABLE_PAIRS = new Set(['BTCUSDT','ETHUSDT','BNBUSDT','USDCUSDT','BUSDUSDT','TUSDUSDT','USDPUSDT','USDTUSDC','USDTBUSD','USTUSDT','LUNAUSDT','DAIUSDT','FRAXUSDT','USDDUSDT','USDCUSDT']);
+
+        const maxFr = fData.reduce((m, f) => Math.max(m, Math.abs(parseFloat(f.lastFundingRate) * 100)), 0.1);
+
+        const all = fData
+            .filter(f => f.symbol.endsWith('USDT') && !STABLE_PAIRS.has(f.symbol))
+            .map(f => ({ sym: f.symbol, fr: parseFloat(f.lastFundingRate) * 100, nextFR: new Date(parseFloat(f.nextFundingTime)).toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'}) }))
+            .sort((a, b) => b.fr - a.fr);
+
+        const high = all.filter(f => f.fr > 0.05).slice(0, 30);
+        const low = all.filter(f => f.fr < -0.05).sort((a, b) => a.fr - b.fr).slice(0, 30);
+
+        const fundingHMTable = (coins, isHigh) => {
+            if (!coins.length) return '<p style="color:#666;text-align:center;padding:15px">暂无</p>';
+            return `<table style="width:100%">
+                <tr style="background:rgba(255,255,255,.03)"><th>#</th><th>币种</th><th>费率</th><th>强度条</th><th>下次结算</th></tr>
+                ${coins.map((c, i) => {
+                    const intensity = Math.min(Math.abs(c.fr) / maxFr, 1);
+                    const barColor = isHigh ? (intensity > 0.7 ? '#ff1744' : intensity > 0.4 ? '#ff9800' : '#888') : (intensity > 0.7 ? '#00c853' : intensity > 0.4 ? '#26c281' : '#888');
+                    const frColor = c.fr > 0 ? '#ef5350' : '#26c281';
+                    return `<tr style="background:${intensity > 0.7 ? (isHigh ? 'rgba(255,23,68,.08)' : 'rgba(0,200,83,.08)') : 'transparent'}">
+                        <td style="padding:5px 8px;color:#888">${i+1}</td>
+                        <td style="padding:5px 8px"><b>${c.sym.replace('USDT','')}</b></td>
+                        <td style="padding:5px 8px;font-weight:700;color:${frColor}">${c.fr >= 0 ? '+' : ''}${fmt(c.fr, 4)}%</td>
+                        <td style="padding:5px 8px;width:120px">
+                            <div class="fr-bar"><div class="fr-bar-fill" style="width:${(intensity * 100).toFixed(0)}%;background:${barColor}"></div></div>
+                        </td>
+                        <td style="padding:5px 8px;color:#888">${c.nextFR}</td>
+                    </tr>`;
+                }).join('')}
+            </table>`;
+        };
+
+        $('fundingHighHM').innerHTML = fundingHMTable(high, true);
+        $('fundingLowHM').innerHTML = fundingHMTable(low, false);
+        showTab('fundinghm');
+        $('status').textContent = `🌡️ 费率热力 | 高正费率${high.length}个 / 高负费率${low.length}个 | ${new Date().toLocaleTimeString('zh-CN')}`;
+    } catch(e) { err('费率热力图失败: ' + e.message); }
+    busy = false;
+}
+
+// ========== 多空比极端 ==========
+async function runLSExtreme() {
+    if (busy) return;
+    busy = true;
+    currentProxyIndex = 0;
+    $('status').textContent = '⏳ 正在扫描多空极端信号...';
+    try {
+        const [tickers, exchangeInfo] = await Promise.all([
+            apiFetch('/fapi/v1/ticker/24hr'),
+            apiFetch('/fapi/v1/exchangeInfo')
+        ]);
+        const activeSymbols = new Set(exchangeInfo.symbols.filter(s => s.status === 'TRADING').map(s => s.symbol));
+        const STABLE_PAIRS = new Set(['BTCUSDT','ETHUSDT','BNBUSDT','SOLUSDT','XRPUSDT','DOGEUSDT','ADAUSDT','AVAXUSDT','LINKUSDT','UNIUSDT','LTCUSDT','BCHUSDT','USDCUSDT','BUSDUSDT','TUSDUSDT']);
+
+        const coins = tickers.filter(t =>
+            t.symbol.endsWith('USDT') &&
+            !STABLE_PAIRS.has(t.symbol) &&
+            activeSymbols.has(t.symbol) &&
+            parseFloat(t.quoteVolume) >= 500000 &&
+            parseFloat(t.lastPrice) > 0
+        );
+
+        const BATCH = 20;
+        const results = [];
+        for (let i = 0; i < Math.min(coins.length, 120); i += BATCH) {
+            const batch = coins.slice(i, i + BATCH);
+            const batchResults = await Promise.all(batch.map(async t => {
+                try {
+                    const k = await apiFetch(`/fapi/v1/klines?symbol=${t.symbol}&interval=1h&limit=20`);
+                    if (!Array.isArray(k) || k.length < 10) return null;
+                    const closes = k.map(x => parseFloat(x[4]));
+                    const macd = TA.macd(closes);
+                    const taker = calcTakerRatio(t);
+                    const c24h = parseFloat(t.priceChangePercent);
+                    return { sym: t.symbol, price: parseFloat(t.lastPrice), c24h, taker: taker * 100, macdHist: macd?.hist || 0 };
+                } catch { return null; }
+            }));
+            results.push(...batchResults.filter(Boolean));
+        }
+
+        // 极端：Taker > 55 或 < 45
+        const extremeLong = results.filter(c => c.taker >= 55).sort((a, b) => b.taker - a.taker).slice(0, 10);
+        const extremeShort = results.filter(c => c.taker <= 45).sort((a, b) => a.taker - b.taker).slice(0, 10);
+
+        $('lsExtremeList').innerHTML = [...extremeLong, ...extremeShort].map(c => {
+            const isLong = c.taker >= 55;
+            const score = Math.abs(c.taker - 50) * 2 + (c.macdHist > 0 && isLong ? 20 : 0) + (c.macdHist < 0 && !isLong ? 20 : 0);
+            const scoreCls = score >= 60 ? 's-h' : score >= 40 ? 's-w' : 's-c';
+            const takerColor = isLong ? '#00e676' : '#ef5350';
+            const direction = isLong ? '🐋主力看多' : '🦈主力看空';
+            return `<div class="card" style="border-color:#00bcd4">
+                <div class="card-hd">
+                    <div>
+                        <span class="name">${c.sym.replace('USDT','')}</span>
+                        <span class="price">$${fp(c.price)}</span>
+                        <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:8px;color:#00bcd4;font-size:.8em;text-decoration:none">📊K线</a>
+                        <a href="coin-detail.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
+                        <a href="tv-custom-indicators.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:4px;color:#00e676;font-size:.8em;text-decoration:none">📡雷达</a>
+                    </div>
+                    <div style="text-align:right">
+                        <span class="score ${scoreCls}">${score}分</span>
+                        <div style="font-size:.7em;color:${takerColor};margin-top:2px">${direction}</div>
+                    </div>
+                </div>
+                <div class="chain">
+                    <div class="chain-row"><span style="color:#00bcd4">⚖️多空</span><span style="color:${takerColor};font-weight:700">${c.taker.toFixed(1)}%</span></div>
+                    <div class="chain-row"><span style="color:#888">24H涨跌</span>${fc(c.c24h)}</div>
+                    <div class="chain-row"><span style="color:#888">MACD</span><span style="color:${c.macdHist > 0 ? '#00e676' : '#ef5350'}">${c.macdHist > 0 ? '💹多头' : c.macdHist < 0 ? '📉空头' : '➖'}</span></div>
+                </div>
+                <div class="tags">
+                    <span class="tag" style="background:${isLong ? 'rgba(0,200,83,.15)' : 'rgba(239,83,80,.15)'};color:${isLong ? '#00e676' : '#ef5350'}">${direction}</span>
+                    ${Math.abs(c.taker - 50) >= 5 ? '<span class="tag tag-r">⚠️极端偏多</span>' : ''}
+                </div>
+            </div>`;
+        }).join('') || '<p style="color:#666;text-align:center;padding:20px">暂无多空极端信号</p>';
+
+        showTab('lsex');
+        $('status').textContent = `⚖️ 多空极端 | 多头偏向${extremeLong.length}个 / 空头偏向${extremeShort.length}个 | ${new Date().toLocaleTimeString('zh-CN')}`;
+    } catch(e) { err('多空极端扫描失败: ' + e.message); }
+    busy = false;
+}
+
+// ========== 多周期共振 ==========
+async function runMTF() {
+    if (busy) return;
+    busy = true;
+    currentProxyIndex = 0;
+    $('status').textContent = '⏳ 正在分析多周期共振...';
+    try {
+        const [tickers, exchangeInfo] = await Promise.all([
+            apiFetch('/fapi/v1/ticker/24hr'),
+            apiFetch('/fapi/v1/exchangeInfo')
+        ]);
+        const activeSymbols = new Set(exchangeInfo.symbols.filter(s => s.status === 'TRADING').map(s => s.symbol));
+        const STABLE_PAIRS = new Set(['BTCUSDT','ETHUSDT','BNBUSDT','SOLUSDT','XRPUSDT','DOGEUSDT','ADAUSDT','AVAXUSDT','LINKUSDT','UNIUSDT','LTCUSDT','BCHUSDT','USDCUSDT','BUSDUSDT','TUSDUSDT']);
+
+        const coins = tickers.filter(t =>
+            t.symbol.endsWith('USDT') &&
+            !STABLE_PAIRS.has(t.symbol) &&
+            activeSymbols.has(t.symbol) &&
+            parseFloat(t.quoteVolume) >= 500000 &&
+            parseFloat(t.lastPrice) > 0
+        );
+
+        const BATCH = 15;
+        const results = [];
+        for (let i = 0; i < Math.min(coins.length, 90); i += BATCH) {
+            const batch = coins.slice(i, i + BATCH);
+            const batchResults = await Promise.all(batch.map(async t => {
+                try {
+                    const [k4h, k1h] = await Promise.all([
+                        apiFetch(`/fapi/v1/klines?symbol=${t.symbol}&interval=4h&limit=60`),
+                        apiFetch(`/fapi/v1/klines?symbol=${t.symbol}&interval=1h&limit=30`)
+                    ]);
+                    if (!Array.isArray(k4h) || k4h.length < 30 || !Array.isArray(k1h) || k1h.length < 20) return null;
+
+                    const c4h = k4h.map(x => parseFloat(x[4]));
+                    const c1h = k1h.map(x => parseFloat(x[4]));
+
+                    const macd4h = TA.macd(c4h);
+                    const macd1h = TA.macd(c1h);
+                    const rsi4h = TA.rsi(c4h);
+                    const rsi1h = TA.rsi(c1h);
+
+                    const trend4h = macd4h?.hist > 0 ? 'up' : 'down';
+                    const trend1h = macd1h?.hist > 0 ? 'up' : 'down';
+                    const aligned = trend4h === trend1h;
+                    const direction = trend4h;
+
+                    let score = 0;
+                    if (aligned) score += 30;
+                    if (direction === 'up' && rsi4h < 70 && rsi1h < 70) score += 20;
+                    if (direction === 'down' && rsi4h > 30 && rsi1h > 30) score += 20;
+                    if (macd4h?.hist > 0 && macd4h.hist > macd4h.signal * 0.5) score += 10;
+                    if (macd1h?.hist > 0 && macd1h.hist > macd1h.signal * 0.5) score += 10;
+
+                    return {
+                        sym: t.symbol,
+                        price: parseFloat(t.lastPrice),
+                        c24h: parseFloat(t.priceChangePercent),
+                        trend4h, trend1h, aligned, direction,
+                        rsi4h, rsi1h,
+                        score
+                    };
+                } catch { return null; }
+            }));
+            results.push(...batchResults.filter(Boolean));
+        }
+
+        const alignedUp = results.filter(c => c.aligned && c.direction === 'up').sort((a, b) => b.score - a.score).slice(0, 10);
+        const alignedDown = results.filter(c => c.aligned && c.direction === 'down').sort((a, b) => b.score - a.score).slice(0, 10);
+
+        $('mtfList').innerHTML = [...alignedUp, ...alignedDown].map(c => {
+            const isUp = c.direction === 'up';
+            const scoreCls = c.score >= 60 ? 's-h' : c.score >= 40 ? 's-w' : 's-c';
+            const trendColor = isUp ? '#00e676' : '#ef5350';
+            const trendLabel = isUp ? '🔵周期共振-多' : '🔴周期共振-空';
+            return `<div class="card" style="border-color:#9c27b0">
+                <div class="card-hd">
+                    <div>
+                        <span class="name">${c.sym.replace('USDT','')}</span>
+                        <span class="price">$${fp(c.price)}</span>
+                        <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:8px;color:#9c27b0;font-size:.8em;text-decoration:none">📊K线</a>
+                        <a href="coin-detail.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
+                        <a href="tv-custom-indicators.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:4px;color:#00bcd4;font-size:.8em;text-decoration:none">📡雷达</a>
+                    </div>
+                    <div style="text-align:right">
+                        <span class="score ${scoreCls}">${c.score}分</span>
+                        <div style="font-size:.7em;color:${trendColor};margin-top:2px">${trendLabel}</div>
+                    </div>
+                </div>
+                <div class="chain">
+                    <div class="chain-row"><span style="color:#9c27b0">🔄4H</span><span class="${isUp ? 'mtf-up' : 'mtf-down'}">${c.trend4h === 'up' ? '▲ 多头' : '▼ 空头'}</span></div>
+                    <div class="chain-row"><span style="color:#9c27b0">🔄1H</span><span class="${isUp ? 'mtf-up' : 'mtf-down'}">${c.trend1h === 'up' ? '▲ 多头' : '▼ 空头'}</span></div>
+                    <div class="chain-row"><span style="color:#888">RSI4H</span><span>${c.rsi4h?.toFixed(1) || '-'}</span></div>
+                    <div class="chain-row"><span style="color:#888">RSI1H</span><span>${c.rsi1h?.toFixed(1) || '-'}</span></div>
+                    <div class="chain-row"><span style="color:#888">24H涨跌</span>${fc(c.c24h)}</div>
+                </div>
+                <div class="tags">
+                    <span class="tag tag-pre" style="background:rgba(156,39,176,.15);color:#e1bee7">${c.aligned ? '✅共振' : '❌分离'}</span>
+                    <span class="tag" style="background:${isUp ? 'rgba(0,200,83,.15)' : 'rgba(239,83,80,.15)'};color:${isUp ? '#00e676' : '#ef5350'}">${isUp ? '▲ 多头共振' : '▼ 空头共振'}</span>
+                </div>
+            </div>`;
+        }).join('') || '<p style="color:#666;text-align:center;padding:20px">暂无多周期共振信号</p>';
+
+        showTab('mtf');
+        $('status').textContent = `🔄 多周期共振 | 多头共振${alignedUp.length}个 / 空头共振${alignedDown.length}个 | ${new Date().toLocaleTimeString('zh-CN')}`;
+    } catch(e) { err('多周期共振分析失败: ' + e.message); }
+    busy = false;
+}
+
+// ========== 清算密集区 ==========
+async function runLiqZone() {
+    if (busy) return;
+    busy = true;
+    currentProxyIndex = 0;
+    $('status').textContent = '⏳ 正在扫描清算密集区...';
+    try {
+        const [tickers, exchangeInfo] = await Promise.all([
+            apiFetch('/fapi/v1/ticker/24hr'),
+            apiFetch('/fapi/v1/exchangeInfo')
+        ]);
+        const activeSymbols = new Set(exchangeInfo.symbols.filter(s => s.status === 'TRADING').map(s => s.symbol));
+        const STABLE_PAIRS = new Set(['BTCUSDT','ETHUSDT','BNBUSDT','SOLUSDT','XRPUSDT','DOGEUSDT','ADAUSDT','AVAXUSDT','LINKUSDT','UNIUSDT','LTCUSDT','BCHUSDT','USDCUSDT','BUSDUSDT','TUSDUSDT']);
+
+        const coins = tickers.filter(t =>
+            t.symbol.endsWith('USDT') &&
+            !STABLE_PAIRS.has(t.symbol) &&
+            activeSymbols.has(t.symbol) &&
+            parseFloat(t.quoteVolume) >= 500000 &&
+            parseFloat(t.lastPrice) > 0
+        );
+
+        const BATCH = 20;
+        const results = [];
+        for (let i = 0; i < Math.min(coins.length, 120); i += BATCH) {
+            const batch = coins.slice(i, i + BATCH);
+            const batchResults = await Promise.all(batch.map(async t => {
+                try {
+                    const k = await apiFetch(`/fapi/v1/klines?symbol=${t.symbol}&interval=1h&limit=40`);
+                    if (!Array.isArray(k) || k.length < 20) return null;
+                    const closes = k.map(x => parseFloat(x[4]));
+                    const bb = TA.bb(closes);
+                    if (!bb) return null;
+
+                    const cur = closes[closes.length - 1];
+                    const distUpper = (cur - bb.upper) / bb.upper * 100;
+                    const distLower = (bb.lower - cur) / cur * 100;
+
+                    // 清算密集区：价格距布林极端位置 < 2%
+                    let zone = null, zoneDist = 999, liqScore = 0;
+                    if (distUpper > 0 && distUpper < 2) {
+                        zone = 'upper'; zoneDist = distUpper; liqScore = Math.round((2 - distUpper) * 30);
+                    } else if (distLower > 0 && distLower < 2) {
+                        zone = 'lower'; zoneDist = distLower; liqScore = Math.round((2 - distLower) * 30);
+                    }
+
+                    if (!zone) return null;
+                    const volRatio = TA.volTrend(k.map(x => parseFloat(x[5])));
+                    const rsi = TA.rsi(closes);
+                    const macd = TA.macd(closes);
+
+                    return {
+                        sym: t.symbol,
+                        price: cur,
+                        c24h: parseFloat(t.priceChangePercent),
+                        bbUpper: bb.upper,
+                        bbLower: bb.lower,
+                        bbWidth: bb.w,
+                        zone,
+                        zoneDist,
+                        liqScore,
+                        volRatio: volRatio || 1,
+                        rsi: rsi || 50,
+                        macdHist: macd?.hist || 0
+                    };
+                } catch { return null; }
+            }));
+            results.push(...batchResults.filter(Boolean));
+        }
+
+        const zones = results.sort((a, b) => b.liqScore - a.liqScore).slice(0, 20);
+
+        $('liqZoneList').innerHTML = zones.length ? zones.map(c => {
+            const isUpper = c.zone === 'upper';
+            const scoreCls = c.liqScore >= 40 ? 's-crash' : c.liqScore >= 25 ? 's-w' : 's-c';
+            const zoneColor = isUpper ? '#ef5350' : '#00c853';
+            const zoneLabel = isUpper ? '⬆️ 上轨附近（可能回调）' : '⬇️ 下轨附近（可能反弹）';
+            return `<div class="card" style="border-color:#f44336">
+                <div class="card-hd">
+                    <div>
+                        <span class="name">${c.sym.replace('USDT','')}</span>
+                        <span class="price">$${fp(c.price)}</span>
+                        <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:8px;color:#f44336;font-size:.8em;text-decoration:none">📊K线</a>
+                        <a href="coin-detail.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
+                        <a href="tv-custom-indicators.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:4px;color:#00bcd4;font-size:.8em;text-decoration:none">📡雷达</a>
+                    </div>
+                    <div style="text-align:right">
+                        <span class="score ${scoreCls}">${c.liqScore}分</span>
+                        <div style="font-size:.7em;color:${zoneColor};margin-top:2px">💀清算区</div>
+                    </div>
+                </div>
+                <div class="chain">
+                    <div class="chain-row"><span style="color:#f44336">💀位置</span><span style="color:${zoneColor}">${zoneLabel}</span></div>
+                    <div class="chain-row"><span style="color:#888">距极端</span><span style="color:#ff9800">${c.zoneDist.toFixed(2)}%</span></div>
+                    <div class="chain-row"><span style="color:#888">上轨</span><span style="color:#888">${fp(c.bbUpper)}</span></div>
+                    <div class="chain-row"><span style="color:#888">下轨</span><span style="color:#888">${fp(c.bbLower)}</span></div>
+                    <div class="chain-row"><span style="color:#888">布林</span><span style="color:#888">${c.bbWidth.toFixed(2)}%</span></div>
+                    <div class="chain-row"><span style="color:#888">24H涨跌</span>${fc(c.c24h)}</div>
+                </div>
+                <div class="tags">
+                    <span class="tag tag-r" style="background:rgba(244,67,54,.15);color:#ef5350">${zoneLabel}</span>
+                    ${c.volRatio > 1.3 ? '<span class="tag tag-w">🔥量能放大注意</span>' : ''}
+                    ${isUpper && c.rsi > 65 ? '<span class="tag tag-r">⚠️高位+RSI过热</span>' : !isUpper && c.rsi < 35 ? '<span class="tag" style="background:rgba(0,200,83,.15);color:#00e676">📈超卖反弹预期</span>' : ''}
+                </div>
+            </div>`;
+        }).join('') : '<p style="color:#666;text-align:center;padding:20px">暂无清算密集区信号</p>';
+
+        showTab('liqzone');
+        $('status').textContent = `💀 清算密集区 | ${zones.length}个预警区 | ${new Date().toLocaleTimeString('zh-CN')}`;
+    } catch(e) { err('清算密集区扫描失败: ' + e.message); }
+    busy = false;
+}
+
 async function runRank() {
     if (busy) return;
     busy = true;
@@ -1717,6 +2315,12 @@ function showTab(id) {
     if (id === 'whale' && !$('whaleList').innerHTML) runWhale();
     if (id === 'oi' && !$('oiList').innerHTML) runOI();
     if (id === 'smallcap' && !$('smallCapList').innerHTML) runSmallCap();
+    if (id === 'rsi' && !$('rsiOverbought').innerHTML) runRSI();
+    if (id === 'volspike' && !$('volSpikeList').innerHTML) runVolSpike();
+    if (id === 'fundinghm' && !$('fundingHighHM').innerHTML) runFundingHM();
+    if (id === 'lsex' && !$('lsExtremeList').innerHTML) runLSExtreme();
+    if (id === 'mtf' && !$('mtfList').innerHTML) runMTF();
+    if (id === 'liqzone' && !$('liqZoneList').innerHTML) runLiqZone();
 }
 
 // ========== 初始化 ==========
@@ -1728,6 +2332,8 @@ window.onload = function() {
     $('btnWhale').onclick = runWhale;
     $('btnOI').onclick = runOI;
     $('btnSmallCap').onclick = runSmallCap;
+    $('btnRSI').onclick = runRSI;
+    $('btnVolSpike').onclick = runVolSpike;
     $('status').textContent = '✅ 准备就绪，点击按钮开始分析';
 };
 
