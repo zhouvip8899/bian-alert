@@ -753,6 +753,42 @@ html { overflow-x: hidden; }
       </div>
     </div>
 
+    <!-- RSI极值 -->
+    <div class="detail-section">
+      <div class="detail-header">📉 RSI 极值状态</div>
+      <div id="rsiExtremePanel" style="padding:10px 14px; font-size:12px;"></div>
+    </div>
+
+    <!-- 量能异动 -->
+    <div class="detail-section">
+      <div class="detail-header">🔥 量能异动检测</div>
+      <div id="volSpikePanel" style="padding:10px 14px; font-size:12px;"></div>
+    </div>
+
+    <!-- 资金费率 -->
+    <div class="detail-section">
+      <div class="detail-header">💰 资金费率监控</div>
+      <div id="fundingPanel" style="padding:10px 14px; font-size:12px;"></div>
+    </div>
+
+    <!-- 多空比极端 -->
+    <div class="detail-section">
+      <div class="detail-header">⚖️ 多空比极端</div>
+      <div id="lsExtremePanel" style="padding:10px 14px; font-size:12px;"></div>
+    </div>
+
+    <!-- 多周期共振 -->
+    <div class="detail-section">
+      <div class="detail-header">🔄 多周期共振</div>
+      <div id="mtfPanel" style="padding:10px 14px; font-size:12px;"></div>
+    </div>
+
+    <!-- 清算密集区 -->
+    <div class="detail-section">
+      <div class="detail-header">💀 清算密集区</div>
+      <div id="liqZonePanel" style="padding:10px 14px; font-size:12px;"></div>
+    </div>
+
     <!-- Recommended Coins -->
     <div class="recommended-section">
       <div class="panel-title">⭐ 推荐关注</div>
@@ -1659,6 +1695,302 @@ function renderTrend(ind, closes) {
   $('trendIndicators').innerHTML = html;
 }
 
+// ==================== 渲染 RSI 极值面板 ====================
+function renderRSIExtreme(ind) {
+  const rsi = ind.rsi || 50;
+  const panel = $('rsiExtremePanel');
+  if (!panel) return;
+
+  let rsiStatus, rsiColor, rsiTip;
+  if (rsi >= 85) {
+    rsiStatus = '🔥 极度超买'; rsiColor = '#ff1744'; rsiTip = '多方过热，随时可能回调，注意止损';
+  } else if (rsi >= 70) {
+    rsiStatus = '⚠️ 超买区域'; rsiColor = '#ff9800'; rsiTip = '多方偏热，注意短期回调风险';
+  } else if (rsi <= 20) {
+    rsiStatus = '📈 极度超卖'; rsiColor = '#00c853'; rsiTip = '空方耗尽，潜在反弹机会';
+  } else if (rsi <= 30) {
+    rsiStatus = '🔔 超卖区域'; rsiColor = '#26c281'; rsiTip = '空方偏弱，关注反弹信号';
+  } else {
+    rsiStatus = '➖ 中性区域'; rsiColor = '#888'; rsiTip = 'RSI处于正常范围';
+  }
+
+  // MACD方向确认
+  const macdDir = ind.macd?.hist > 0 ? '💹 MACD多头' : ind.macd?.hist < 0 ? '📉 MACD空头' : '➖ MACD中性';
+  const macdColor = ind.macd?.hist > 0 ? '#00e676' : ind.macd?.hist < 0 ? '#ef5350' : '#888';
+
+  panel.innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+      <div style="font-size:20px;font-weight:700;color:${rsiColor}">${rsi.toFixed(1)}</div>
+      <div style="font-size:14px;font-weight:600;color:${rsiColor}">${rsiStatus}</div>
+    </div>
+    <div style="padding:8px;border-radius:6px;background:${rsiColor}15;border-left:3px solid ${rsiColor};margin-bottom:8px;">
+      <div style="font-size:11px;color:var(--text2)">${rsiTip}</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <span style="font-size:12px;color:${macdColor};padding:3px 8px;background:${macdColor}15;border-radius:4px;">${macdDir}</span>
+      ${rsi >= 70 && ind.macd?.hist > 0 ? '<span style="font-size:12px;color:#ff9800;padding:3px 8px;background:rgba(255,152,0,.15);border-radius:4px;">⚠️ RSI+MACD双热</span>' : ''}
+      ${rsi <= 30 && ind.macd?.hist > 0 ? '<span style="font-size:12px;color:#00e676;padding:3px 8px;background:rgba(0,200,83,.15);border-radius:4px;">✅ RSI超卖+MACD转多</span>' : ''}
+      ${rsi >= 85 ? '<span style="font-size:12px;color:#ff1744;padding:3px 8px;background:rgba(255,23,68,.15);border-radius:4px;">🔥 极端预警</span>' : ''}
+    </div>
+  `;
+}
+
+// ==================== 渲染量能异动面板 ====================
+function renderVolSpike(ind, klines) {
+  const panel = $('volSpikePanel');
+  if (!panel) return;
+
+  if (!klines || klines.length < 12) {
+    panel.innerHTML = '<div style="color:var(--text2);text-align:center">数据不足</div>';
+    return;
+  }
+
+  const vols = klines.map(x => parseFloat(x[5]));
+  const avgVol = vols.slice(0, -1).reduce((a, b) => a + b, 0) / Math.max(vols.length - 1, 1);
+  const curVol = vols[vols.length - 1];
+  const volRatio = avgVol > 0 ? curVol / avgVol : 0;
+  const taker = typeof ind.takerBuyRatio === 'string' ? parseFloat(ind.takerBuyRatio) / 100 : (ind.takerBuyRatio || 0.5);
+  const c24h = ind.chg24h || 0;
+
+  let volStatus, volColor;
+  if (volRatio >= 4) { volStatus = '🔥🔥 异常爆量'; volColor = '#00e676'; }
+  else if (volRatio >= 3) { volStatus = '🔥 大量异动'; volColor = '#ff9800'; }
+  else if (volRatio >= 2) { volStatus = '📊 量能放大'; volColor = '#888'; }
+  else if (volRatio >= 1.5) { volStatus = '📈 量能温和'; volColor = '#888'; }
+  else { volStatus = '➖ 量能正常'; volColor = '#888'; }
+
+  const direction = taker >= 0.55 && c24h > 0 ? '🟢 多头异动' : taker <= 0.45 && c24h < 0 ? '🔴 空头异动' : '⚖️ 双向放量';
+  const dirColor = taker >= 0.55 ? '#00e676' : taker <= 0.45 ? '#ef5350' : '#888';
+
+  panel.innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+      <div style="font-size:20px;font-weight:700;color:${volColor}">${volRatio.toFixed(2)}x</div>
+      <div style="font-size:14px;font-weight:600;color:${volColor}">${volStatus}</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">
+      <div style="padding:6px 8px;background:var(--card);border-radius:4px;">
+        <div style="font-size:10px;color:var(--text2)">主买比</div>
+        <div style="font-size:13px;font-weight:600;color:${dirColor}">${(taker * 100).toFixed(1)}%</div>
+      </div>
+      <div style="padding:6px 8px;background:var(--card);border-radius:4px;">
+        <div style="font-size:10px;color:var(--text2)">当前量</div>
+        <div style="font-size:13px;font-weight:600;color:#aaa">${(curVol / 1e6).toFixed(2)}M</div>
+      </div>
+      <div style="padding:6px 8px;background:var(--card);border-radius:4px;">
+        <div style="font-size:10px;color:var(--text2)">均值量</div>
+        <div style="font-size:13px;font-weight:600;color:#aaa">${(avgVol / 1e6).toFixed(2)}M</div>
+      </div>
+      <div style="padding:6px 8px;background:var(--card);border-radius:4px;">
+        <div style="font-size:10px;color:var(--text2)">24H涨跌</div>
+        <div style="font-size:13px;font-weight:600;color:${c24h > 0 ? '#00e676' : '#ef5350'}">${c24h > 0 ? '+' : ''}${c24h.toFixed(2)}%</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      <span style="font-size:12px;color:${dirColor};padding:3px 8px;background:${dirColor}15;border-radius:4px;">${direction}</span>
+      ${volRatio >= 3 ? '<span style="font-size:12px;color:#ff9800;padding:3px 8px;background:rgba(255,152,0,.15);border-radius:4px;">⚠️ 异常放大</span>' : ''}
+      ${volRatio >= 4 ? '<span style="font-size:12px;color:#00e676;padding:3px 8px;background:rgba(0,200,83,.15);border-radius:4px;">🔥 爆量预警</span>' : ''}
+    </div>
+  `;
+}
+
+// ==================== 渲染资金费率面板 ====================
+function renderFundingPanel(ind) {
+  const panel = $('fundingPanel');
+  if (!panel) return;
+
+  const fr = ind.fundingRate || 0;
+  const frPct = fr * 100;
+  let frStatus, frColor, frTip;
+  if (frPct > 0.1) { frStatus = '🔴 高正费率'; frColor = '#ff1744'; frTip = '空头主导，多头持仓成本极高，暴涨后追多风险大'; }
+  else if (frPct > 0.05) { frStatus = '⚠️ 中正费率'; frColor = '#ff9800'; frTip = '空头偏强，注意多头被收割风险'; }
+  else if (frPct > 0.01) { frStatus = '🟡 低正费率'; frColor = '#888'; frTip = '空头略占优势'; }
+  else if (frPct < -0.1) { frStatus = '🟢 高负费率'; frColor = '#00e676'; frTip = '多头主导，空头补贴，反弹行情中空方易爆仓'; }
+  else if (frPct < -0.05) { frStatus = '📈 中负费率'; frColor = '#26c281'; frTip = '多头偏强，空方成本高，注意空头爆仓风险'; }
+  else if (frPct < -0.01) { frStatus = '🟢 低负费率'; frColor = '#888'; frTip = '多头略占优势'; }
+  else { frStatus = '➖ 费率中性'; frColor = '#888'; frTip = '费率正常，多空相对平衡'; }
+
+  panel.innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+      <div style="font-size:20px;font-weight:700;color:${frColor}">${frPct >= 0 ? '+' : ''}${frPct.toFixed(4)}%</div>
+      <div style="font-size:14px;font-weight:600;color:${frColor}">${frStatus}</div>
+    </div>
+    <div style="padding:8px;border-radius:6px;background:${frColor}15;border-left:3px solid ${frColor};margin-bottom:8px;">
+      <div style="font-size:11px;color:var(--text2)">${frTip}</div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      ${frPct > 0.05 ? '<span style="font-size:11px;color:#ff9800;padding:3px 6px;background:rgba(255,152,0,.15);border-radius:4px;">⚠️ 高费率警告</span>' : ''}
+      ${frPct < -0.05 ? '<span style="font-size:11px;color:#00e676;padding:3px 6px;background:rgba(0,200,83,.15);border-radius:4px;">✅ 多头优势</span>' : ''}
+    </div>
+  `;
+}
+
+// ==================== 渲染多空比极端面板 ====================
+function renderLSExtreme(ind) {
+  const panel = $('lsExtremePanel');
+  if (!panel) return;
+
+  const taker = typeof ind.takerBuyRatio === 'string' ? parseFloat(ind.takerBuyRatio) / 100 : (ind.takerBuyRatio || 0.5);
+  const takerPct = taker * 100;
+  let lsStatus, lsColor, lsTip;
+  if (takerPct >= 58) { lsStatus = '🐋 主力看多'; lsColor = '#00e676'; lsTip = '大户偏多买入，强势信号，注意回调风险'; }
+  else if (takerPct >= 55) { lsStatus = '🟢 多头偏向'; lsColor = '#26c281'; lsTip = '买方略占优势，但偏离不大'; }
+  else if (takerPct <= 42) { lsStatus = '🦈 主力看空'; lsColor = '#ef5350'; lsTip = '大户偏空卖出，弱势信号，关注反弹时机'; }
+  else if (takerPct <= 45) { lsStatus = '🔴 空头偏向'; lsColor = '#ff9800'; lsTip = '卖方略占优势，但偏离不大'; }
+  else { lsStatus = '⚖️ 中性平衡'; lsColor = '#888'; lsTip = '多空力量相对均衡'; }
+
+  const macdDir = ind.macd?.hist > 0 ? '💹' : ind.macd?.hist < 0 ? '📉' : '➖';
+
+  panel.innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+      <div style="font-size:20px;font-weight:700;color:${lsColor}">${takerPct.toFixed(1)}%</div>
+      <div style="font-size:14px;font-weight:600;color:${lsColor}">${lsStatus}</div>
+    </div>
+    <div style="padding:8px;border-radius:6px;background:${lsColor}15;border-left:3px solid ${lsColor};margin-bottom:8px;">
+      <div style="font-size:11px;color:var(--text2)">${lsTip}</div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      ${takerPct >= 58 || takerPct <= 42 ? '<span style="font-size:11px;color:#ff9800;padding:3px 6px;background:rgba(255,152,0,.15);border-radius:4px;">⚠️ 极端偏多</span>' : ''}
+      ${takerPct >= 58 && ind.macd?.hist > 0 ? '<span style="font-size:11px;color:#00e676;padding:3px 6px;background:rgba(0,200,83,.15);border-radius:4px;">✅ 多+多共振</span>' : ''}
+      ${takerPct <= 42 && ind.macd?.hist < 0 ? '<span style="font-size:11px;color:#ef5350;padding:3px 6px;background:rgba(239,83,80,.15);border-radius:4px;">✅ 空+空共振</span>' : ''}
+    </div>
+  `;
+}
+
+// ==================== 渲染多周期共振面板 ====================
+function renderMTFPanel(ind, klines4h) {
+  const panel = $('mtfPanel');
+  if (!panel) return;
+
+  const trend4h = ind.trend4h || 'unknown';
+  const trend1h = ind.macd?.hist > 0 ? 'up' : 'down';
+  const aligned = trend4h === trend1h;
+  const direction = trend4h;
+  const isUp = direction === 'up';
+
+  let mtfStatus, mtfColor, mtfTip;
+  if (aligned && isUp) {
+    mtfStatus = '🔵 周期共振-多'; mtfColor = '#00e676'; mtfTip = '4H + 1H 趋势同向上，多周期共振，方向一致性高';
+  } else if (aligned && !isUp) {
+    mtfStatus = '🔴 周期共振-空'; mtfColor = '#ef5350'; mtfTip = '4H + 1H 趋势同向下，空头趋势共振，下跌概率大';
+  } else {
+    mtfStatus = '⚠️ 周期分离'; mtfColor = '#ff9800'; mtfTip = '4H 与 1H 趋势不一致，方向不明，等待确认';
+  }
+
+  const trend4hLabel = trend4h === 'up' ? '▲ 多头' : '▼ 空头';
+  const trend1hLabel = trend1h === 'up' ? '▲ 多头' : '▼ 空头';
+  const trend4hColor = trend4h === 'up' ? '#00e676' : '#ef5350';
+  const trend1hColor = trend1h === 'up' ? '#00e676' : '#ef5350';
+
+  panel.innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+      <div style="font-size:16px;font-weight:700;color:${mtfColor}">${mtfStatus}</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">
+      <div style="padding:6px 8px;background:var(--card);border-radius:4px;">
+        <div style="font-size:10px;color:var(--text2)">4H趋势</div>
+        <div style="font-size:13px;font-weight:600;color:${trend4hColor}">${trend4hLabel}</div>
+      </div>
+      <div style="padding:6px 8px;background:var(--card);border-radius:4px;">
+        <div style="font-size:10px;color:var(--text2)">1H趋势</div>
+        <div style="font-size:13px;font-weight:600;color:${trend1hColor}">${trend1hLabel}</div>
+      </div>
+      <div style="padding:6px 8px;background:var(--card);border-radius:4px;">
+        <div style="font-size:10px;color:var(--text2)">RSI4H</div>
+        <div style="font-size:13px;font-weight:600;color:#aaa">${ind.rsi?.toFixed(1) || '--'}</div>
+      </div>
+      <div style="padding:6px 8px;background:var(--card);border-radius:4px;">
+        <div style="font-size:10px;color:var(--text2)">RSI1H</div>
+        <div style="font-size:13px;font-weight:600;color:#aaa">${ind.rsi?.toFixed(1) || '--'}</div>
+      </div>
+    </div>
+    <div style="padding:8px;border-radius:6px;background:${mtfColor}15;border-left:3px solid ${mtfColor};margin-bottom:8px;">
+      <div style="font-size:11px;color:var(--text2)">${mtfTip}</div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      <span style="font-size:11px;color:${mtfColor};padding:3px 6px;background:${mtfColor}15;border-radius:4px;">${aligned ? '✅ 共振' : '❌ 分离'}</span>
+      ${aligned && isUp && ind.rsi < 70 ? '<span style="font-size:11px;color:#00e676;padding:3px 6px;background:rgba(0,200,83,.15);border-radius:4px;">✅ 强势多头</span>' : ''}
+      ${aligned && !isUp && ind.rsi > 30 ? '<span style="font-size:11px;color:#ef5350;padding:3px 6px;background:rgba(239,83,80,.15);border-radius:4px;">✅ 强势空头</span>' : ''}
+    </div>
+  `;
+}
+
+// ==================== 渲染清算密集区面板 ====================
+function renderLiqZone(ind) {
+  const panel = $('liqZonePanel');
+  if (!panel) return;
+
+  const bb = ind.bb;
+  if (!bb) {
+    panel.innerHTML = '<div style="color:var(--text2);text-align:center">暂无布林数据</div>';
+    return;
+  }
+
+  const price = ind.price || 0;
+  const distUpper = (price - bb.upper) / bb.upper * 100;
+  const distLower = (bb.lower - price) / price * 100;
+
+  let zone = null, zoneDist = 999, liqScore = 0;
+  if (distUpper > 0 && distUpper < 2) {
+    zone = 'upper'; zoneDist = distUpper; liqScore = Math.round((2 - distUpper) * 30);
+  } else if (distLower > 0 && distLower < 2) {
+    zone = 'lower'; zoneDist = distLower; liqScore = Math.round((2 - distLower) * 30);
+  }
+
+  if (!zone) {
+    panel.innerHTML = `
+      <div style="color:#888;text-align:center;font-size:12px;padding:8px">暂无清算密集区信号</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px;">
+        <div style="padding:6px 8px;background:var(--card);border-radius:4px;text-align:center">
+          <div style="font-size:10px;color:var(--text2)">距上轨</div>
+          <div style="font-size:13px;font-weight:600;color:${distUpper < 0 ? '#00e676' : '#888'}">${distUpper < 0 ? '+' : ''}${distUpper.toFixed(2)}%</div>
+        </div>
+        <div style="padding:6px 8px;background:var(--card);border-radius:4px;text-align:center">
+          <div style="font-size:10px;color:var(--text2)">距下轨</div>
+          <div style="font-size:13px;font-weight:600;color:${distLower < 0 ? '#ef5350' : '#888'}">${distLower < 0 ? '+' : ''}${distLower.toFixed(2)}%</div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const isUpper = zone === 'upper';
+  const zoneColor = isUpper ? '#ef5350' : '#00c853';
+  const zoneLabel = isUpper ? '⬆️ 上轨附近' : '⬇️ 下轨附近';
+
+  panel.innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+      <div style="font-size:16px;font-weight:700;color:${zoneColor}">💀 ${liqScore}分</div>
+      <div style="font-size:13px;font-weight:600;color:${zoneColor}">${zoneLabel}</div>
+    </div>
+    <div style="padding:8px;border-radius:6px;background:${zoneColor}15;border-left:3px solid ${zoneColor};margin-bottom:8px;">
+      <div style="font-size:11px;color:var(--text2)">价格靠近布林${isUpper ? '上轨' : '下轨'}，突破后可能触发大量清算</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">
+      <div style="padding:6px 8px;background:var(--card);border-radius:4px;">
+        <div style="font-size:10px;color:var(--text2)">上轨价格</div>
+        <div style="font-size:13px;font-weight:600;color:#aaa">${bb.upper.toFixed(price > 10 ? 2 : 6)}</div>
+      </div>
+      <div style="padding:6px 8px;background:var(--card);border-radius:4px;">
+        <div style="font-size:10px;color:var(--text2)">下轨价格</div>
+        <div style="font-size:13px;font-weight:600;color:#aaa">${bb.lower.toFixed(price > 10 ? 2 : 6)}</div>
+      </div>
+      <div style="padding:6px 8px;background:var(--card);border-radius:4px;">
+        <div style="font-size:10px;color:var(--text2)">距极端</div>
+        <div style="font-size:13px;font-weight:600;color:#ff9800">${zoneDist.toFixed(2)}%</div>
+      </div>
+      <div style="padding:6px 8px;background:var(--card);border-radius:4px;">
+        <div style="font-size:10px;color:var(--text2)">布林宽度</div>
+        <div style="font-size:13px;font-weight:600;color:#aaa">${bb.w.toFixed(2)}%</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      <span style="font-size:11px;color:${zoneColor};padding:3px 6px;background:${zoneColor}15;border-radius:4px;">${zoneLabel}</span>
+      ${liqScore >= 40 ? '<span style="font-size:11px;color:#ff1744;padding:3px 6px;background:rgba(255,23,68,.15);border-radius:4px;">🔥 高危预警</span>' : ''}
+      ${isUpper && ind.rsi > 65 ? '<span style="font-size:11px;color:#ff9800;padding:3px 6px;background:rgba(255,152,0,.15);border-radius:4px;">⚠️ 高位+RSI过热</span>' : ''}
+      ${!isUpper && ind.rsi < 35 ? '<span style="font-size:11px;color:#00e676;padding:3px 6px;background:rgba(0,200,83,.15);border-radius:4px;">📈 超卖反弹预期</span>' : ''}
+    </div>
+  `;
+}
+
 // ==================== 渲染详细信息 ====================
 function renderDetails(ind, klines) {
   const last = klines[klines.length-1];
@@ -1925,6 +2257,12 @@ async function analyzeCoin(symbol) {
     try { renderTrend(ind, closes1h); } catch(e) { console.error('renderTrend:', e); }
     try { renderDetails(ind, klines1h); } catch(e) { console.error('renderDetails:', e); }
     try { renderSmartMoney(ind); } catch(e) { console.error('renderSmartMoney:', e); }
+    try { renderRSIExtreme(ind); } catch(e) { console.error('renderRSIExtreme:', e); }
+    try { renderVolSpike(ind, klines1h); } catch(e) { console.error('renderVolSpike:', e); }
+    try { renderFundingPanel(ind); } catch(e) { console.error('renderFundingPanel:', e); }
+    try { renderLSExtreme(ind); } catch(e) { console.error('renderLSExtreme:', e); }
+    try { renderMTFPanel(ind); } catch(e) { console.error('renderMTFPanel:', e); }
+    try { renderLiqZone(ind); } catch(e) { console.error('renderLiqZone:', e); }
 
     try {
       const scoreObj = { ...calcScore(ind), ind };
@@ -2256,6 +2594,12 @@ function updateIndicatorsRealtime(lastClose) {
   try { renderOscillators(ind); } catch(e) {}
   try { renderTD9(ind); } catch(e) {}
   try { renderTrend(ind, closes); } catch(e) {}
+  try { renderRSIExtreme(ind); } catch(e) {}
+  try { renderVolSpike(ind, klines1h); } catch(e) {}
+  try { renderFundingPanel(ind); } catch(e) {}
+  try { renderLSExtreme(ind); } catch(e) {}
+  try { renderMTFPanel(ind); } catch(e) {}
+  try { renderLiqZone(ind); } catch(e) {}
 
   // 更新评分
   try {
