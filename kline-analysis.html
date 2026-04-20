@@ -256,7 +256,9 @@ body {
   color: var(--text);
   font-family: -apple-system, 'Segoe UI', sans-serif;
   min-height: 100vh;
+  overflow-x: hidden;
 }
+html { overflow-x: hidden; }
 /* ========== Header ========== */
 .header {
   background: var(--card);
@@ -670,6 +672,15 @@ body {
 <body>
 
 <!-- Header -->
+<!-- 全站导航 -->
+<nav class="site-nav" id="siteNav">
+  <a class="nav-item" href="index.html" id="navHome">🚀 预警系统</a>
+  <a class="nav-item" href="coin-detail.html" id="navDetail">📋 币种详情</a>
+  <a class="nav-item active" href="kline-analysis.html" id="navKline">📊 K线分析</a>
+  <a class="nav-item" href="tv-custom-indicators.html" id="navRadar">📡 雷达核心</a>
+</nav>
+<div class="nav-offset"></div>
+
 <div class="header">
   <h1>🔍 K线深度分析</h1>
   <div class="header-search">
@@ -825,6 +836,15 @@ body { margin: 0; padding: 0; overflow: auto; }
 .indicator-grid { grid-template-columns: repeat(4, 1fr); }
 
 /* ========== 移动端响应式 ========== */
+@media (max-width: 1200px) {
+  .sidebar-left { width: 300px; }
+}
+
+@media (max-width: 1000px) {
+  .sidebar-left { width: 260px; }
+  .indicator-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
 @media (max-width: 900px) {
   /* Header 优化 */
   .header { flex-wrap: wrap; padding: 10px 12px; gap: 10px; }
@@ -832,9 +852,9 @@ body { margin: 0; padding: 0; overflow: auto; }
   .header-search { order: 3; width: 100%; }
   .header-search input { width: 100%; }
   .timeframes { flex-wrap: wrap; }
-  .coin-tags { display: none; } /* 小屏隐藏币种标签，节省空间 */
+  .coin-tags { display: none; }
   
-  /* Main 布局 - 改为垂直堆叠 */
+  /* Main 布局 - 垂直堆叠 */
   .main { 
     flex-direction: column !important; 
     height: auto !important; 
@@ -844,7 +864,7 @@ body { margin: 0; padding: 0; overflow: auto; }
     gap: 10px;
   }
   
-  /* 左侧面板 - 垂直排列，每项占满宽度 */
+  /* 左侧面板 - 垂直排列 */
   .sidebar-left { 
     width: 100% !important; 
     max-height: none !important; 
@@ -877,7 +897,7 @@ body { margin: 0; padding: 0; overflow: auto; }
   .osc-name { font-size: 10px; }
   .osc-val { font-size: 13px; }
   
-  /* 图表区域 - 自适应 */
+  /* 图表区域 */
   .chart-main { width: 100%; min-height: auto; gap: 8px; }
   .chart-wrapper { flex: 1; min-height: 180px; }
   #chart { height: 100%; }
@@ -899,6 +919,10 @@ body { margin: 0; padding: 0; overflow: auto; }
   .rec-item { padding: 8px !important; }
   .rec-symbol { font-size: 12px !important; }
   .rec-score { font-size: 11px !important; }
+  
+  /* 副图指标面板 */
+  .td9-panel { flex-direction: column !important; }
+  .td9-section { width: 100% !important; }
 }
 
 /* 超小屏幕优化 (< 600px) */
@@ -920,6 +944,9 @@ body { margin: 0; padding: 0; overflow: auto; }
   .signal-score { font-size: 12px !important; }
   
   .rec-coins { grid-template-columns: 1fr !important; }
+  
+  /* 雷达面板自适应 */
+  .radar-section { grid-template-columns: 1fr !important; }
 }
 
 /* 极小屏幕优化 (< 400px) */
@@ -934,6 +961,30 @@ body { margin: 0; padding: 0; overflow: auto; }
   
   .osc-table { grid-template-columns: 1fr 1fr !important; }
   .indicator-grid { grid-template-columns: 1fr 1fr !important; }
+  
+  /* 雷达条简化 */
+  .radar-strip-inner { flex-wrap: wrap; gap: 6px; }
+}
+
+/* ===== 全站导航栏 ===== */
+.site-nav {
+  background:#1a1a2e; border-bottom:1px solid rgba(255,255,255,.1);
+  display:flex; align-items:center; gap:0; overflow-x:auto;
+  position:fixed; top:0; left:0; right:0; z-index:200;
+  height:40px;
+}
+.site-nav::-webkit-scrollbar { display:none; }
+.nav-item {
+  display:flex; align-items:center; gap:5px;
+  padding:0 16px; height:40px; color:#aaa; text-decoration:none;
+  font-size:13px; font-weight:500; white-space:nowrap;
+  border-bottom:2px solid transparent; transition:all .2s;
+}
+.nav-item:hover { color:#f0b90b; background:rgba(240,185,11,.06); }
+.nav-item.active { color:#f0b90b; border-bottom-color:#f0b90b; background:rgba(240,185,11,.08); }
+.nav-offset { height:40px; }
+@media(max-width:600px){
+  .nav-item { padding:0 10px; font-size:12px; }
 }
 </style>
 
@@ -2339,6 +2390,22 @@ function startup() {
     }, 5000);
   });
 }
+
+// ==================== 全站导航链接联动 ====================
+function updateNavLinks(sym) {
+  const s = (sym || currentSymbol || 'BTC').replace('USDT','');
+  const nd = document.getElementById('navDetail');
+  const nr = document.getElementById('navRadar');
+  if (nd) nd.href = 'coin-detail.html?symbol=' + s;
+  if (nr) nr.href = 'tv-custom-indicators.html?symbol=' + s;
+}
+// analyzeCoin 结束后自动更新导航链接
+const _origAnalyzeCoin = analyzeCoin;
+window.analyzeCoin = function(sym) {
+  const result = _origAnalyzeCoin(sym);
+  setTimeout(() => updateNavLinks(sym), 200);
+  return result;
+};
 
 // 立即执行，不要依赖 DOMContentLoaded（因为脚本可能在 body 底部）
 if (document.readyState === 'loading') {

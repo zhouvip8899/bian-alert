@@ -59,10 +59,27 @@
         tr:hover{background:rgba(255,255,255,.03)}
         .s-pre{background:linear-gradient(135deg,#7c4dff,#b388ff);color:#fff}
         .tag-pre{background:rgba(124,77,255,.15);color:#b388ff}
-        @media(max-width:768px){.stats{grid-template-columns:repeat(3,1fr)}.grid{grid-template-columns:1fr}}
+        @media(max-width:768px){.stats{grid-template-columns:repeat(3,1fr)}.grid{grid-template-columns:1fr}.header h1{font-size:1.6em}.container{padding:12px}}
+        @media(max-width:600px){.stats{grid-template-columns:repeat(2,1fr)}.header h1{font-size:1.4em}.stat .v{font-size:1.3em}.card{padding:10px}.info{grid-template-columns:repeat(2,1fr)}.ctrl{flex-wrap:wrap}.btn{padding:8px 16px;font-size:.85rem}}
+        @media(max-width:480px){.stats{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}.header h1{font-size:1.2em}.header{padding:15px 0}.container{padding:8px}.card{font-size:.9em}.chain{font-size:.85em}}
+        @media(max-width:380px){.stats{grid-template-columns:1fr}.tab{padding:6px 10px;font-size:.8rem}.card-hd{flex-wrap:wrap}.score{margin-top:4px}}
+        /* 全站导航 */
+        .site-nav{background:#0d0f1a;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:0;overflow-x:auto;position:sticky;top:0;z-index:100;height:40px}
+        .site-nav::-webkit-scrollbar{display:none}
+        .nav-item{display:flex;align-items:center;gap:5px;padding:0 16px;height:40px;color:#777;text-decoration:none;font-size:13px;font-weight:500;white-space:nowrap;border-bottom:2px solid transparent;transition:all .2s}
+        .nav-item:hover{color:#f0b90b;background:rgba(240,185,11,.06)}
+        .nav-item.active{color:#f0b90b;border-bottom-color:#f0b90b;background:rgba(240,185,11,.08)}
+        @media(max-width:600px){.nav-item{padding:0 10px;font-size:12px}}
     </style>
 </head>
 <body>
+<!-- 全站导航 -->
+<nav class="site-nav">
+  <a class="nav-item active" href="index.html">🚀 预警系统</a>
+  <a class="nav-item" href="coin-detail.html">📋 币种详情</a>
+  <a class="nav-item" href="kline-analysis.html">📊 K线分析</a>
+  <a class="nav-item" href="tv-custom-indicators.html">📡 雷达核心</a>
+</nav>
 <div class="container">
     <div class="header">
         <h1>🚀 币安合约暴涨预警</h1>
@@ -1292,7 +1309,8 @@ function renderOICards(id, coins) {
                     <span class="name">${c.sym.replace('USDT', '')}</span>
                     <span class="price">$${fp(c.price)}</span>
                     <a href="kline-analysis.html?symbol=${c.sym.replace('USDT', '')}" target="_blank" style="margin-left:8px;color:#00c853;font-size:.8em;text-decoration:none">📊K线</a>
-                    <a href="coin-detail.html?symbol=${c.sym.replace('USDT', '')}" target="_blank" style="margin-left:6px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
+                    <a href="coin-detail.html?symbol=${c.sym.replace('USDT', '')}" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
+                    <a href="tv-custom-indicators.html?symbol=${c.sym.replace('USDT', '')}" target="_blank" style="margin-left:4px;color:#00bcd4;font-size:.8em;text-decoration:none">📡雷达</a>
                 </div>
                 <div style="text-align:right">
                     <span class="score ${cls}">${c.c24h > 0 ? '+' : ''}${c.c24h.toFixed(1)}%</span>
@@ -1467,7 +1485,8 @@ function renderSmallCapCards(coins) {
                     <span class="name">${c.sym.replace('USDT','')}</span>
                     <span class="price">$${fp(c.price)}</span>
                     <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:8px;color:#e040fb;font-size:.8em;text-decoration:none">📊K线</a>
-                    <a href="coin-detail.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:6px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
+                    <a href="coin-detail.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
+                    <a href="tv-custom-indicators.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:4px;color:#00bcd4;font-size:.8em;text-decoration:none">📡雷达</a>
                 </div>
                 <div style="text-align:right">
                     <span class="score ${scoreCls}">${c.score}分</span>
@@ -1604,8 +1623,9 @@ function renderCard(c, styleKey = '') {
                 <span class="name">${c.sym.replace('USDT', '')}</span>
                 <span class="price" data-p="${fp(c.price)}">$${fp(c.price)}</span>
                 <span class="arrow" style="color:${c24color}">${c.c24h>=0?'▲':'▼'}</span>
-                <a href="kline-analysis.html?symbol=${c.sym}" target="_blank" style="margin-left:8px;color:#00e676;font-size:.8em;text-decoration:none">📈分析</a>
-                <a href="https://www.binance.com/zh-CN/futures/${c.sym.replace('USDT', '')}USDT" target="_blank" style="margin-left:6px;color:#00bcd4;font-size:.8em;text-decoration:none">🚩交易</a>
+                <a href="kline-analysis.html?symbol=${c.sym}" target="_blank" style="margin-left:8px;color:#00e676;font-size:.8em;text-decoration:none">📊K线</a>
+                <a href="coin-detail.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
+                <a href="tv-custom-indicators.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:4px;color:#00bcd4;font-size:.8em;text-decoration:none">📡雷达</a>
             </div>
             <div style="text-align:right">
                 <span class="score ${scoreClass}">${scoreText}</span>
@@ -1664,7 +1684,8 @@ function renderWhaleCards(id, coins) {
                     <span class="name">${c.sym.replace('USDT', '')}</span>
                     <span class="price">$${fp(c.price)}</span>
                     <a href="kline-analysis.html?symbol=${c.sym.replace('USDT', '')}" target="_blank" style="margin-left:8px;color:#00bcd4;font-size:.8em;text-decoration:none">📊K线</a>
-                    <a href="coin-detail.html?symbol=${c.sym.replace('USDT', '')}" target="_blank" style="margin-left:6px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
+                    <a href="coin-detail.html?symbol=${c.sym.replace('USDT', '')}" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
+                    <a href="tv-custom-indicators.html?symbol=${c.sym.replace('USDT', '')}" target="_blank" style="margin-left:4px;color:#00e676;font-size:.8em;text-decoration:none">📡雷达</a>
                     <div style="font-size:.7em;color:${color};margin-top:2px">${tbr > 0.52 ? '🐋看多' : tbr < 0.48 ? '🦈看空' : '⚖️中性'}</div>
                 </div>
             </div>

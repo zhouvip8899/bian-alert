@@ -159,6 +159,47 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft Ya
   .chart-block { padding:0 10px; }
   #chart { height:320px; }
 }
+@media(max-width:480px){
+  body { overflow-x:hidden; }
+  .top-bar-inner { flex-wrap:wrap; gap:10px; }
+  .search-box { width:100%; }
+  .search-box input { width:100%; flex:1; }
+  .coin-price { font-size:20px; }
+  .coin-stats { gap:15px; }
+  .stat-item .s-val { font-size:12px; }
+  .chart-toolbar { flex-wrap:wrap; gap:6px; }
+  .liq-panels { grid-template-columns:1fr; }
+}
+@media(max-width:380px){
+  .panels { padding:0 5px; }
+  .panel { padding:10px; }
+  .coin-header { gap:10px; }
+  .coin-logo { width:36px; height:36px; font-size:14px; }
+  .coin-name { font-size:18px; }
+  #chart { height:280px; }
+}
+
+/* ===== 全站导航栏 ===== */
+.site-nav {
+  background:#1a1a2e; border-bottom:1px solid rgba(255,255,255,.1);
+  display:flex; align-items:center; gap:0; overflow-x:auto;
+  position:sticky; top:0; z-index:100;
+}
+.site-nav::-webkit-scrollbar { display:none; }
+.nav-item {
+  display:flex; align-items:center; gap:6px;
+  padding:10px 16px; color:#aaa; text-decoration:none;
+  font-size:13px; font-weight:500; white-space:nowrap;
+  border-bottom:2px solid transparent; transition:all .2s;
+  cursor:pointer;
+}
+.nav-item:hover { color:#f0b90b; background:rgba(240,185,11,.06); }
+.nav-item.active { color:#f0b90b; border-bottom-color:#f0b90b; background:rgba(240,185,11,.08); }
+.nav-item .nav-icon { font-size:15px; }
+@media(max-width:600px){
+  .nav-item { padding:8px 12px; font-size:12px; }
+  .nav-item .nav-icon { font-size:13px; }
+}
 </style>
 </head>
 <body>
@@ -167,6 +208,14 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft Ya
   <div class="spinner"></div>
   <div style="color:#555;font-size:14px" id="loadingTip">加载中...</div>
 </div>
+
+<!-- 全站导航 -->
+<nav class="site-nav" id="siteNav">
+  <a class="nav-item" href="index.html" id="navHome"><span class="nav-icon">🚀</span>预警系统</a>
+  <a class="nav-item active" href="coin-detail.html" id="navDetail"><span class="nav-icon">📋</span>币种详情</a>
+  <a class="nav-item" href="kline-analysis.html" id="navKline"><span class="nav-icon">📊</span>K线分析</a>
+  <a class="nav-item" href="tv-custom-indicators.html" id="navRadar"><span class="nav-icon">📡</span>雷达核心</a>
+</nav>
 
 <!-- 搜索栏 -->
 <div class="top-bar">
@@ -750,6 +799,15 @@ window.onload = function() {
     document.getElementById('symbolInput').value = currentSymbol.replace('USDT','');
   }
 
+  // 更新导航栏链接，带上当前币种
+  function updateNavLinks() {
+    const s = currentSymbol.replace('USDT','');
+    document.getElementById('navKline').href = 'kline-analysis.html?symbol=' + s;
+    document.getElementById('navRadar').href = 'tv-custom-indicators.html?symbol=' + s;
+    document.getElementById('navDetail').href = 'coin-detail.html?symbol=' + s;
+  }
+  updateNavLinks();
+
   // 初始化图表
   initChart();
 
@@ -758,8 +816,11 @@ window.onload = function() {
 
   // 回车搜索
   document.getElementById('symbolInput').addEventListener('keydown', e => {
-    if (e.key === 'Enter') loadSymbol();
+    if (e.key === 'Enter') { loadSymbol(); setTimeout(updateNavLinks, 100); }
   });
+  // 查询按钮后更新导航链接
+  const origLoad = window.loadSymbol;
+  const _origLoadSymbol = loadSymbol;
   window.addEventListener('beforeunload', function() {
     closeWs(); closeKlineWs(); if (panelTimer) clearInterval(panelTimer);
   });
