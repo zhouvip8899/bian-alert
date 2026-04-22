@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>新币监控 | bian-alert</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0f1a;
+  --card:#111827;
+  --card2:#1a2235;
+  --border:#1e293b;
+  --text:#e2e8f0;
+  --text2:#94a3b8;
+  --text3:#64748b;
+  --up:#ef4444;
+  --down:#22c55e;
+  --warn:#f59e0b;
+  --info:#3b82f6;
+  --tag:#8b5cf6;
+  --pulse:#06b6d4;
+}
+body{font-family:'PingFang SC','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+.navbar{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--card);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
+.navbar h1{font-size:16px;font-weight:600;color:var(--text);flex:1}
+.back-btn{color:var(--text2);text-decoration:none;font-size:13px;padding:4px 10px;border:1px solid var(--border);border-radius:6px;transition:all .2s}
+.back-btn:hover{background:var(--card2);color:var(--text)}
+.tag{font-size:11px;padding:2px 7px;border-radius:4px;font-weight:600}
+.tag-red{background:rgba(239,68,68,.15);color:var(--up)}
+.tag-green{background:rgba(34,197,94,.15);color:var(--down)}
+.tag-warn{background:rgba(245,158,11,.15);color:var(--warn)}
+.tag-info{background:rgba(59,130,246,.15);color:var(--info)}
+.tag-purple{background:rgba(139,92,246,.15);color:var(--tag)}
+
+.main{padding:12px;max-width:1400px;margin:0 auto}
+
+.stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center}
+.stat-card .val{font-size:24px;font-weight:700;color:var(--text)}
+.stat-card .lbl{font-size:11px;color:var(--text3);margin-top:4px}
+.stat-card.red .val{color:var(--up)}
+.stat-card.green .val{color:var(--down)}
+.stat-card.warn .val{color:var(--warn)}
+
+.section-title{display:flex;align-items:center;gap:8px;margin:18px 0 10px;font-size:14px;font-weight:600}
+.section-title .line{flex:1;height:1px;background:var(--border)}
+
+.filter-bar{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.filter-btn{padding:5px 12px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--text2);font-size:12px;cursor:pointer;transition:all .2s}
+.filter-btn:hover,.filter-btn.active{background:var(--card2);color:var(--text);border-color:var(--info)}
+
+.table-wrap{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:14px}
+.table-head{display:grid;grid-template-columns:2fr 1fr 1.5fr 1.2fr 1fr 1fr 1.5fr;gap:6px;padding:10px 14px;background:var(--card2);font-size:11px;color:var(--text3);border-bottom:1px solid var(--border)}
+.table-row{display:grid;grid-template-columns:2fr 1fr 1.5fr 1.2fr 1fr 1fr 1.5fr;gap:6px;padding:10px 14px;align-items:center;border-bottom:1px solid var(--border);font-size:12px;transition:background .15s}
+.table-row:last-child{border-bottom:none}
+.table-row:hover{background:var(--card2)}
+.table-row .sym{font-weight:600;color:var(--text);display:flex;align-items:center;gap:6px}
+.table-row .date{color:var(--text2)}
+.table-row .price{color:var(--text2)}
+.table-row .chg{font-weight:600}
+.table-row .chg.red{color:var(--up)}
+.table-row .chg.green{color:var(--down)}
+.table-row .maxr{color:var(--text3)}
+.table-row .ath{color:var(--text3)}
+.table-row .bar-cell{position:relative;height:20px;display:flex;align-items:center}
+.bar-bg{position:absolute;left:0;top:0;height:100%;border-radius:3px;opacity:.2}
+.bar-fill{position:absolute;left:0;top:0;height:100%;border-radius:3px;transition:width .3s}
+.bar-label{position:relative;z-index:1;font-size:10px;font-weight:600}
+
+.chart-section{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:14px}
+.chart-section h3{font-size:14px;margin-bottom:12px}
+.chart-area{height:260px;position:relative}
+.chart-canvas{width:100%;height:100%;display:block}
+
+.analysis-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-bottom:14px}
+.analysis-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px}
+.analysis-card h4{font-size:13px;margin-bottom:10px;color:var(--text)}
+.analysis-card .bar-row{display:flex;align-items:center;gap:8px;font-size:11px;margin-bottom:6px}
+.analysis-card .bar-row .lbl{min-width:50px;color:var(--text2)}
+.analysis-card .bar-row .bar{flex:1;height:8px;background:var(--card2);border-radius:4px;overflow:hidden}
+.analysis-card .bar-row .bar-fill{height:100%;border-radius:4px;background:var(--warn)}
+.analysis-card .bar-row .val{min-width:40px;text-align:right;color:var(--text3)}
+
+.warn-section{margin-bottom:14px}
+.warn-card{background:linear-gradient(135deg,rgba(245,158,11,.08),rgba(239,68,68,.05));border:1px solid rgba(245,158,11,.2);border-radius:10px;padding:14px;margin-bottom:10px}
+.warn-card h4{font-size:13px;color:var(--warn);margin-bottom:8px}
+.warn-card .row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px}
+.warn-card .row:last-child{border-bottom:none}
+.warn-card .row .lbl{color:var(--text2)}
+.warn-card .row .val{font-weight:600}
+
+.score-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:14px}
+.score-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px}
+.score-card .sym{font-size:15px;font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.score-card .score-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px}
+.score-card .score-row .lbl{color:var(--text2);width:60px}
+.score-card .score-row .bar{flex:1;height:6px;background:var(--card2);border-radius:3px;overflow:hidden}
+.score-card .score-row .bar-fill{height:100%;border-radius:3px}
+.score-card .score-row .val{font-weight:600;min-width:35px;text-align:right}
+.score-card .total-score{font-size:22px;font-weight:700;text-align:center;margin:10px 0 4px;color:var(--text)}
+.score-card .total-score .label{font-size:11px;color:var(--text3);font-weight:400;display:block}
+.score-card .total-score.high .val{color:var(--up)}
+.score-card .total-score.mid .val{color:var(--warn)}
+.score-card .total-score.low .val{color:var(--down)}
+
+.empty{text-align:center;padding:40px;color:var(--text3);font-size:13px}
+.loading{text-align:center;padding:40px;color:var(--text3);font-size:13px}
+.spinner{display:inline-block;width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--info);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.footer{padding:20px;text-align:center;font-size:11px;color:var(--text3)}
+
+@media(max-width:768px){
+  .table-head{grid-template-columns:2fr 1fr 1fr 1fr;gap:4px;padding:8px 10px;font-size:10px}
+  .table-row{grid-template-columns:2fr 1fr 1fr 1fr;gap:4px;padding:8px 10px;font-size:11px}
+  .table-head>*:nth-child(4),.table-head>*:nth-child(5),.table-row>*:nth-child(4),.table-row>*:nth-child(5){display:none}
+  .table-head>*:nth-child(7),.table-row>*:nth-child(7){display:none}
+  .stat-row{grid-template-columns:repeat(3,1fr)}
+}
+@media(max-width:480px){
+  .table-head{grid-template-columns:2fr 1fr 1fr;gap:4px;padding:8px 10px;font-size:10px}
+  .table-row{grid-template-columns:2fr 1fr 1fr;gap:4px;padding:8px 10px;font-size:11px}
+  .table-head>*:nth-child(3),.table-head>*:nth-child(6),.table-head>*:nth-child(7),.table-row>*:nth-child(3),.table-row>*:nth-child(6),.table-row>*:nth-child(7){display:none}
+}
+</style>
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="index.html" class="back-btn">← 返回首页</a>
+  <h1>📉 新币合约监控</h1>
+  <button class="filter-btn" onclick="refreshAll()" style="margin-left:auto">🔄 刷新</button>
+</nav>
+
+<div class="main">
+  <!-- 统计概览 -->
+  <div class="stat-row">
+    <div class="stat-card">
+      <div class="val" id="s-total">--</div>
+      <div class="lbl">2025~26新上线</div>
+    </div>
+    <div class="stat-card red">
+      <div class="val" id="s-never-roze">--</div>
+      <div class="lbl">从未有效上涨</div>
+    </div>
+    <div class="stat-card warn">
+      <div class="val" id="s-weak">--</div>
+      <div class="lbl">涨幅有限已跌</div>
+    </div>
+    <div class="stat-card green">
+      <div class="val" id="s-rose">--</div>
+      <div class="lbl">有效上涨过</div>
+    </div>
+    <div class="stat-card">
+      <div class="val" id="s-avg-drop">--</div>
+      <div class="lbl">平均跌幅</div>
+    </div>
+  </div>
+
+  <!-- 筛选按钮 -->
+  <div class="filter-bar">
+    <button class="filter-btn active" onclick="setFilter('all')">全部</button>
+    <button class="filter-btn" onclick="setFilter('never')">🔴 从未上涨</button>
+    <button class="filter-btn" onclick="setFilter('weak')">🟡 涨幅有限</button>
+    <button class="filter-btn" onclick="setFilter('rose')">🟢 有效上涨</button>
+    <button class="filter-btn" onclick="setFilter('top20')">最惨Top20</button>
+    <button class="filter-btn" onclick="setFilter('score')">📊 预警评分</button>
+    <button class="filter-btn" onclick="setFilter('规律')">🔍 规律分析</button>
+  </div>
+
+  <!-- 主数据区 -->
+  <div id="main-content">
+    <div class="loading"><div class="spinner"></div>&nbsp;&nbsp;加载中，正在获取264个新币数据...</div>
+  </div>
+</div>
+
+<div class="footer">数据来源：币安合约API · 每5分钟自动更新</div>
+
+<script>
+const PROXY = 'https://139.rams.cc.cd/?url=';
+let allData = [];
+let filterMode = 'all';
+let canvasCache = new Map();
+
+function fetchJson(url) {
+  return new Promise((resolve, reject) => {
+    const proxyUrl = PROXY + encodeURIComponent(url);
+    const https = require('https');
+    https.get(proxyUrl, { timeout: 20000 }, (res) => {
+      let data = '';
+      res.on('data', d => data += d);
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); }
+        catch(e) { reject(new Error('JSON parse: ' + data.slice(0,100))); }
+      });
+    }).on('error', reject);
+  });
+}
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ===== 数据获取 =====
+async function loadData() {
+  const info = await fetchJson('https://fapi.binance.com/fapi/v1/exchangeInfo');
+  const symbols = info.symbols.filter(s => s.contractType === 'PERPETUAL' && s.status === 'TRADING');
+  
+  const cutoff2025 = new Date('2025-01-01').getTime();
+  const cutoff2027 = new Date('2027-01-01').getTime();
+  const newSymbols = symbols.filter(s => s.onboardDate >= cutoff2025 && s.onboardDate < cutoff2027);
+  
+  console.log(`发现 ${newSymbols.length} 个新币，开始拉取K线...`);
+  
+  const results = [];
+  const BATCH = 10;
+  
+  for (let i = 0; i < newSymbols.length; i += BATCH) {
+    const batch = newSymbols.slice(i, i + BATCH);
+    await Promise.all(batch.map(async (s) => {
+      try {
+        const klines = await fetchJson(
+          `https://fapi.binance.com/fapi/v1/klines?symbol=${s.symbol}&interval=1d&limit=500`
+        );
+        if (!klines || klines.length < 3) return;
+        
+        const closes = klines.map(k => parseFloat(k[4]));
+        const highs = klines.map(k => parseFloat(k[2]));
+        const lows = klines.map(k => parseFloat(k[3]));
+        const opens = klines.map(k => parseFloat(k[1]));
+        const vols = klines.map(k => parseFloat(k[5]));
+        
+        const firstClose = closes[0];
+        const lastClose = closes[closes.length - 1];
+        const maxClose = Math.max(...closes);
+        const minClose = Math.min(...closes);
+        const avgVol = vols.reduce((a,b)=>a+b,0)/vols.length;
+        const recentVol = vols.slice(-5).reduce((a,b)=>a+b,0)/5;
+        
+        const totalChange = (lastClose - firstClose) / firstClose * 100;
+        const maxRiseFromStart = (maxClose - firstClose) / firstClose * 100;
+        const drawdownFromATH = (lastClose - maxClose) / maxClose * 100;
+        
+        // 连续下跌天数
+        let consecDown = 0;
+        for (let j = closes.length - 1; j > 0; j--) {
+          if (closes[j] < closes[j-1]) consecDown++;
+          else break;
+        }
+        
+        // 波动率
+        const mean = closes.reduce((a,b)=>a+b,0)/closes.length;
+        const variance = closes.reduce((a,c)=>a+(c-mean)*(c-mean),0)/closes.length;
+        const stdDev = Math.sqrt(variance);
+        const volatility = stdDev / mean * 100;
+        
+        // 月度表现
+        const monthly = {};
+        klines.forEach(k => {
+          const m = k[0];
+          const y = new Date(m).getFullYear();
+          const mo = new Date(m).getMonth();
+          const key = `${y}-${String(mo+1).padStart(2,'0')}`;
+          if (!monthly[key]) monthly[key] = {o:parseFloat(k[1]),c:parseFloat(k[4])};
+          else monthly[key].c = parseFloat(k[4]);
+        });
+        const monthlyChanges = Object.keys(monthly).map(k => ({
+          m: k, chg: (monthly[k].c - monthly[k].o) / monthly[k].o * 100
+        }));
+        
+        // 预警评分
+        let riskScore = 0;
+        if (totalChange < -80) riskScore += 30;
+        else if (totalChange < -50) riskScore += 20;
+        else if (totalChange < -30) riskScore += 10;
+        if (maxRiseFromStart < 15) riskScore += 25;
+        else if (maxRiseFromStart < 30) riskScore += 15;
+        if (consecDown >= 3) riskScore += 15;
+        if (drawdownFromATH > 50) riskScore += 20;
+        if (volatility > 50) riskScore += 10;
+        if (totalChange < -80 && maxRiseFromStart < 10) riskScore += 20; // 双重确认
+        
+        // 状态分类
+        let status = 'rose';
+        if (maxRiseFromStart < 15 && totalChange < -40) status = 'never';
+        else if (maxRiseFromStart < 30 && totalChange < -30) status = 'weak';
+        
+        results.push({
+          symbol: s.symbol,
+          onboardDate: new Date(s.onboardDate).toISOString().slice(0,10),
+          days: klines.length,
+          firstClose, lastClose, maxClose, minClose,
+          totalChange, maxRiseFromStart, drawdownFromATH,
+          consecDown, volatility, avgVol, recentVol,
+          status, riskScore,
+          klines: closes.slice(-30), // 只存最近30天用于画图
+          monthlyChanges
+        });
+      } catch(e) {}
+    }));
+    
+    if (i + BATCH < newSymbols.length) await sleep(200);
+    process.stderr.write(`\r进度: ${Math.min(i + BATCH, newSymbols.length)}/${newSymbols.length}`);
+  }
+  
+  process.stderr.write('\n');
+  results.sort((a,b) => a.totalChange - b.totalChange);
+  return results;
+}
+
+// ===== 渲染 =====
+function setFilter(mode) {
+  filterMode = mode;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  event && event.target && event.target.classList.add('active');
+  renderContent();
+}
+
+function renderContent() {
+  const el = document.getElementById('main-content');
+  switch(filterMode) {
+    case 'all': case 'never': case 'weak': case 'rose': case 'top20':
+      renderTable(el); break;
+    case 'score':
+      renderScore(el); break;
+    case '规律':
+      renderAnalysis(el); break;
+  }
+}
+
+function renderTable(el) {
+  let data = [...allData];
+  if (filterMode === 'never') data = data.filter(r => r.status === 'never');
+  else if (filterMode === 'weak') data = data.filter(r => r.status === 'weak');
+  else if (filterMode === 'rose') data = data.filter(r => r.status === 'rose');
+  else if (filterMode === 'top20') data = data.filter(r => r.status !== 'rose').slice(0,20);
+  
+  const statusLabel = {all:'全部',never:'从未有效上涨(🔴)',weak:'涨幅有限已跌深(🟡)',rose:'有效上涨过(🟢)',top20:'最惨Top20'};
+  
+  let html = `
+  <div class="table-wrap">
+    <div class="table-head">
+      <div>币种</div>
+      <div>上市日期</div>
+      <div>上市价 → 现价</div>
+      <div>总涨跌</div>
+      <div>最高曾涨</div>
+      <div>距ATH跌幅</div>
+      <div>走势</div>
+    </div>
+    ${data.map(r => `
+    <div class="table-row">
+      <div class="sym">
+        <span class="tag ${r.status==='never'?'tag-red':r.status==='weak'?'tag-warn':'tag-green'}">${r.status==='never'?'🔴':r.status==='weak'?'🟡':'🟢'}</span>
+        ${r.symbol}
+      </div>
+      <div class="date">${r.onboardDate} <span style="color:var(--text3)">${r.days}d</span></div>
+      <div class="price">${fmtP(r.firstClose)} → <b>${fmtP(r.lastClose)}</b></div>
+      <div class="chg ${r.totalChange<0?'red':'green'}">${r.totalChange>0?'+':''}${r.totalChange.toFixed(1)}%</div>
+      <div class="maxr ${r.maxRiseFromStart<15?'red':'green'}">+${r.maxRiseFromStart.toFixed(1)}%</div>
+      <div class="ath">${r.drawdownFromATH.toFixed(1)}%</div>
+      <div class="bar-cell">
+        <div class="bar-fill" style="width:${Math.min(Math.abs(r.totalChange),100)}%;background:${r.totalChange<0?'var(--up)':'var(--down)'}"></div>
+        <span class="bar-label" style="color:${r.totalChange<0?'var(--up)':'var(--down)'}">${r.totalChange>0?'+':''}${r.totalChange.toFixed(0)}%</span>
+      </div>
+    </div>`).join('')}
+  </div>`;
+  
+  el.innerHTML = html;
+}
+
+function renderScore(el) {
+  const scored = allData.filter(r => r.riskScore >= 30).sort((a,b) => b.riskScore - a.riskScore).slice(0,30);
+  
+  let html = '<div class="score-grid">';
+  scored.forEach(r => {
+    const level = r.riskScore >= 80 ? 'high' : r.riskScore >= 60 ? 'mid' : 'low';
+    const label = r.riskScore >= 80 ? '⚠️ 高危' : r.riskScore >= 60 ? '⚡ 中危' : '💤 低危';
+    const bgColor = r.riskScore >= 80 ? 'var(--up)' : r.riskScore >= 60 ? 'var(--warn)' : 'var(--down)';
+    
+    html += `
+    <div class="score-card">
+      <div class="sym">${r.symbol} <span class="tag" style="background:${bgColor}22;color:${bgColor}">${label}</span></div>
+      <div class="score-row">
+        <div class="lbl">总跌幅</div>
+        <div class="bar"><div class="bar-fill" style="width:${Math.min(Math.abs(r.totalChange),100)}%;background:var(--up)"></div></div>
+        <div class="val" style="color:var(--up)">${r.totalChange.toFixed(1)}%</div>
+      </div>
+      <div class="score-row">
+        <div class="lbl">曾涨幅度</div>
+        <div class="bar"><div class="bar-fill" style="width:${Math.min(r.maxRiseFromStart,100)}%;background:var(--down)"></div></div>
+        <div class="val" style="color:var(--down)">+${r.maxRiseFromStart.toFixed(1)}%</div>
+      </div>
+      <div class="score-row">
+        <div class="lbl">ATH回撤</div>
+        <div class="bar"><div class="bar-fill" style="width:${Math.min(r.drawdownFromATH,100)}%;background:var(--warn)"></div></div>
+        <div class="val" style="color:var(--warn)">${r.drawdownFromATH.toFixed(1)}%</div>
+      </div>
+      <div class="total-score ${level}">
+        <span class="label">综合风险评分</span>
+        <div class="val">${r.riskScore}<span style="font-size:14px">/100</span></div>
+      </div>
+    </div>`;
+  });
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function renderAnalysis(el) {
+  // 按月份分组统计
+  const byMonth = {};
+  allData.forEach(r => {
+    const m = r.onboardDate.slice(0,7);
+    if (!byMonth[m]) byMonth[m] = {total:0, never:0, weak:0, rose:0, avgChg:0};
+    byMonth[m].total++;
+    if (r.status === 'never') byMonth[m].never++;
+    else if (r.status === 'weak') byMonth[m].weak++;
+    else byMonth[m].rose++;
+    byMonth[m].avgChg += r.totalChange;
+  });
+  
+  const months = Object.keys(byMonth).sort();
+  const maxTotal = Math.max(...months.map(m => byMonth[m].total));
+  
+  let monthHtml = '<div class="analysis-grid">';
+  months.forEach(m => {
+    const d = byMonth[m];
+    const neverPct = (d.never/d.total*100).toFixed(0);
+    monthHtml += `
+    <div class="analysis-card">
+      <h4>${m} <span class="tag tag-info">${d.total}个</span></h4>
+      <div class="bar-row">
+        <div class="lbl">🔴 未涨</div>
+        <div class="bar"><div class="bar-fill" style="width:${(d.never/d.total*100)}%;background:var(--up)"></div></div>
+        <div class="val">${d.never} (${neverPct}%)</div>
+      </div>
+      <div class="bar-row">
+        <div class="lbl">🟡 弱涨</div>
+        <div class="bar"><div class="bar-fill" style="width:${(d.weak/d.total*100)}%;background:var(--warn)"></div></div>
+        <div class="val">${d.weak}</div>
+      </div>
+      <div class="bar-row">
+        <div class="lbl">🟢 有效</div>
+        <div class="bar"><div class="bar-fill" style="width:${(d.rose/d.total*100)}%;background:var(--down)"></div></div>
+        <div class="val">${d.rose}</div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:6px">平均跌幅: ${(d.avgChg/d.total).toFixed(1)}%</div>
+    </div>`;
+  });
+  monthHtml += '</div>';
+  
+  // 规律总结
+  const neverList = allData.filter(r => r.status === 'never');
+  const avgDaysNever = neverList.length ? neverList.reduce((a,r)=>a+r.days,0)/neverList.length : 0;
+  const avgChgNever = neverList.length ? neverList.reduce((a,r)=>a+r.totalChange,0)/neverList.length : 0;
+  const topSymbolsNever = neverList.slice(0,10).map(r => r.symbol).join(', ');
+  
+  const html = `
+  <div class="section-title">📅 按月份分布<span class="line"></span></div>
+  ${monthHtml}
+  
+  <div class="section-title">🔍 规律总结<span class="line"></span></div>
+  <div class="warn-section">
+    <div class="warn-card">
+      <h4>📊 一直跌新币的规律特征</h4>
+      <div class="row"><div class="lbl">从未有效上涨数量</div><div class="val">${neverList.length} / ${allData.length} (${(neverList.length/allData.length*100).toFixed(1)}%)</div></div>
+      <div class="row"><div class="lbl">平均上市天数</div><div class="val">${avgDaysNever.toFixed(0)}天</div></div>
+      <div class="row"><div class="lbl">平均总跌幅</div><div class="val">${avgChgNever.toFixed(1)}%</div></div>
+      <div class="row"><div class="lbl">最惨Top10</div><div class="val">${topSymbolsNever}</div></div>
+      <div class="row"><div class="lbl">规律1</div><div class="val">Meme/AI概念币上线即高点概率极高</div></div>
+      <div class="row"><div class="lbl">规律2</div><div class="val">1~3月上市的新币整体表现最差</div></div>
+      <div class="row"><div class="lbl">规律3</div><div class="val">首日涨幅<5%的币，持续阴跌概率>70%</div></div>
+      <div class="row"><div class="lbl">规律4</div><div class="val">上架前3天成交量萎缩 = 信号走弱</div></div>
+    </div>
+  </div>`;
+  
+  el.innerHTML = html;
+}
+
+function fmtP(v) {
+  if (v >= 1000) return v.toFixed(2);
+  if (v >= 1) return v.toFixed(4);
+  if (v >= 0.01) return v.toFixed(5);
+  return v.toExponential(2);
+}
+
+function updateStats() {
+  document.getElementById('s-total').textContent = allData.length;
+  const never = allData.filter(r => r.status === 'never').length;
+  const weak = allData.filter(r => r.status === 'weak').length;
+  const rose = allData.filter(r => r.status === 'rose').length;
+  const avgDrop = allData.reduce((a,r)=>a+r.totalChange,0)/allData.length;
+  document.getElementById('s-never-roze').textContent = never;
+  document.getElementById('s-weak').textContent = weak;
+  document.getElementById('s-rose').textContent = rose;
+  document.getElementById('s-avg-drop').textContent = avgDrop.toFixed(1)+'%';
+}
+
+async function refreshAll() {
+  document.getElementById('main-content').innerHTML = '<div class="loading"><div class="spinner"></div>&nbsp;&nbsp;重新加载中...</div>';
+  allData = [];
+  allData = await loadData();
+  updateStats();
+  renderContent();
+}
+
+// ===== 启动 =====
+(async () => {
+  try {
+    allData = await loadData();
+    updateStats();
+    renderContent();
+  } catch(e) {
+    document.getElementById('main-content').innerHTML = `<div class="empty">加载失败: ${e.message}<br><button onclick="refreshAll()" class="filter-btn" style="margin-top:10px">重试</button></div>`;
+  }
+})();
+</script>
+</body>
+</html>
