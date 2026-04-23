@@ -86,10 +86,8 @@
 <!-- 全站导航 -->
 <nav class="site-nav">
   <a class="nav-item active" href="index.html">🚀 预警系统</a>
-  <a class="nav-item" href="coin-detail.html">📋 币种详情</a>
-  <a class="nav-item" href="kline-analysis.html">📊 K线分析</a>
+  <a class="nav-item" href="kline-analysis.html">📊 分析平台</a>
   <a class="nav-item" href="new-coins.html">📉 新币监控</a>
-  <a class="nav-item" href="tv-custom-indicators.html">📡 雷达核心</a>
 </nav>
 <div class="container">
     <div class="header">
@@ -1393,8 +1391,8 @@ function renderOICards(id, coins) {
                     <span class="name">${c.sym.replace('USDT', '')}</span>
                     <span class="price">$${fp(c.price)}</span>
                     <a href="kline-analysis.html?symbol=${c.sym.replace('USDT', '')}" target="_blank" style="margin-left:8px;color:#00c853;font-size:.8em;text-decoration:none">📊K线</a>
-                    <a href="coin-detail.html?symbol=${c.sym.replace('USDT', '')}" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
-                    <a href="tv-custom-indicators.html?symbol=${c.sym.replace('USDT', '')}" target="_blank" style="margin-left:4px;color:#00bcd4;font-size:.8em;text-decoration:none">📡雷达</a>
+                    <a href="kline-analysis.html?symbol=${c.sym.replace('USDT', '')}&tab=detail" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
+                    <a href="kline-analysis.html?symbol=${c.sym.replace('USDT', '')}&tab=radar" target="_blank" style="margin-left:4px;color:#00bcd4;font-size:.8em;text-decoration:none">📡雷达</a>
                 </div>
                 <div style="text-align:right">
                     <span class="score ${cls}">${c.c24h > 0 ? '+' : ''}${c.c24h.toFixed(1)}%</span>
@@ -1569,8 +1567,8 @@ function renderSmallCapCards(coins) {
                     <span class="name">${c.sym.replace('USDT','')}</span>
                     <span class="price">$${fp(c.price)}</span>
                     <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:8px;color:#e040fb;font-size:.8em;text-decoration:none">📊K线</a>
-                    <a href="coin-detail.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
-                    <a href="tv-custom-indicators.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:4px;color:#00bcd4;font-size:.8em;text-decoration:none">📡雷达</a>
+                    <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}&tab=detail" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
+                    <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}&tab=radar" target="_blank" style="margin-left:4px;color:#00bcd4;font-size:.8em;text-decoration:none">📡雷达</a>
                 </div>
                 <div style="text-align:right">
                     <span class="score ${scoreCls}">${c.score}分</span>
@@ -1747,8 +1745,8 @@ async function runVolSpike() {
                         <span class="name">${c.sym.replace('USDT','')}</span>
                         <span class="price">$${fp(c.price)}</span>
                         <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:8px;color:#ff9800;font-size:.8em;text-decoration:none">📊K线</a>
-                        <a href="coin-detail.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
-                        <a href="tv-custom-indicators.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:4px;color:#00bcd4;font-size:.8em;text-decoration:none">📡雷达</a>
+                        <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}&tab=detail" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
+                        <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}&tab=radar" target="_blank" style="margin-left:4px;color:#00bcd4;font-size:.8em;text-decoration:none">📡雷达</a>
                     </div>
                     <div style="text-align:right">
                         <span class="score ${scoreCls}">${c.score}分</span>
@@ -1879,8 +1877,8 @@ async function runLSExtreme() {
                         <span class="name">${c.sym.replace('USDT','')}</span>
                         <span class="price">$${fp(c.price)}</span>
                         <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:8px;color:#00bcd4;font-size:.8em;text-decoration:none">📊K线</a>
-                        <a href="coin-detail.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
-                        <a href="tv-custom-indicators.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:4px;color:#00e676;font-size:.8em;text-decoration:none">📡雷达</a>
+                        <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}&tab=detail" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
+                        <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}&tab=radar" target="_blank" style="margin-left:4px;color:#00e676;font-size:.8em;text-decoration:none">📡雷达</a>
                     </div>
                     <div style="text-align:right">
                         <span class="score ${scoreCls}">${score}分</span>
@@ -1986,8 +1984,8 @@ async function runMTF() {
                         <span class="name">${c.sym.replace('USDT','')}</span>
                         <span class="price">$${fp(c.price)}</span>
                         <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:8px;color:#9c27b0;font-size:.8em;text-decoration:none">📊K线</a>
-                        <a href="coin-detail.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
-                        <a href="tv-custom-indicators.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:4px;color:#00bcd4;font-size:.8em;text-decoration:none">📡雷达</a>
+                        <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}&tab=detail" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
+                        <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}&tab=radar" target="_blank" style="margin-left:4px;color:#00bcd4;font-size:.8em;text-decoration:none">📡雷达</a>
                     </div>
                     <div style="text-align:right">
                         <span class="score ${scoreCls}">${c.score}分</span>
@@ -2097,8 +2095,8 @@ async function runLiqZone() {
                         <span class="name">${c.sym.replace('USDT','')}</span>
                         <span class="price">$${fp(c.price)}</span>
                         <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:8px;color:#f44336;font-size:.8em;text-decoration:none">📊K线</a>
-                        <a href="coin-detail.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
-                        <a href="tv-custom-indicators.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:4px;color:#00bcd4;font-size:.8em;text-decoration:none">📡雷达</a>
+                        <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}&tab=detail" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
+                        <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}&tab=radar" target="_blank" style="margin-left:4px;color:#00bcd4;font-size:.8em;text-decoration:none">📡雷达</a>
                     </div>
                     <div style="text-align:right">
                         <span class="score ${scoreCls}">${c.liqScore}分</span>
@@ -2437,8 +2435,8 @@ function renderCard(c, styleKey = '') {
                 <span class="price" data-p="${fp(c.price)}">$${fp(c.price)}</span>
                 <span class="arrow" style="color:${c24color}">${c.c24h>=0?'▲':'▼'}</span>
                 <a href="kline-analysis.html?symbol=${c.sym}" target="_blank" style="margin-left:8px;color:#00e676;font-size:.8em;text-decoration:none">📊K线</a>
-                <a href="coin-detail.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
-                <a href="tv-custom-indicators.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:4px;color:#00bcd4;font-size:.8em;text-decoration:none">📡雷达</a>
+                <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}&tab=detail" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
+                <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}&tab=radar" target="_blank" style="margin-left:4px;color:#00bcd4;font-size:.8em;text-decoration:none">📡雷达</a>
             </div>
             <div style="text-align:right">
                 <span class="score ${scoreClass}">${scoreText}</span>
@@ -2497,8 +2495,8 @@ function renderWhaleCards(id, coins) {
                     <span class="name">${c.sym.replace('USDT', '')}</span>
                     <span class="price">$${fp(c.price)}</span>
                     <a href="kline-analysis.html?symbol=${c.sym.replace('USDT', '')}" target="_blank" style="margin-left:8px;color:#00bcd4;font-size:.8em;text-decoration:none">📊K线</a>
-                    <a href="coin-detail.html?symbol=${c.sym.replace('USDT', '')}" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
-                    <a href="tv-custom-indicators.html?symbol=${c.sym.replace('USDT', '')}" target="_blank" style="margin-left:4px;color:#00e676;font-size:.8em;text-decoration:none">📡雷达</a>
+                    <a href="kline-analysis.html?symbol=${c.sym.replace('USDT', '')}&tab=detail" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
+                    <a href="kline-analysis.html?symbol=${c.sym.replace('USDT', '')}&tab=radar" target="_blank" style="margin-left:4px;color:#00e676;font-size:.8em;text-decoration:none">📡雷达</a>
                     <div style="font-size:.7em;color:${color};margin-top:2px">${tbr > 0.52 ? '🐋看多' : tbr < 0.48 ? '🦈看空' : '⚖️中性'}</div>
                 </div>
             </div>

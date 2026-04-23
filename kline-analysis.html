@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🔍 K线深度分析工具 v3.58</title>
+<title>🔍 综合分析平台 v4.0</title>
 <!-- 使用 jsDelivr CDN (更稳定) -->
 <script src="lightweight-charts.standalone.production.js"></script>
 <script>
@@ -675,10 +675,8 @@ html { overflow-x: hidden; }
 <!-- 全站导航 -->
 <nav class="site-nav" id="siteNav">
   <a class="nav-item" href="index.html" id="navHome">🚀 预警系统</a>
-  <a class="nav-item" href="coin-detail.html" id="navDetail">📋 币种详情</a>
-  <a class="nav-item active" href="kline-analysis.html" id="navKline">📊 K线分析</a>
+  <a class="nav-item active" href="kline-analysis.html" id="navKline">📊 分析平台</a>
   <a class="nav-item" href="new-coins.html" id="navNewCoins">📉 新币监控</a>
-  <a class="nav-item" href="tv-custom-indicators.html" id="navRadar">📡 雷达核心</a>
 </nav>
 <div class="nav-offset"></div>
 
@@ -703,7 +701,13 @@ html { overflow-x: hidden; }
 <!-- Coin Tags -->
 <div style="padding: 8px 20px; display:flex; gap:6px; flex-wrap:wrap;" id="coinTags"></div>
 
-<!-- Main Content -->
+<!-- 页内Tab切换栏 -->
+<div id="innerTabBar" style="display:flex;gap:0;border-bottom:2px solid var(--border);padding:0 12px;background:var(--card);">
+  <button class="inner-tab active" id="tabBtnKline" onclick="switchInnerTab('kline')">📊 K线分析</button>
+  <button class="inner-tab" id="tabBtnDetail" onclick="switchInnerTab('detail')">📋 币种详情</button>
+  <button class="inner-tab" id="tabBtnRadar" onclick="switchInnerTab('radar')">📡 雷达核心</button>
+</div>
+<div id="tab-kline" class="inner-tab-panel">
 <div class="main">
   <!-- Left Sidebar -->
   <div class="sidebar-left">
@@ -833,6 +837,194 @@ html { overflow-x: hidden; }
     </div>
   </div>
 </div>
+</div><!-- /tab-kline -->
+
+<!-- ========== 币种详情 Tab ========== -->
+<div id="tab-detail" class="inner-tab-panel" style="display:none;">
+  <div class="detail-top-bar">
+    <div class="detail-search-box">
+      <input type="text" id="detailSymInput" placeholder="输入币种 如 BTC" />
+      <button onclick="detailLoadSymbol()">查询</button>
+    </div>
+    <span id="detailUpdateTime" style="font-size:12px;color:#999;margin-left:auto"></span>
+  </div>
+  <!-- 基础信息 -->
+  <div class="detail-info-block">
+    <div class="detail-info-inner">
+      <div class="detail-coin-header">
+        <div class="detail-coin-logo" id="detailCoinLogo">-</div>
+        <div class="detail-coin-name-wrap">
+          <div class="detail-coin-name" id="detailCoinName">--</div>
+          <div class="detail-coin-code" id="detailCoinCode">--</div>
+        </div>
+        <div class="detail-coin-price">
+          <span id="detailCoinPrice" style="font-size:24px;font-weight:700;color:#ef4444">--</span>
+          <span class="detail-price-change" id="detailCoinChange">--</span>
+        </div>
+        <div class="detail-coin-stats" id="detailCoinStats"></div>
+      </div>
+    </div>
+  </div>
+  <!-- 数据面板 -->
+  <div class="detail-panels" id="detailPanelArea">
+    <div class="detail-panel"><div class="detail-panel-title">📊 合约数据</div><div id="detailContractPanel"><div class="detail-data-row"><span>加载中...</span></div></div></div>
+    <div class="detail-panel"><div class="detail-panel-title">⚖️ 多空比</div><div id="detailLsPanel"><div class="detail-data-row"><span>加载中...</span></div></div></div>
+    <div class="detail-panel"><div class="detail-panel-title">💰 资金费率 & OI</div><div id="detailFundingPanel"><div class="detail-data-row"><span>加载中...</span></div></div></div>
+  </div>
+  <!-- 爆仓面板 -->
+  <div class="detail-liq-panels" id="detailLiqArea">
+    <div class="detail-liq-panel" id="detailLiq1h"><div class="detail-liq-title">1小时爆仓</div><div style="color:#999;font-size:12px">加载中...</div></div>
+    <div class="detail-liq-panel" id="detailLiq4h"><div class="detail-liq-title">4小时爆仓</div><div style="color:#999;font-size:12px">加载中...</div></div>
+    <div class="detail-liq-panel" id="detailLiq12h"><div class="detail-liq-title">12小时爆仓</div><div style="color:#999;font-size:12px">加载中...</div></div>
+    <div class="detail-liq-panel" id="detailLiq24h"><div class="detail-liq-title">24小时爆仓</div><div style="color:#999;font-size:12px">加载中...</div></div>
+  </div>
+  <!-- K线图 -->
+  <div class="detail-chart-block">
+    <div class="detail-chart-wrap">
+      <div class="detail-chart-toolbar">
+        <span class="detail-symbol-label" id="detailChartLabel">--</span>
+        <span style="color:#888;font-size:12px;margin-right:8px">周期:</span>
+        <button class="detail-tf-btn" onclick="detailChangeTf('15m',this)">15m</button>
+        <button class="detail-tf-btn active" onclick="detailChangeTf('1h',this)">1H</button>
+        <button class="detail-tf-btn" onclick="detailChangeTf('4h',this)">4H</button>
+        <button class="detail-tf-btn" onclick="detailChangeTf('1d',this)">日线</button>
+        <span style="color:#555;font-size:11px;margin-left:auto" id="detailKlineStatus">--</span>
+      </div>
+      <div id="detailChart" style="height:420px;"></div>
+    </div>
+  </div>
+  <!-- 实时状态栏 -->
+  <div class="detail-status-bar" id="detailStatusBar">
+    <span class="detail-ws-dot" id="detailWsDot"></span>
+    <span id="detailWsStatusText">连接中...</span>
+    <span style="margin-left:auto;color:#999;font-size:11px" id="detailLastUpdate">--</span>
+  </div>
+</div><!-- /tab-detail -->
+
+<!-- ========== 雷达核心 Tab ========== -->
+<div id="tab-radar" class="inner-tab-panel" style="display:none;">
+  <div class="radar-top-bar">
+    <h2 style="font-size:15px;font-weight:600;color:#fff;margin:0">📡 雷达核心版</h2>
+    <input class="radar-sym-input" id="radarSymInput" value="BTCUSDT" placeholder="BTCUSDT">
+    <select id="radarTfSelect" style="background:#2a2e39;border:1px solid #363a45;color:#fff;border-radius:4px;padding:5px 8px;font-size:12px;">
+      <option value="1m">1m</option>
+      <option value="5m">5m</option>
+      <option value="15m">15m</option>
+      <option value="1h" selected>1h</option>
+      <option value="4h">4h</option>
+      <option value="1d">1d</option>
+    </select>
+    <button class="radar-load-btn" onclick="radarLoadSymbol()">加载</button>
+    <span class="radar-price-info" id="radarPriceInfo"></span>
+    <div class="radar-ws-status" id="radarWsStatus">
+      <div class="radar-ws-dot" id="radarWsDot"></div>
+      <span id="radarWsText" style="font-size:11px;color:#787b86;">离线</span>
+    </div>
+    <button class="radar-reconnect-btn" id="radarReconnectBtn" onclick="radarManualReconnect()" style="display:none">🔄</button>
+  </div>
+  <div class="radar-main-layout">
+    <!-- 左侧指标面板 -->
+    <div class="radar-left-panel">
+      <div class="radar-ind-section">
+        <div class="radar-ind-title">📈 全局趋势 / VWAP日内状态</div>
+        <div class="radar-vwap-card">
+          <div class="radar-vwap-row"><span style="color:#787b86">趋势方向</span><span id="radarTrendDir" class="radar-vwap-badge neutral">--</span></div>
+          <div class="radar-vwap-row"><span style="color:#787b86">VWAP位置</span><span id="radarVwapPos" style="font-size:11px;color:#d1d4dc;">--</span></div>
+          <div class="radar-vwap-row"><span style="color:#787b86">日内VWAP</span><span id="radarVwapVal" style="font-size:12px;font-weight:700;color:#ffd600;">--</span></div>
+          <div class="radar-vwap-row"><span style="color:#787b86">相对VWAP</span><span id="radarVwapDist" style="font-size:11px;color:#d1d4dc;">--</span></div>
+          <div class="radar-vwap-row"><span style="color:#787b86">EMA多头</span><span id="radarEmaStatus" style="font-size:11px;color:#d1d4dc;">--</span></div>
+        </div>
+      </div>
+      <div class="radar-divider"></div>
+      <div class="radar-ind-section">
+        <div class="radar-ind-title">🎯 雷达核心指令</div>
+        <div class="radar-signal-list" id="radarList"><div class="radar-sig-item"><span>⏳</span><span>等待雷达信号...</span></div></div>
+      </div>
+      <div class="radar-divider"></div>
+      <div class="radar-ind-section">
+        <div class="radar-ind-title">🐋 主力逃顶</div>
+        <div class="radar-signal-list" id="radarWhaleList"><div class="radar-sig-item"><span>⏳</span><span>监控中...</span></div></div>
+      </div>
+      <div class="radar-divider"></div>
+      <div class="radar-ind-section">
+        <div class="radar-ind-title">⚡ 关键突破价位</div>
+        <div class="radar-ind-card" id="radarLevelsCard">
+          <div class="radar-level-item"><span class="radar-level-res" id="radarRes3">--</span><span id="radarRes3dist">阻力3</span></div>
+          <div class="radar-level-item"><span class="radar-level-res" id="radarRes2">--</span><span id="radarRes2dist">阻力2</span></div>
+          <div class="radar-level-item"><span class="radar-level-res" id="radarRes1">--</span><span>阻力1</span></div>
+          <div class="radar-level-item"><span style="color:#fff;font-weight:700" id="radarCurPrice">--</span><span>当前价</span></div>
+          <div class="radar-level-item"><span class="radar-level-sup" id="radarSup1">--</span><span>支撑1</span></div>
+          <div class="radar-level-item"><span class="radar-level-sup" id="radarSup2">--</span><span id="radarSup2dist">支撑2</span></div>
+          <div class="radar-level-item"><span class="radar-level-sup" id="radarSup3">--</span><span id="radarSup3dist">支撑3</span></div>
+        </div>
+      </div>
+      <div class="radar-divider"></div>
+      <div class="radar-ind-section">
+        <div class="radar-ind-title">👁️ 量能天眼</div>
+        <div class="radar-ind-card">
+          <div class="radar-vwap-row"><span style="color:#787b86">量比(均值)</span><span id="radarVolRatio" style="font-size:12px;font-weight:700;">--</span></div>
+          <div class="radar-vwap-row"><span style="color:#787b86">均量MA20</span><span id="radarVolMA" style="font-size:11px;color:#d1d4dc;">--</span></div>
+          <div class="radar-vwap-row"><span style="color:#787b86">量能状态</span><span id="radarVolStatus" style="font-size:11px;color:#d1d4dc;">--</span></div>
+          <div class="radar-vwap-row"><span style="color:#787b86">放量周期</span><span id="radarVolSpikeCount" style="font-size:11px;color:#d1d4dc;">--</span></div>
+          <div class="radar-vol-stat">
+            <div class="radar-vol-stat-item" id="radarVolItem0"><div class="radar-vol-stat-val" id="radarVolBar0">--</div><div class="radar-vol-stat-lbl">近1</div></div>
+            <div class="radar-vol-stat-item" id="radarVolItem1"><div class="radar-vol-stat-val" id="radarVolBar1">--</div><div class="radar-vol-stat-lbl">近2</div></div>
+            <div class="radar-vol-stat-item" id="radarVolItem2"><div class="radar-vol-stat-val" id="radarVolBar2">--</div><div class="radar-vol-stat-lbl">近3</div></div>
+            <div class="radar-vol-stat-item" id="radarVolItem3"><div class="radar-vol-stat-val" id="radarVolBar3">--</div><div class="radar-vol-stat-lbl">近4</div></div>
+            <div class="radar-vol-stat-item" id="radarVolItem4"><div class="radar-vol-stat-val" id="radarVolBar4">--</div><div class="radar-vol-stat-lbl">近5</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- 右侧图表 -->
+    <div class="radar-right-panel">
+      <div class="radar-chart-wrap" id="radarChartWrap">
+        <div class="radar-loading hidden" id="radarLoading">加载中...</div>
+        <div class="radar-chart-ctrl">
+          <button class="radar-ci-btn active" onclick="radarToggleMA(this)">MA</button>
+          <button class="radar-ci-btn active" onclick="radarToggleBB(this)">BB</button>
+          <button class="radar-ci-btn active" onclick="radarToggleVWAP(this)">VWAP</button>
+          <button class="radar-ci-btn active" onclick="radarToggleRSI(this)">RSI</button>
+          <button class="radar-ci-btn active" onclick="radarToggleMACD(this)">MACD</button>
+          <button class="radar-ci-btn active" onclick="radarToggleVol(this)">VOL</button>
+          <button class="radar-ci-btn active" onclick="radarToggleLevelLine(this)">📍价位</button>
+          <button class="radar-ci-btn active" onclick="radarToggleRadarMark(this)">🎯雷达</button>
+        </div>
+        <div id="radarChart"></div>
+        <!-- 一刀之眼 -->
+        <div class="radar-chart-info" id="radarChartInfo">
+          <div class="radar-yidao-core">
+            <div class="radar-yidao-row">
+              <span class="radar-yidao-ball" id="radarYidaoBall">💎</span>
+              <span class="radar-yidao-text wait" id="radarYidaoCore">等待信号</span>
+              <span class="radar-yidao-dir" id="radarYidaoDir">→</span>
+            </div>
+            <span class="radar-yidao-vwap neutral" id="radarYidaoVwap">VWAP: --</span>
+          </div>
+        </div>
+        <!-- 雷达核心指令面板 -->
+        <div class="radar-radar-panel" id="radarRadarPanel">
+          <span class="radar-ci-badge warn" id="radarRpBreakout">上破阻力: --</span>
+          <span class="radar-ci-badge warn" id="radarRpBreakdown">下破支撑: --</span>
+          <span class="radar-ci-badge warn" id="radarRpWhaleTop">主力逃顶: --</span>
+          <span class="radar-ci-badge warn" id="radarRpWhaleBottom">主力蓄力: --</span>
+          <span class="radar-ci-badge warn" id="radarRpVolEye">量能天眼: --</span>
+        </div>
+      </div>
+      <div class="radar-resize-handle" id="radarResizeHandle"></div>
+      <div class="radar-oscillators">
+        <div class="radar-osc-panel" id="radarRsiPanel">
+          <div class="radar-osc-title">RSI(14)</div>
+          <div class="radar-osc-content" id="radarRsiChart"></div>
+        </div>
+        <div class="radar-osc-panel" id="radarMacdPanel">
+          <div class="radar-osc-title">MACD(12,26,9)</div>
+          <div class="radar-osc-content" id="radarMacdChart"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div><!-- /tab-radar -->
 
 <style>
 /* ========== Main Layout ========== */
@@ -1022,6 +1214,138 @@ body { margin: 0; padding: 0; overflow: auto; }
 .nav-offset { height:40px; }
 @media(max-width:600px){
   .nav-item { padding:0 10px; font-size:12px; }
+}
+
+/* ===== 页内 Tab 切换 ===== */
+.inner-tab {
+  padding:10px 20px; background:transparent; border:none;
+  color:#aaa; font-size:13px; font-weight:500; cursor:pointer;
+  border-bottom:2px solid transparent; white-space:nowrap;
+  transition:all .2s;
+}
+.inner-tab:hover { color:#f0b90b; }
+.inner-tab.active { color:#f0b90b; border-bottom-color:#f0b90b; }
+.inner-tab-panel { display:block; }
+
+/* ===== 币种详情 Tab 样式 ===== */
+.detail-top-bar { background:#fff; border-bottom:1px solid #e8e8e8; padding:14px 20px; display:flex; align-items:center; gap:16px; }
+.detail-search-box { display:flex; gap:8px; align-items:center; }
+.detail-search-box input { border:1px solid #d9d9d9; border-radius:4px; padding:6px 12px; font-size:14px; width:160px; outline:none; }
+.detail-search-box input:focus { border-color:#1890ff; }
+.detail-search-box button { padding:6px 16px; background:#1890ff; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:14px; }
+.detail-info-block { background:#fff; padding:16px 20px 12px; border-bottom:1px solid #e8e8e8; }
+.detail-info-inner { max-width:1200px; margin:0 auto; }
+.detail-coin-header { display:flex; align-items:center; gap:20px; flex-wrap:wrap; margin-bottom:8px; }
+.detail-coin-logo { width:44px; height:44px; border-radius:50%; background:linear-gradient(135deg,#667eea,#764ba2); display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:16px; flex-shrink:0; }
+.detail-coin-name { font-size:22px; font-weight:700; color:#222; }
+.detail-coin-code { font-size:12px; color:#999; margin-top:2px; }
+.detail-price-change { font-size:13px; color:#f5222d; margin-top:2px; display:block; }
+.detail-price-change.up { color:#52c41a; }
+.detail-coin-stats { display:flex; gap:30px; flex-wrap:wrap; align-items:center; }
+.detail-panels { max-width:1200px; margin:12px auto; display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; padding:0 20px; }
+.detail-panel { background:#fff; border-radius:4px; padding:16px; border:1px solid #e8e8e8; }
+.detail-panel-title { font-size:13px; font-weight:600; color:#555; margin-bottom:12px; border-bottom:1px solid #f0f0f0; padding-bottom:8px; }
+.detail-data-row { display:flex; justify-content:space-between; align-items:center; padding:5px 0; font-size:13px; }
+.detail-data-row .dr-label { color:#555; }
+.detail-data-row .dr-val { font-weight:600; }
+.detail-liq-panels { max-width:1200px; margin:0 auto; display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:12px; padding:0 20px 12px; }
+.detail-liq-panel { background:#fff; border-radius:4px; padding:14px; border:1px solid #e8e8e8; }
+.detail-liq-title { font-size:13px; color:#555; margin-bottom:10px; }
+.detail-liq-total { font-size:15px; font-weight:700; color:#222; margin-bottom:8px; }
+.detail-liq-row { display:flex; justify-content:space-between; font-size:12px; padding:3px 0; }
+.detail-chart-block { max-width:1200px; margin:0 auto 20px; padding:0 20px; }
+.detail-chart-wrap { background:#111; border-radius:4px; overflow:hidden; }
+.detail-chart-toolbar { display:flex; align-items:center; gap:8px; padding:10px 14px; background:#1a1a1a; border-bottom:1px solid #333; flex-wrap:wrap; }
+.detail-symbol-label { color:#f0b90b; font-weight:700; font-size:14px; }
+.detail-tf-btn { padding:3px 10px; border:1px solid #444; background:transparent; color:#aaa; border-radius:3px; cursor:pointer; font-size:12px; }
+.detail-tf-btn.active,.detail-tf-btn:hover { background:#f0b90b; color:#000; border-color:#f0b90b; }
+.detail-status-bar { max-width:1200px; margin:0 auto; padding:6px 20px; background:#fff; border-top:1px solid #e8e8e8; display:flex; align-items:center; gap:8px; font-size:12px; color:#555; }
+.detail-ws-dot { width:8px; height:8px; border-radius:50%; background:#ccc; flex-shrink:0; }
+.detail-ws-dot.online { background:#52c41a; animation:pulse 2s infinite; }
+.detail-ws-dot.error { background:#f5222d; }
+.val-up { color:#52c41a; } .val-down { color:#f5222d; } .val-neutral { color:#1890ff; }
+@media(max-width:900px){ .detail-panels { grid-template-columns:1fr 1fr; } .detail-liq-panels { grid-template-columns:1fr 1fr; } }
+@media(max-width:600px){ .detail-panels { grid-template-columns:1fr; padding:0 10px; } .detail-liq-panels { grid-template-columns:1fr 1fr; padding:0 10px; } }
+
+/* ===== 雷达核心 Tab 样式 ===== */
+.radar-top-bar { background:#1e222d; border-bottom:1px solid #2a2e39; padding:10px 20px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.radar-sym-input { background:#2a2e39; border:1px solid #363a45; color:#fff; border-radius:4px; padding:5px 10px; font-size:13px; width:130px; outline:none; }
+.radar-load-btn { padding:5px 14px; background:#2962ff; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:13px; }
+.radar-load-btn:hover { background:#0039cb; }
+.radar-price-info { font-size:17px; font-weight:700; color:#fff; }
+.radar-ws-status { display:flex; align-items:center; gap:5px; }
+.radar-ws-dot { width:8px; height:8px; border-radius:50%; background:#555; flex-shrink:0; }
+.radar-ws-dot.online { background:#3fb950; animation:pulse 2s infinite; }
+.radar-ws-dot.connecting { background:#ff9800; animation:pulse 1s infinite; }
+.radar-ws-dot.error { background:#f85149; }
+.radar-reconnect-btn { background:none; border:1px solid #3fb95044; color:#3fb950; border-radius:4px; padding:2px 6px; cursor:pointer; font-size:11px; }
+.radar-main-layout { display:flex; height:calc(100vh - 160px); background:#131722; color:#d1d4dc; }
+.radar-left-panel { width:290px; background:#1e222d; border-right:1px solid #2a2e39; overflow-y:auto; padding:10px; flex-shrink:0; }
+.radar-right-panel { flex:1; display:flex; flex-direction:column; min-width:0; }
+.radar-ind-section { margin-bottom:12px; }
+.radar-ind-title { font-size:10px; color:#787b86; font-weight:600; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; }
+.radar-ind-card { background:#2a2e39; border-radius:5px; padding:8px 10px; margin-bottom:6px; }
+.radar-vwap-card { background:#2a2e39; border-radius:5px; padding:8px 10px; }
+.radar-vwap-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; font-size:11px; }
+.radar-vwap-badge { display:inline-block; padding:2px 7px; border-radius:3px; font-size:10px; font-weight:700; }
+.radar-vwap-badge.long { background:#3fb95033; color:#3fb950; border:1px solid #3fb95066; }
+.radar-vwap-badge.short { background:#f8514933; color:#f85149; border:1px solid #f8514966; }
+.radar-vwap-badge.neutral { background:#2962ff33; color:#2962ff; border:1px solid #2962ff66; }
+.radar-signal-list { display:flex; flex-direction:column; gap:4px; }
+.radar-sig-item { display:flex; align-items:center; gap:6px; padding:5px 8px; background:#2a2e39; border-radius:4px; font-size:11px; color:#d1d4dc; }
+.radar-level-item { display:flex; justify-content:space-between; padding:3px 0; border-bottom:1px solid #363a45; font-size:11px; color:#d1d4dc; }
+.radar-level-item:last-child { border-bottom:none; }
+.radar-level-res { color:#f85149; }
+.radar-level-sup { color:#3fb950; }
+.radar-vol-stat { display:flex; gap:6px; margin-top:4px; }
+.radar-vol-stat-item { flex:1; background:#363a45; border-radius:3px; padding:4px 6px; text-align:center; }
+.radar-vol-stat-val { font-size:12px; font-weight:700; color:#d1d4dc; }
+.radar-vol-stat-lbl { font-size:9px; color:#787b86; margin-top:1px; }
+.radar-vol-stat-item.spike { background:#ff980033; }
+.radar-vol-stat-item.spike .radar-vol-stat-val { color:#ff9800; }
+.radar-divider { border-bottom:1px solid #2a2e39; margin:10px 0; }
+.radar-chart-wrap { flex:1; position:relative; min-height:400px; height:55vh; }
+#radarChart { width:100%; height:100%; min-height:350px; }
+.radar-chart-ctrl { position:absolute; top:6px; left:6px; display:flex; gap:3px; z-index:10; }
+.radar-ci-btn { padding:3px 9px; background:#2a2e39; border:1px solid #363a45; color:#787b86; border-radius:3px; cursor:pointer; font-size:11px; }
+.radar-ci-btn.active { background:#2962ff; border-color:#2962ff; color:#fff; }
+.radar-chart-info { position:absolute; top:6px; left:50%; transform:translateX(-50%); z-index:10; pointer-events:none; }
+.radar-yidao-core { display:flex; flex-direction:column; gap:2px; align-items:center; }
+.radar-yidao-row { display:flex; align-items:center; gap:6px; }
+.radar-yidao-ball { font-size:16px; }
+.radar-yidao-text { font-size:11px; font-weight:700; padding:2px 8px; border-radius:3px; }
+.radar-yidao-text.long { background:#3fb95033; color:#3fb950; border:1px solid #3fb95066; }
+.radar-yidao-text.short { background:#f8514933; color:#f85149; border:1px solid #f8514966; }
+.radar-yidao-text.wait { background:#2962ff33; color:#2962ff; border:1px solid #2962ff66; }
+.radar-yidao-dir { font-size:12px; color:#787b86; }
+.radar-yidao-vwap { font-size:10px; padding:2px 6px; border-radius:2px; }
+.radar-yidao-vwap.up { background:#3fb95022; color:#3fb950; }
+.radar-yidao-vwap.down { background:#f8514922; color:#f85149; }
+.radar-yidao-vwap.neutral { background:#2962ff22; color:#2962ff; }
+.radar-radar-panel { position:absolute; top:6px; right:10px; z-index:10; display:flex; flex-direction:column; gap:3px; pointer-events:none; max-width:160px; }
+.radar-ci-badge { display:inline-flex; align-items:center; gap:4px; padding:2px 6px; border-radius:3px; font-size:10px; font-weight:700; background:#ff980033; color:#ff9800; border:1px solid #ff980066; }
+.radar-ci-badge.green { color:#3fb950; border-color:#3fb95044; background:#3fb95011; }
+.radar-ci-badge.red { color:#f85149; border-color:#f8514944; background:#f8514911; }
+.radar-ci-badge.cyan { color:#00e5ff; border-color:#00e5ff44; background:#00e5ff11; }
+.radar-ci-badge.orange { color:#ff9800; border-color:#ff980044; background:#ff980011; }
+.radar-resize-handle { height:6px; background:linear-gradient(90deg,transparent,#363a45 20%,#363a45 80%,transparent); cursor:ns-resize; flex-shrink:0; }
+.radar-resize-handle:hover { background:linear-gradient(90deg,transparent,#2962ff 20%,#2962ff 80%,transparent); }
+.radar-oscillators { display:flex; border-top:1px solid #2a2e39; height:120px; flex-shrink:0; }
+.radar-osc-panel { flex:1; border-right:1px solid #2a2e39; padding:4px 6px; min-width:0; }
+.radar-osc-panel:last-child { border-right:none; }
+.radar-osc-title { font-size:10px; color:#787b86; margin-bottom:3px; font-weight:600; }
+.radar-osc-content { height:calc(100% - 15px); position:relative; }
+.radar-loading { position:absolute; inset:0; background:rgba(19,23,34,0.9); display:flex; align-items:center; justify-content:center; font-size:13px; color:#787b86; z-index:20; }
+.hidden { display:none !important; }
+@media(max-width:900px){
+  .radar-main-layout { flex-direction:column; height:auto; }
+  .radar-left-panel { width:100%; max-height:40vh; border-right:none; border-bottom:1px solid #2a2e39; }
+  .radar-right-panel { height:60vh; min-height:400px; }
+}
+@media(max-width:600px){
+  .radar-top-bar { gap:8px; }
+  .radar-sym-input { width:100px; }
+  .inner-tab { padding:8px 12px; font-size:12px; }
 }
 </style>
 
@@ -2712,6 +3036,8 @@ function startup() {
   // 检查URL参数
   const urlParams = new URLSearchParams(window.location.search);
   const symbolParam = urlParams.get('symbol');
+  const tabParam = urlParams.get('tab');
+
   if (symbolParam) {
     console.log('[URL参数] 检测到币种:', symbolParam);
     const normalizedSymbol = symbolParam.toUpperCase().trim().replace(/usdt$/i, '') + 'USDT';
@@ -2719,10 +3045,21 @@ function startup() {
       currentSymbol = normalizedSymbol;
       const symInput = $('symInput');
       if (symInput) symInput.value = normalizedSymbol.replace('USDT', '');
-      // 由 init() 末尾的 requestAnimationFrame 处理 analyzeCoin，避免双重调用
+      // 如有 tab 参数，切换到对应 tab
+      if (tabParam && tabParam !== 'kline') {
+        setTimeout(() => switchInnerTab(tabParam), 300);
+      }
     }).catch(e => {
       console.error('初始化失败:', e);
     });
+    return;
+  }
+
+  // 如有 tab 参数但无 symbol
+  if (tabParam && tabParam !== 'kline') {
+    init().then(() => {
+      setTimeout(() => switchInnerTab(tabParam), 300);
+    }).catch(e => console.error('初始化失败:', e));
     return;
   }
   
@@ -2736,21 +3073,912 @@ function startup() {
   });
 }
 
-// ==================== 全站导航链接联动 ====================
-function updateNavLinks(sym) {
-  const s = (sym || currentSymbol || 'BTC').replace('USDT','');
-  const nd = document.getElementById('navDetail');
-  const nr = document.getElementById('navRadar');
-  if (nd) nd.href = 'coin-detail.html?symbol=' + s;
-  if (nr) nr.href = 'tv-custom-indicators.html?symbol=' + s;
+// ==================== 页内 Tab 切换 ====================
+let currentInnerTab = 'kline';
+let detailInited = false, radarInited = false;
+function switchInnerTab(tab) {
+  document.querySelectorAll('.inner-tab-panel').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.inner-tab').forEach(el => el.classList.remove('active'));
+  const target = document.getElementById('tab-' + tab);
+  if (target) target.style.display = 'block';
+  const btn = document.getElementById('tabBtn' + tab.charAt(0).toUpperCase() + tab.slice(1));
+  if (btn) btn.classList.add('active');
+  currentInnerTab = tab;
+  if (tab === 'kline' && chart) {
+    setTimeout(() => chart.resize(document.getElementById('chart').clientWidth, document.getElementById('chart').clientHeight), 100);
+  }
+  if (tab === 'detail') {
+    if (!detailInited) { detailInited = true; detailInit(); }
+    else if (detailChart) setTimeout(() => detailChart.applyOptions({ width: document.getElementById('detailChart').clientWidth, height: document.getElementById('detailChart').clientHeight || 420 }), 100);
+  }
+  if (tab === 'radar') {
+    if (!radarInited) { radarInited = true; radarInit(); }
+    else if (radarChart) setTimeout(() => { const w = document.getElementById('radarChartWrap'); if(w) radarChart.resize(w.clientWidth, Math.max(w.clientHeight-150,300)); }, 100);
+  }
 }
-// analyzeCoin 结束后自动更新导航链接
-const _origAnalyzeCoin = analyzeCoin;
-window.analyzeCoin = function(sym) {
-  const result = _origAnalyzeCoin(sym);
-  setTimeout(() => updateNavLinks(sym), 200);
+
+// ==================== DETAIL TAB: 全局状态 ====================
+let detailSymbol = 'BTCUSDT';
+let detailTf = '1h';
+let detailChart = null, detailCandleSeries = null, detailVolumeSeries = null;
+let detailWs = null, detailKlineWs = null, detailWsRetry = 0, detailPanelTimer = null;
+
+function detailFmtNum(n, d=2) {
+  if (n == null || isNaN(n)) return '--';
+  return Number(n).toFixed(d);
+}
+function detailFmtMoney(n) {
+  if (n == null || isNaN(n)) return '--';
+  if (Math.abs(n) >= 1e8) return (n/1e8).toFixed(2) + '亿';
+  if (Math.abs(n) >= 1e4) return (n/1e4).toFixed(2) + '万';
+  return n.toFixed(2);
+}
+function detailFmtPrice(n) {
+  if (n == null) return '--';
+  if (n >= 1000) return Number(n).toLocaleString('en-US', {maximumFractionDigits:2});
+  if (n >= 1) return Number(n).toFixed(4);
+  if (n >= 0.01) return Number(n).toFixed(5);
+  return Number(n).toFixed(8);
+}
+function detailColorClass(v) {
+  return v > 0 ? 'val-up' : v < 0 ? 'val-down' : 'val-neutral';
+}
+
+function detailUpdateLivePrice(tick) {
+  var price = parseFloat(tick.c || 0), change = parseFloat(tick.P || 0);
+  var vol = parseFloat(tick.q || 0), high = parseFloat(tick.h || 0), low = parseFloat(tick.l || 0);
+  var elP = document.getElementById('detailCoinPrice');
+  if (elP) { elP.textContent = '$' + detailFmtPrice(price); elP.className = change >= 0 ? 'val-up' : 'val-down'; }
+  var elC = document.getElementById('detailCoinChange');
+  if (elC) { elC.textContent = (change >= 0 ? '+' : '') + detailFmtNum(change, 2) + '%'; elC.className = 'coin-price-change' + (change >= 0 ? ' up' : ''); }
+  var sv = document.querySelectorAll('#detailCoinStats .stat-item .s-val');
+  if (sv[0]) sv[0].textContent = '$' + detailFmtMoney(vol * 1e6);
+  if (high > 0 && sv[2]) sv[2].textContent = '$' + detailFmtPrice(high);
+  if (low > 0 && sv[3]) sv[3].textContent = '$' + detailFmtPrice(low);
+  detailSetWsStatus('online', '实时在线');
+  var lu = document.getElementById('detailLastUpdate');
+  if (lu) lu.textContent = '更新于 ' + new Date().toLocaleTimeString('zh-CN');
+}
+
+function detailSetWsStatus(state, msg) {
+  var dot = document.getElementById('detailWsDot'), txt = document.getElementById('detailWsStatusText');
+  if (!dot || !txt) return;
+  dot.className = 'ws-dot ' + (state === 'online' ? 'online' : state === 'error' ? 'error' : '');
+  txt.textContent = msg || (state === 'online' ? '实时在线' : '连接中');
+}
+
+// ==================== DETAIL TAB: 主加载 ====================
+async function detailLoadSymbol() {
+  const inp = document.getElementById('detailSymInput');
+  if (!inp) return;
+  const input = inp.value.trim().toUpperCase();
+  if (input) detailSymbol = input.endsWith('USDT') ? input : input + 'USDT';
+
+  const mask = document.getElementById('detailLoadingMask');
+  const tip = document.getElementById('detailLoadingTip');
+  if (mask) mask.classList.remove('hidden');
+  if (tip) tip.textContent = '正在获取 ' + detailSymbol + ' 数据...';
+  const lbl = document.getElementById('detailChartLabel');
+  if (lbl) lbl.textContent = detailSymbol + ' / USDT 永续合约';
+
+  detailCloseWs(); detailCloseKlineWs();
+
+  try {
+    await Promise.all([
+      detailLoadBasicInfo(),
+      detailLoadContractPanel(),
+      detailLoadLSRatio(),
+      detailLoadFunding(),
+      detailLoadLiquidation(),
+      detailLoadKline(detailSymbol, detailTf)
+    ]);
+  } catch(e) { console.error('[detail] 加载失败', e); }
+
+  if (mask) mask.classList.add('hidden');
+  const ut = document.getElementById('detailUpdateTime');
+  if (ut) ut.textContent = '更新于 ' + new Date().toLocaleTimeString('zh-CN');
+
+  detailConnectWebSocket(detailSymbol);
+  detailConnectKlineWs(detailSymbol, detailTf);
+  detailStartPanelRefresh();
+}
+
+function detailCloseWs() { if (detailWs) { detailWs.close(); detailWs = null; } detailWsRetry = 0; }
+function detailCloseKlineWs() { if (detailKlineWs) { detailKlineWs.close(); detailKlineWs = null; } }
+
+function detailConnectWebSocket(symbol) {
+  detailSetWsStatus('', '连接中...');
+  var wsUrl = 'wss://139.rams.cc.cd/?url=wss://fstream.binance.com:9443/ws/' + symbol.toLowerCase() + '@ticker';
+  try {
+    detailWs = new WebSocket(wsUrl);
+    detailWs.onopen = function() { detailWsRetry = 0; detailSetWsStatus('online', '实时在线'); };
+    detailWs.onmessage = function(ev) { try { var d=JSON.parse(ev.data); if(d.e==='24hrTicker') detailUpdateLivePrice(d); } catch(ex){} };
+    detailWs.onerror = function() { detailSetWsStatus('error', '连接失败'); };
+    detailWs.onclose = function() { if(detailWsRetry<5){detailWsRetry++;setTimeout(function(){detailConnectWebSocket(symbol);},2000*detailWsRetry);}else{detailSetWsStatus('error','离线');} };
+  } catch(ex) { detailSetWsStatus('error', '不支持WebSocket'); }
+}
+
+function detailConnectKlineWs(symbol, tf) {
+  var si = ({"15m":"15m","1h":"1h","4h":"4h","1d":"1d"})[tf] || '1h';
+  var wsUrl = 'wss://139.rams.cc.cd/?url=wss://fstream.binance.com:9443/ws/' + symbol.toLowerCase() + '@kline_' + si;
+  try {
+    detailKlineWs = new WebSocket(wsUrl);
+    detailKlineWs.onmessage = function(ev) {
+      try {
+        var d=JSON.parse(ev.data);
+        if(d.e==='kline'&&d.k){
+          var k=d.k, ts=Math.floor(k.t/1000);
+          var candle={time:ts,open:parseFloat(k.o),high:parseFloat(k.h),low:parseFloat(k.l),close:parseFloat(k.c)};
+          var vol={time:ts,value:parseFloat(k.v),color:parseFloat(k.c)>=parseFloat(k.o)?'rgba(239,83,80,0.4)':'rgba(38,194,129,0.4)'};
+          if(detailCandleSeries)detailCandleSeries.update(candle);
+          if(detailVolumeSeries)detailVolumeSeries.update(vol);
+          var lb={"15m":"15m","1h":"1H","4h":"4H","1d":"日线"};
+          const ks = document.getElementById('detailKlineStatus');
+          if(ks) ks.textContent='实时 '+(lb[tf]||tf)+' '+new Date().toLocaleTimeString('zh-CN');
+        }
+      } catch(ex){}
+    };
+    detailKlineWs.onclose=function(){};
+    detailKlineWs.onerror=function(){if(detailKlineWs)detailKlineWs.close();};
+  } catch(ex){}
+}
+
+function detailStartPanelRefresh() {
+  if (detailPanelTimer) clearInterval(detailPanelTimer);
+  detailPanelTimer = setInterval(function() {
+    if (!detailSymbol) return;
+    Promise.all([detailLoadContractPanel(), detailLoadLSRatio(), detailLoadFunding()]).then(function() {
+      var lu = document.getElementById('detailLastUpdate');
+      if (lu) lu.textContent = '面板刷新 ' + new Date().toLocaleTimeString('zh-CN');
+    })["catch"](function() {});
+  }, 30000);
+}
+
+// ==================== DETAIL TAB: 基础信息 ====================
+async function detailLoadBasicInfo() {
+  const [ticker, spotTicker] = await Promise.all([
+    apiFetch(`/fapi/v1/ticker/24hr?symbol=${detailSymbol}`),
+    apiFetch(`/api/v3/ticker/24hr?symbol=${detailSymbol}`).catch(()=>null)
+  ]);
+  if (!ticker) return;
+  const sym = detailSymbol.replace('USDT','');
+  const price = parseFloat(ticker.lastPrice), change = parseFloat(ticker.priceChangePercent);
+  const vol = parseFloat(ticker.quoteVolume), spotVol = spotTicker ? parseFloat(spotTicker.quoteVolume) : null;
+
+  const logoEl = document.getElementById('detailCoinLogo');
+  const nameEl = document.getElementById('detailCoinName');
+  const codeEl = document.getElementById('detailCoinCode');
+  const priceEl = document.getElementById('detailCoinPrice');
+  const changeEl = document.getElementById('detailCoinChange');
+  const statsEl = document.getElementById('detailCoinStats');
+  if (logoEl) logoEl.textContent = sym.substring(0,2);
+  if (nameEl) nameEl.textContent = sym;
+  if (codeEl) codeEl.textContent = sym + '/USDT 永续合约';
+  if (priceEl) { priceEl.textContent = '$' + detailFmtPrice(price); priceEl.className = change >= 0 ? 'val-up' : 'val-down'; }
+  if (changeEl) { changeEl.textContent = (change >= 0 ? '+' : '') + detailFmtNum(change, 4) + '  ' + (change >= 0 ? '+' : '') + detailFmtNum(change, 2) + '%'; changeEl.className = 'coin-price-change ' + (change >= 0 ? 'up' : ''); }
+  if (statsEl) statsEl.innerHTML = `
+    <div class="stat-item"><div class="s-label">合约成交额</div><div class="s-val">$${detailFmtMoney(vol)}</div></div>
+    ${spotVol ? `<div class="stat-item"><div class="s-label">现货成交额</div><div class="s-val">$${detailFmtMoney(spotVol)}</div></div>` : ''}
+    <div class="stat-item"><div class="s-label">24H高</div><div class="s-val" style="color:#52c41a">$${detailFmtPrice(parseFloat(ticker.highPrice))}</div></div>
+    <div class="stat-item"><div class="s-label">24H低</div><div class="s-val" style="color:#f5222d">$${detailFmtPrice(parseFloat(ticker.lowPrice))}</div></div>
+    <div class="stat-item"><div class="s-label">成交笔数</div><div class="s-val">${Number(ticker.count).toLocaleString()}</div></div>
+  `;
+}
+
+// ==================== DETAIL TAB: 合约面板 ====================
+async function detailLoadContractPanel() {
+  const [oi, klines] = await Promise.all([
+    apiFetch(`/fapi/v1/openInterest?symbol=${detailSymbol}`),
+    apiFetch(`/fapi/v1/klines?symbol=${detailSymbol}&interval=1h&limit=24`)
+  ]);
+  let oiVal = oi ? parseFloat(oi.openInterest) : null, oiUsd = null;
+  if (oiVal && klines && klines.length > 0) { const lp = parseFloat(klines[klines.length-1][4]); oiUsd = oiVal * lp; }
+  let takerBuy = null;
+  if (klines && klines.length >= 4) {
+    const rec = klines.slice(-8);
+    const bv = rec.reduce((s,x)=>s+parseFloat(x[9]),0);
+    const tv = rec.reduce((s,x)=>s+parseFloat(x[5]),0);
+    takerBuy = tv > 0 ? bv/tv*100 : null;
+  }
+  const oiHist = await apiFetch(`/futures/data/openInterestHist?symbol=${detailSymbol}&period=1h&limit=4`);
+  let oiChg = null;
+  if (oiHist && oiHist.length >= 2) {
+    const cur = parseFloat(oiHist[0].sumOpenInterestValue), prev = parseFloat(oiHist[oiHist.length-1].sumOpenInterestValue);
+    if (prev > 0) oiChg = (cur - prev)/prev*100;
+  }
+  const el = document.getElementById('detailContractPanel');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="data-row"><span class="dr-label">合约持仓量(OI)</span><span class="dr-val">${oiUsd ? '$'+detailFmtMoney(oiUsd) : '--'}</span></div>
+    <div class="data-row"><span class="dr-label">OI变化(4H)</span><span class="dr-val ${oiChg != null ? detailColorClass(oiChg) : ''}">${oiChg != null ? (oiChg>0?'+':'')+detailFmtNum(oiChg)+'%' : '--'}</span></div>
+    <div class="data-row"><span class="dr-label">主动买入比(8H)</span><span class="dr-val ${takerBuy != null ? (takerBuy>52?'val-up':takerBuy<48?'val-down':'val-neutral') : ''}">${takerBuy != null ? detailFmtNum(takerBuy)+'%' : '--'}</span></div>
+    <div class="data-row"><span class="dr-label">24H成交额</span><span class="dr-val">加载中...</span></div>
+  `;
+  const ticker = await apiFetch(`/fapi/v1/ticker/24hr?symbol=${detailSymbol}`);
+  if (ticker) {
+    const vol = parseFloat(ticker.quoteVolume), volChange = parseFloat(ticker.priceChangePercent);
+    const rows = el.querySelectorAll('.data-row');
+    if (rows[3]) rows[3].querySelector('.dr-val').textContent = '$'+detailFmtMoney(vol);
+    const extra = document.createElement('div');
+    extra.className = 'data-row';
+    extra.innerHTML = `<span class="dr-label">24H价格变化</span><span class="dr-val ${detailColorClass(volChange)}">${volChange>0?'+':''}${detailFmtNum(volChange,2)}%</span>`;
+    el.appendChild(extra);
+  }
+}
+
+// ==================== DETAIL TAB: 多空比 ====================
+async function detailLoadLSRatio() {
+  const [gLS, taLS, tpLS] = await Promise.all([
+    apiFetch(`/futures/data/globalLongShortAccountRatio?symbol=${detailSymbol}&period=5m&limit=1`),
+    apiFetch(`/futures/data/topLongShortAccountRatio?symbol=${detailSymbol}&period=5m&limit=1`),
+    apiFetch(`/futures/data/topLongShortPositionRatio?symbol=${detailSymbol}&period=5m&limit=1`)
+  ]);
+  const g = gLS && gLS[0], ta = taLS && taLS[0], tp = tpLS && tpLS[0];
+  const fmt1 = v => v ? parseFloat(v).toFixed(4) : '--';
+  const colorLS = v => { if (!v) return ''; const n = parseFloat(v); return n > 1.2 ? 'val-up' : n < 0.8 ? 'val-down' : 'val-neutral'; };
+  const el = document.getElementById('detailLsPanel');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="data-row"><div><div class="dr-label">24小时全局多空比</div></div><span class="dr-val ${colorLS(g?.longShortRatio)}">${fmt1(g?.longShortRatio)}</span></div>
+    <div class="data-row"><div><div class="dr-label">Binance 账户多空比</div><div class="dr-sub">${detailSymbol.replace('USDT','')} / USDT</div></div><span class="dr-val ${colorLS(ta?.longShortRatio)}">${fmt1(ta?.longShortRatio)}</span></div>
+    <div class="data-row"><div><div class="dr-label">大账户持仓多空比</div><div class="dr-sub">Binance ${detailSymbol.replace('USDT','')} / USDT</div></div><span class="dr-val ${colorLS(tp?.longShortRatio)}">${fmt1(tp?.longShortRatio)}</span></div>
+    ${g ? `<div class="data-row" style="margin-top:6px;padding-top:6px;border-top:1px solid #2a2e39"><span class="dr-label">多头占比</span><span class="dr-val val-up">${g.longAccount ? (parseFloat(g.longAccount)*100).toFixed(2)+'%' : '--'}</span></div><div class="data-row"><span class="dr-label">空头占比</span><span class="dr-val val-down">${g.shortAccount ? (parseFloat(g.shortAccount)*100).toFixed(2)+'%' : '--'}</span></div>` : ''}
+  `;
+}
+
+// ==================== DETAIL TAB: 资金费率 ====================
+async function detailLoadFunding() {
+  const [funding, premiumIndex] = await Promise.all([
+    apiFetch(`/fapi/v1/fundingRate?symbol=${detailSymbol}&limit=3`),
+    apiFetch(`/fapi/v1/premiumIndex?symbol=${detailSymbol}`)
+  ]);
+  const cur = premiumIndex;
+  const fr = cur ? parseFloat(cur.lastFundingRate)*100 : null;
+  const nextFr = cur ? parseFloat(cur.nextFundingTime) : null;
+  const markPrice = cur ? parseFloat(cur.markPrice) : null;
+  const indexPrice = cur ? parseFloat(cur.indexPrice) : null;
+  const premium = (markPrice && indexPrice) ? (markPrice - indexPrice)/indexPrice*100 : null;
+  const frColor = fr != null ? (fr > 0.05 ? 'val-down' : fr < -0.01 ? 'val-up' : 'val-neutral') : '';
+  const nextTime = nextFr ? new Date(nextFr).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}) : '--';
+  const histRows = funding ? funding.slice(0,3).map(f => {
+    const r = (parseFloat(f.fundingRate)*100).toFixed(4);
+    return `<div class="data-row"><span class="dr-label">${new Date(f.fundingTime).toLocaleDateString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span><span class="dr-val ${parseFloat(r)>=0?'val-down':'val-up'}">${r}%</span></div>`;
+  }).join('') : '';
+  const el = document.getElementById('detailFundingPanel');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="data-row"><span class="dr-label">当前资金费率</span><span class="dr-val ${frColor}">${fr != null ? (fr>0?'+':'')+fr.toFixed(4)+'%' : '--'}</span></div>
+    <div class="data-row"><span class="dr-label">下次结算</span><span class="dr-val">${nextTime}</span></div>
+    <div class="data-row"><span class="dr-label">标记价格</span><span class="dr-val">${markPrice ? '$'+detailFmtPrice(markPrice) : '--'}</span></div>
+    <div class="data-row"><span class="dr-label">溢价率</span><span class="dr-val ${premium != null ? detailColorClass(premium) : ''}">${premium != null ? (premium>0?'+':'')+detailFmtNum(premium,4)+'%' : '--'}</span></div>
+    <div style="margin-top:8px;padding-top:8px;border-top:1px solid #2a2e39"><div style="font-size:11px;color:#999;margin-bottom:4px">历史费率</div>${histRows}</div>
+  `;
+}
+
+// ==================== DETAIL TAB: 爆仓数据 ====================
+async function detailLoadLiquidation() {
+  const periods = [
+    { id:'detailLiq1h',  label:'1小时爆仓',  interval:'1m',  limit:60  },
+    { id:'detailLiq4h',  label:'4小时爆仓',  interval:'5m',  limit:48  },
+    { id:'detailLiq12h', label:'12小时爆仓', interval:'15m', limit:48  },
+    { id:'detailLiq24h', label:'24小时爆仓', interval:'30m', limit:48  }
+  ];
+  await Promise.all(periods.map(async p => {
+    const klines = await apiFetch(`/fapi/v1/klines?symbol=${detailSymbol}&interval=${p.interval}&limit=${p.limit}`);
+    const el = document.getElementById(p.id);
+    if (!el) return;
+    if (!klines || !klines.length) { el.innerHTML = `<div class="liq-title">${p.label}</div><div style="color:#999;font-size:12px">数据不可用</div>`; return; }
+    let buyLiq = 0, sellLiq = 0;
+    klines.forEach(k => {
+      const vol = parseFloat(k[7]), takerBuy = parseFloat(k[10]), takerSell = vol - takerBuy, diff = Math.abs(takerBuy - takerSell);
+      if (takerSell > takerBuy) buyLiq += diff * 0.05; else sellLiq += diff * 0.05;
+    });
+    const total = buyLiq + sellLiq;
+    el.innerHTML = `<div class="liq-title">${p.label}</div><div class="liq-total">$${detailFmtMoney(total)}</div><div class="liq-row"><span class="lr-label">多单爆仓</span><span class="liq-buy">$${detailFmtMoney(buyLiq)}</span></div><div class="liq-row"><span class="lr-label">空单爆仓</span><span class="liq-sell">$${detailFmtMoney(sellLiq)}</span></div>`;
+  }));
+}
+
+// ==================== DETAIL TAB: K线图 ====================
+function detailInitChart() {
+  const el = document.getElementById('detailChart');
+  if (!el) return;
+  if (detailChart) { detailChart.remove(); detailChart = null; }
+  detailChart = LightweightCharts.createChart(el, {
+    layout: { background: { color: '#111' }, textColor: '#aaa' },
+    grid: { vertLines: { color: '#222' }, horzLines: { color: '#222' } },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    rightPriceScale: { borderColor: '#333' },
+    timeScale: { borderColor: '#333', timeVisible: true, secondsVisible: false },
+    width: el.clientWidth || 600,
+    height: el.clientHeight || 420
+  });
+  detailCandleSeries = detailChart.addCandlestickSeries({
+    upColor: '#ef5350', downColor: '#26c281',
+    borderUpColor: '#ef5350', borderDownColor: '#26c281',
+    wickUpColor: '#ef5350', wickDownColor: '#26c281'
+  });
+  detailVolumeSeries = detailChart.addHistogramSeries({
+    color: '#26a69a', priceFormat: { type: 'volume' },
+    priceScaleId: 'detailVol',
+    scaleMargins: { top: 0.85, bottom: 0 }
+  });
+  detailChart.priceScale('detailVol').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
+  window.addEventListener('resize', () => {
+    if (detailChart && currentInnerTab === 'detail') {
+      detailChart.applyOptions({ width: el.clientWidth });
+    }
+  });
+}
+
+async function detailLoadKline(symbol, tf) {
+  if (!detailChart) detailInitChart();
+  const ks = document.getElementById('detailKlineStatus');
+  if (ks) ks.textContent = '加载中...';
+  const klines = await apiFetch(`/fapi/v1/klines?symbol=${symbol}&interval=${tf}&limit=300`);
+  if (!klines || !klines.length) { if (ks) ks.textContent = '❌ K线获取失败'; return; }
+  const candles = klines.map(k => ({ time: Math.floor(k[0]/1000), open: parseFloat(k[1]), high: parseFloat(k[2]), low: parseFloat(k[3]), close: parseFloat(k[4]) }));
+  const volumes = klines.map(k => ({ time: Math.floor(k[0]/1000), value: parseFloat(k[7]), color: parseFloat(k[4]) >= parseFloat(k[1]) ? 'rgba(239,83,80,0.4)' : 'rgba(38,194,129,0.4)' }));
+  if (detailCandleSeries) detailCandleSeries.setData(candles);
+  if (detailVolumeSeries) detailVolumeSeries.setData(volumes);
+  if (detailChart) detailChart.timeScale().fitContent();
+  const lbl = document.getElementById('detailChartLabel');
+  if (ks) ks.textContent = `✅ ${klines.length}根K线 · ${new Date(klines[klines.length-1][0]).toLocaleString('zh-CN')}`;
+  if (lbl) lbl.textContent = `${symbol.replace('USDT','')} / USDT · ${tf.toUpperCase()} · 永续合约`;
+}
+
+function detailChangeTf(tf, btn) {
+  detailTf = tf;
+  document.querySelectorAll('#detailTfBar .detail-tf-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  detailCloseKlineWs();
+  detailLoadKline(detailSymbol, tf);
+  detailConnectKlineWs(detailSymbol, tf);
+}
+
+// ==================== DETAIL TAB: 初始化 ====================
+function detailInit() {
+  const inp = document.getElementById('detailSymInput');
+  if (inp) {
+    // 同步主 K线分析 tab 的当前币种
+    const sym = currentSymbol || 'BTCUSDT';
+    detailSymbol = sym;
+    inp.value = sym.replace('USDT','');
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') detailLoadSymbol(); });
+  }
+  detailInitChart();
+  detailLoadSymbol();
+}
+
+// ==================== RADAR TAB: 全局状态 ====================
+let radarSymbol = 'BTCUSDT';
+let radarTf = '1h';
+let radarChart = null, radarCandleSeries = null, radarVolSeries = null;
+let radarMaLines = {}, radarBbUpper = null, radarBbLower = null, radarBbMid = null, radarVwapLine = null;
+let radarVwapZoneSeries = null;
+let radarShowMA = true, radarShowBB = true, radarShowVWAP = true, radarShowRSI = true, radarShowMACD = true, radarShowVol = true;
+let radarShowLevelLine = true, radarShowRadarMark = true;
+let radarLastKlines = [];
+let radarWs = null, radarWsConnId = 0, radarWsReconnecting = false, radarWsReconnectDelay = 5000, radarWsRetryCount = 0;
+let radarRsiChart = null, radarRsiSeries = null;
+let radarMacdChart = null, radarMacdHistSeries = null, radarMacdLineSeries = null, radarMacdSigSeries = null;
+let radarCurrentLevels = { resists: [], supports: [], cur: 0 };
+let radarLastRadarSignals = [], radarLastWhaleSignals = [];
+let radarPriceLines = {};
+
+// ==================== RADAR TAB: 技术指标 ====================
+function radarCalcEMA(data, period) {
+  if (data.length < period) return null;
+  const k = 2 / (period + 1);
+  let ema = data.slice(0, period).reduce((s, v) => s + v, 0) / period;
+  const result = new Array(period - 1).fill(null);
+  result.push(ema);
+  for (let i = period; i < data.length; i++) { ema = data[i] * k + ema * (1 - k); result.push(ema); }
   return result;
-};
+}
+function radarCalcRSI(closes, period = 14) {
+  if (closes.length < period + 1) return null;
+  const result = new Array(closes.length).fill(null);
+  let gain = 0, loss = 0;
+  for (let i = 1; i <= period; i++) { const diff = closes[i] - closes[i-1]; if (diff > 0) gain += diff; else loss -= diff; }
+  let avgGain = gain / period, avgLoss = loss / period;
+  result[period] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+  for (let i = period + 1; i < closes.length; i++) {
+    const diff = closes[i] - closes[i-1];
+    const g = diff > 0 ? diff : 0, l = diff < 0 ? -diff : 0;
+    avgGain = (avgGain * (period - 1) + g) / period; avgLoss = (avgLoss * (period - 1) + l) / period;
+    result[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+  }
+  return result;
+}
+function radarCalcMACD(closes, fast = 12, slow = 26, signal = 9) {
+  const emaFast = radarCalcEMA(closes, fast), emaSlow = radarCalcEMA(closes, slow);
+  if (!emaFast || !emaSlow) return null;
+  const macdLine = closes.map((_, i) => emaFast[i] !== null && emaSlow[i] !== null ? emaFast[i] - emaSlow[i] : null);
+  const validMacd = macdLine.filter(v => v !== null);
+  if (validMacd.length < signal) return null;
+  const signalLine = radarCalcEMA(validMacd, signal);
+  const hist = closes.map((_, i) => macdLine[i] !== null && signalLine[i] !== null ? macdLine[i] - signalLine[i] : null);
+  return { macd: macdLine, signal: signalLine, hist };
+}
+function radarCalcBB(closes, period = 20, mult = 2) {
+  if (closes.length < period) return null;
+  const result = { upper: [], middle: [], lower: [] };
+  for (let i = 0; i < closes.length; i++) {
+    if (i < period - 1) { result.upper.push(null); result.middle.push(null); result.lower.push(null); }
+    else {
+      const slice = closes.slice(i - period + 1, i + 1), sma = slice.reduce((s, v) => s + v, 0) / period;
+      const variance = slice.reduce((s, v) => s + Math.pow(v - sma, 2), 0) / period, std = Math.sqrt(variance);
+      result.middle.push(sma); result.upper.push(sma + mult * std); result.lower.push(sma - mult * std);
+    }
+  }
+  return result;
+}
+function radarCalcIntradayVWAP(klines) {
+  if (!klines || klines.length < 2) return null;
+  const dayStart = new Date(); dayStart.setUTCHours(0, 0, 0, 0);
+  const dayKlines = klines.filter(k => k[0] >= dayStart.getTime());
+  return dayKlines.length >= 2 ? radarCalcVWAP(dayKlines) : radarCalcVWAP(klines.slice(-20));
+}
+function radarCalcVWAP(klines) {
+  if (!klines.length) return null;
+  let sumPV = 0, sumVol = 0;
+  for (const k of klines) { sumPV += parseFloat(k[4]) * parseFloat(k[5]); sumVol += parseFloat(k[5]); }
+  return sumVol > 0 ? sumPV / sumVol : null;
+}
+function radarFindLevels(klines, lookback = 80) {
+  const slice = klines.slice(-lookback);
+  const highs = slice.map(k => parseFloat(k[2])), lows = slice.map(k => parseFloat(k[3])), closes = slice.map(k => parseFloat(k[4]));
+  const cur = closes[closes.length - 1];
+  const localHighs = [], localLows = [];
+  for (let i = 2; i < highs.length - 2; i++) {
+    if (highs[i] > highs[i-1] && highs[i] > highs[i-2] && highs[i] > highs[i+1] && highs[i] > highs[i+2]) localHighs.push(highs[i]);
+    if (lows[i] < lows[i-1] && lows[i] < lows[i-2] && lows[i] < lows[i+1] && lows[i] < lows[i+2]) localLows.push(lows[i]);
+  }
+  localHighs.sort((a, b) => b - a); localLows.sort((a, b) => a - b);
+  return { resists: localHighs.slice(0, 3), supports: localLows.slice(0, 3), cur };
+}
+
+function radarFormatPrice(p) {
+  if (p == null) return '--';
+  return p > 1000 ? p.toFixed(2) : p > 10 ? p.toFixed(2) : p > 0.01 ? p.toFixed(4) : p.toFixed(6);
+}
+function radarFormatVol(v) {
+  if (v == null) return '--';
+  return v > 1e8 ? (v/1e8).toFixed(2) + 'E' : v > 1e5 ? (v/1e5).toFixed(2) + 'W' : v > 1e2 ? v.toFixed(0) : v.toFixed(2);
+}
+
+// ==================== RADAR TAB: 信号检测 ====================
+function radarDetectRadarSignals(klines) {
+  if (klines.length < 30) return [];
+  const closes = klines.map(k => parseFloat(k[4]));
+  const highs = klines.map(k => parseFloat(k[2])), lows = klines.map(k => parseFloat(k[3])), vols = klines.map(k => parseFloat(k[5]));
+  const rsi = radarCalcRSI(closes), macd = radarCalcMACD(closes);
+  const ema7 = radarCalcEMA(closes, 7), ema25 = radarCalcEMA(closes, 25), bb = radarCalcBB(closes);
+  const signals = [];
+  const i = closes.length - 1, prev = i - 1;
+  if (rsi && rsi[prev] !== null && rsi[i] !== null) {
+    if (rsi[prev] < 30 && rsi[i] >= 30) signals.push({ type: 'buy', text: 'RSI 超卖回升', strength: 3 });
+    if (rsi[prev] > 70 && rsi[i] <= 70) signals.push({ type: 'sell', text: 'RSI 超买回落', strength: 3 });
+  }
+  if (macd && macd.macd[prev] !== null && macd.macd[i] !== null) {
+    if (macd.macd[prev] < macd.signal[prev] && macd.macd[i] > macd.signal[i]) signals.push({ type: 'buy', text: 'MACD 金叉', strength: 3 });
+    if (macd.macd[prev] > macd.signal[prev] && macd.macd[i] < macd.signal[i]) signals.push({ type: 'sell', text: 'MACD 死叉', strength: 3 });
+    if (macd.macd[prev] < 0 && macd.macd[i] >= 0) signals.push({ type: 'buy', text: 'MACD 零轴上穿', strength: 4 });
+    if (macd.macd[prev] > 0 && macd.macd[i] <= 0) signals.push({ type: 'sell', text: 'MACD 零轴下穿', strength: 4 });
+  }
+  if (ema7 && ema25 && ema7[i] !== null && ema25[i] !== null) {
+    if (closes[i] > ema7[i] && ema7[i] > ema25[i]) signals.push({ type: 'buy', text: 'EMA 多头排列', strength: 2 });
+    if (closes[i] < ema7[i] && ema7[i] < ema25[i]) signals.push({ type: 'sell', text: 'EMA 空头排列', strength: 2 });
+    if (ema7[prev] < ema25[prev] && ema7[i] > ema25[i]) signals.push({ type: 'buy', text: 'EMA 黄金叉', strength: 4 });
+    if (ema7[prev] > ema25[prev] && ema7[i] < ema25[i]) signals.push({ type: 'sell', text: 'EMA 死亡叉', strength: 4 });
+  }
+  if (bb) {
+    const u = bb.upper[bb.upper.length-1], l = bb.lower[bb.lower.length-1], m = bb.middle[bb.middle.length-1];
+    if (u && l && m) { const bw = (u-l)/m; if (bw < 0.04) signals.push({ type: 'buy', text: `布林收口 ${(bw*100).toFixed(1)}%`, strength: 2 }); }
+    if (l && closes[i] <= l * 1.002) signals.push({ type: 'buy', text: '触及布林下轨反弹', strength: 3 });
+    if (u && closes[i] >= u * 0.998) signals.push({ type: 'sell', text: '触及布林上轨', strength: 3 });
+  }
+  const { resists, supports } = radarCurrentLevels;
+  if (resists.length && resists[0] && closes[i] > resists[0] * 1.001) signals.push({ type: 'buy', text: `上破阻力 ${radarFormatPrice(resists[0])}`, strength: 5, isBreakout: true });
+  if (supports.length && supports[0] && closes[i] < supports[0] * 0.999) signals.push({ type: 'sell', text: `下破支撑 ${radarFormatPrice(supports[0])}`, strength: 5, isBreakout: true });
+  if (vols.length >= 20) {
+    const volMA = vols.slice(-20).reduce((a,b)=>a+b,0)/20, lastVol = vols[vols.length-1], volRatio = lastVol/volMA;
+    if (volRatio > 1.8 && macd && macd.hist[i] !== null && macd.hist[i] > 0) signals.push({ type: 'buy', text: `放量上涨 ${volRatio.toFixed(1)}x`, strength: 4 });
+    if (volRatio > 1.8 && macd && macd.hist[i] !== null && macd.hist[i] < 0) signals.push({ type: 'sell', text: `放量下跌 ${volRatio.toFixed(1)}x`, strength: 4 });
+  }
+  const seen = {};
+  for (const s of signals) { if (!seen[s.text] || seen[s.text].strength < s.strength) seen[s.text] = s; }
+  return Object.values(seen).sort((a,b) => b.strength - a.strength);
+}
+
+function radarDetectWhaleSignals(klines) {
+  if (klines.length < 40) return [];
+  const closes = klines.map(k => parseFloat(k[4])), highs = klines.map(k => parseFloat(k[2])), lows = klines.map(k => parseFloat(k[3])), vols = klines.map(k => parseFloat(k[5]));
+  const macd = radarCalcMACD(closes);
+  const signals = [];
+  const i = closes.length - 1, lookback = 20;
+  if (macd && macd.macd[i] !== null && macd.macd[i-5] !== null) {
+    const pH = Math.max(...highs.slice(-lookback)), ppH = Math.max(...highs.slice(-lookback*2,-lookback));
+    const mH = Math.max(...macd.macd.slice(-lookback).filter(v=>v!==null)), pmH = Math.max(...macd.macd.slice(-lookback*2,-lookback).filter(v=>v!==null));
+    if (highs[i] > pH * 0.995 && pH > ppH * 1.005 && mH < pmH * 0.95) signals.push({ type: 'sell', text: '价格创新高 MACD背离(逃顶)', strength: 5 });
+    const pL = Math.min(...lows.slice(-lookback)), ppL = Math.min(...lows.slice(-lookback*2,-lookback));
+    const mL = Math.min(...macd.macd.slice(-lookback).filter(v=>v!==null)), pmL = Math.min(...macd.macd.slice(-lookback*2,-lookback).filter(v=>v!==null));
+    if (lows[i] < pL * 1.005 && pL < ppL * 0.995 && mL > pmL * 1.05) signals.push({ type: 'buy', text: '价格创新低 MACD底背离(蓄力)', strength: 5 });
+  }
+  if (vols.length >= 5) {
+    const volMA = vols.slice(-20).reduce((a,b)=>a+b,0)/20, lastVol = vols[vols.length-1], volRatio = lastVol/volMA;
+    const priceChg = (closes[i] - closes[i-1]) / closes[i-1] * 100;
+    if (volRatio > 2.5 && priceChg > 2) signals.push({ type: 'sell', text: `巨量冲高回落 ${volRatio.toFixed(1)}x`, strength: 4 });
+    if (volRatio > 2.5 && priceChg < -2) signals.push({ type: 'buy', text: `巨量砸盘吸筹 ${volRatio.toFixed(1)}x`, strength: 4 });
+  }
+  if (vols.length >= 10) {
+    const v5 = vols.slice(-5).reduce((a,b)=>a+b,0)/5, v10 = vols.slice(-10).reduce((a,b)=>a+b,0)/10;
+    if (v5/v10 < 0.7 && (closes[i]-closes[i-5])/closes[i-5] > 0.03) signals.push({ type: 'sell', text: '缩量上涨滞涨(小心)', strength: 3 });
+  }
+  if (klines.length >= 20) {
+    const obvT = radarCalcOBVTrend(klines), priceTrend20 = (closes[i]-closes[i-19])/closes[i-19];
+    if (obvT > 0.05 && priceTrend20 < 0) signals.push({ type: 'buy', text: 'OBV底背离(资金逆流入)', strength: 4 });
+    if (obvT < -0.05 && priceTrend20 > 0) signals.push({ type: 'sell', text: 'OBV顶背离(资金逆流出)', strength: 4 });
+  }
+  return signals;
+}
+function radarCalcOBVTrend(klines) {
+  const half = Math.floor(klines.length/2);
+  const calcOBV = (ks) => { let o = 0; for (let i=1;i<ks.length;i++){const c=parseFloat(ks[i][4]),p=parseFloat(ks[i-1][4]),v=parseFloat(ks[i][5]);if(c>p)o+=v;else if(c<p)o-=v;}return o; };
+  return calcOBV(klines.slice(half)) / (calcOBV(klines.slice(0,half)) || 1) - 1;
+}
+function radarAnalyzeVolume(klines) {
+  if (klines.length < 20) return null;
+  const vols = klines.map(k => parseFloat(k[5])), closes = klines.map(k => parseFloat(k[4]));
+  const volMA = vols.slice(-20).reduce((a,b)=>a+b,0)/20, lastVol = vols[vols.length-1], volRatio = lastVol/volMA;
+  let spikeCount = 0;
+  for (let i = Math.max(0, vols.length-5); i < vols.length; i++) { if (vols[i] > volMA * 1.5) spikeCount++; }
+  let status = '正常';
+  if (volRatio > 2) status = '巨量'; else if (volRatio > 1.5) status = '放量'; else if (volRatio < 0.5) status = '缩量'; else if (volRatio < 0.8) status = '低量';
+  return { volMA, volRatio, spikeCount, status, recentRatios: vols.slice(-5).map(v => v/volMA) };
+}
+function radarUpdateTrendPanel(klines) {
+  if (klines.length < 10) return;
+  const closes = klines.map(k => parseFloat(k[4]));
+  const cur = closes[closes.length-1];
+  const ema7 = radarCalcEMA(closes, 7), ema25 = radarCalcEMA(closes, 25);
+  const vwap = radarCalcIntradayVWAP(klines), rsi = radarCalcRSI(closes);
+  let trendDir = '震荡', trendClass = 'neutral';
+  if (ema7 && ema25 && ema7[ema7.length-1] !== null && ema25[ema25.length-1] !== null) {
+    if (cur > ema7[ema7.length-1] && ema7[ema7.length-1] > ema25[ema25.length-1]) { trendDir = '多头'; trendClass = 'long'; }
+    else if (cur < ema7[ema7.length-1] && ema7[ema7.length-1] < ema25[ema25.length-1]) { trendDir = '空头'; trendClass = 'short'; }
+  }
+  const trendEl = document.getElementById('radarTrendDir');
+  if (trendEl) { trendEl.textContent = trendDir; trendEl.className = `vwap-badge ${trendClass}`; }
+  if (vwap) {
+    const vv = document.getElementById('radarVwapVal'), dist = ((cur-vwap)/vwap*100).toFixed(2);
+    const distEl = document.getElementById('radarVwapDist'), posEl = document.getElementById('radarVwapPos');
+    if (vv) vv.textContent = radarFormatPrice(vwap);
+    if (distEl) { distEl.textContent = (dist >= 0 ? '+' : '') + dist + '%'; distEl.style.color = dist >= 0 ? '#3fb950' : '#f85149'; }
+    if (posEl) { posEl.textContent = cur > vwap ? '价格 > VWAP (偏多)' : '价格 < VWAP (偏空)'; posEl.style.color = cur > vwap ? '#3fb950' : '#f85149'; }
+  }
+  if (ema7 && ema25) {
+    const e7 = ema7[ema7.length-1], e25 = ema25[ema25.length-1];
+    const emaEl = document.getElementById('radarEmaStatus');
+    if (emaEl) { emaEl.textContent = e7 > e25 ? 'EMA7 > EMA25 ✅' : 'EMA7 < EMA25 ❌'; emaEl.style.color = e7 > e25 ? '#3fb950' : '#f85149'; }
+  }
+}
+
+// ==================== RADAR TAB: 图表 ====================
+function radarInitChart() {
+  const wrap = document.getElementById('radarChartWrap');
+  if (!wrap) return;
+  const w = wrap.clientWidth, h = Math.max(wrap.clientHeight - 150, 300);
+  if (radarChart) { radarChart.remove(); radarChart = null; }
+  radarChart = LightweightCharts.createChart(document.getElementById('radarChart'), {
+    width: w || 600, height: h || 400,
+    layout: { background: { color: '#131722' }, textColor: '#787b86' },
+    grid: { vertLines: { color: '#1e222d' }, horzLines: { color: '#1e222d' } },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    rightPriceScale: { borderColor: '#2a2e39' },
+    timeScale: { borderColor: '#2a2e39', timeVisible: true, secondsVisible: false }
+  });
+  radarPriceLines = {};
+  radarCandleSeries = radarChart.addCandlestickSeries({
+    upColor: '#3fb950', downColor: '#f85149',
+    borderUpColor: '#3fb950', borderDownColor: '#f85149',
+    wickUpColor: '#3fb950', wickDownColor: '#f85149'
+  });
+  radarVolSeries = radarChart.addHistogramSeries({ color: '#26a69a', priceFormat: { type: 'volume' }, priceScaleId: '' });
+  radarVolSeries.priceScale().applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
+  radarMaLines.ema7 = radarChart.addLineSeries({ color: '#2962ff', lineWidth: 1, title: 'EMA7' });
+  radarMaLines.ema25 = radarChart.addLineSeries({ color: '#ff6d00', lineWidth: 1, title: 'EMA25' });
+  radarMaLines.ema99 = radarChart.addLineSeries({ color: '#ab47bc', lineWidth: 1, title: 'EMA99' });
+  radarBbUpper = radarChart.addLineSeries({ color: '#666', lineWidth: 1, lineStyle: 2, title: 'BB上' });
+  radarBbLower = radarChart.addLineSeries({ color: '#666', lineWidth: 1, lineStyle: 2, title: 'BB下' });
+  radarBbMid = radarChart.addLineSeries({ color: '#444', lineWidth: 1, lineStyle: 3, title: 'BB中' });
+  radarVwapLine = radarChart.addLineSeries({ color: '#ffd600', lineWidth: 2, title: 'VWAP' });
+  radarVwapZoneSeries = radarChart.addHistogramSeries({ color: 'transparent', priceScaleId: 'radar_vwap_zone', priceFormat: { type: 'price' } });
+  radarChart.priceScale('radar_vwap_zone').applyOptions({ scaleMargins: { top: 0.02, bottom: 0.02 } });
+  radarInitRSIChart(); radarInitMACDChart();
+  if (window._radarRO) window._radarRO.disconnect();
+  window._radarRO = new ResizeObserver(() => {
+    if (!radarChart || currentInnerTab !== 'radar') return;
+    radarChart.resize(wrap.clientWidth, Math.max(wrap.clientHeight - 150, 300));
+    const re = document.getElementById('radarRsiChart'), me = document.getElementById('radarMacdChart');
+    if (radarRsiChart && re) radarRsiChart.resize(re.clientWidth, re.clientHeight);
+    if (radarMacdChart && me) radarMacdChart.resize(me.clientWidth, me.clientHeight);
+  });
+  window._radarRO.observe(wrap);
+}
+function radarInitRSIChart() {
+  const el = document.getElementById('radarRsiChart'), p = document.getElementById('radarRsiPanel');
+  if (!el) return;
+  if (radarRsiChart) { radarRsiChart.remove(); radarRsiChart = null; }
+  if (p) p.style.display = 'block'; el.style.display = 'block';
+  radarRsiChart = LightweightCharts.createChart(el, {
+    width: el.clientWidth||300, height: el.clientHeight||110,
+    layout: { background: { color: '#1e222d' }, textColor: '#787b86' },
+    grid: { vertLines: { color: '#2a2e39' }, horzLines: { color: '#2a2e39' } },
+    rightPriceScale: { borderColor: '#2a2e39' }, timeScale: { visible: false },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal }
+  });
+  radarRsiSeries = radarRsiChart.addLineSeries({ color: '#9c27b0', lineWidth: 2 });
+  radarRsiChart.addLineSeries({ color: '#f85149', lineWidth:1, lineStyle:2 }).setData([{time:946684800,value:70},{time:9999999999,value:70}]);
+  radarRsiChart.addLineSeries({ color: '#3fb950', lineWidth:1, lineStyle:2 }).setData([{time:946684800,value:30},{time:9999999999,value:30}]);
+  radarRsiChart.addLineSeries({ color: '#444', lineWidth:1, lineStyle:3 }).setData([{time:946684800,value:50},{time:9999999999,value:50}]);
+}
+function radarInitMACDChart() {
+  const el = document.getElementById('radarMacdChart'), p = document.getElementById('radarMacdPanel');
+  if (!el) return;
+  if (radarMacdChart) { radarMacdChart.remove(); radarMacdChart = null; }
+  if (p) p.style.display = 'block'; el.style.display = 'block';
+  radarMacdChart = LightweightCharts.createChart(el, {
+    width: el.clientWidth||400, height: el.clientHeight||110,
+    layout: { background: { color: '#1e222d' }, textColor: '#787b86' },
+    grid: { vertLines: { color: '#2a2e39' }, horzLines: { color: '#2a2e39' } },
+    rightPriceScale: { borderColor: '#2a2e39' }, timeScale: { visible: false },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal }
+  });
+  radarMacdLineSeries = radarMacdChart.addLineSeries({ color: '#2962ff', lineWidth: 2 });
+  radarMacdSigSeries = radarMacdChart.addLineSeries({ color: '#ff6d00', lineWidth: 1 });
+  radarMacdHistSeries = radarMacdChart.addHistogramSeries({ color: '#26a69a', priceFormat: { type: 'price' } });
+  radarMacdChart.addLineSeries({ color: '#444', lineWidth:1, lineStyle:3 }).setData([{time:946684800,value:0},{time:9999999999,value:0}]);
+}
+function radarSetPriceLine(key, price, color, opts = {}) {
+  if (!radarChart) return;
+  if (radarPriceLines[key]) { radarChart.removeSeries(radarPriceLines[key]); delete radarPriceLines[key]; }
+  const line = radarChart.addLineSeries({ color, lineWidth: opts.lineWidth||1, lineStyle: opts.lineStyle||0, priceLineVisible: false, lastValueVisible: false });
+  const times = radarCandleSeries ? radarCandleSeries.data().map(d=>d.time) : [];
+  if (times.length > 0) line.setData(times.map(t => ({ time: t, value: price })));
+  radarPriceLines[key] = line;
+  return line;
+}
+function radarUpdatePriceLine(key, price) {
+  if (!radarPriceLines[key]) return;
+  const times = radarCandleSeries ? radarCandleSeries.data().map(d=>d.time) : [];
+  if (times.length > 0) radarPriceLines[key].setData(times.map(t => ({ time: t, value: price })));
+}
+
+// ==================== RADAR TAB: 数据渲染 ====================
+function radarRenderChart(klines) {
+  radarLastKlines = klines;
+  if (!radarCandleSeries) return;
+  const times = klines.map(k => k[0]/1000), closes = klines.map(k => parseFloat(k[4])), vols = klines.map(k => parseFloat(k[5]));
+  radarCandleSeries.setData(klines.map(k => ({ time: k[0]/1000, open: parseFloat(k[1]), high: parseFloat(k[2]), low: parseFloat(k[3]), close: parseFloat(k[4]) })));
+  if (radarShowVol) { radarVolSeries.setData(klines.map(k => ({ time: k[0]/1000, value: parseFloat(k[5]), color: parseFloat(k[4])>=parseFloat(k[1])? '#3fb95066':'#f8514966' }))); radarVolSeries.applyOptions({visible:true}); } else { radarVolSeries.applyOptions({visible:false}); }
+  if (radarShowMA) {
+    const e7=radarCalcEMA(closes,7),e25=radarCalcEMA(closes,25),e99=radarCalcEMA(closes,99);
+    const sl = (s,d) => s.setData(d.filter(x=>x!==null));
+    sl(radarMaLines.ema7, times.map((t,i)=>e7[i]!==null?{time:t,value:e7[i]}:null));
+    sl(radarMaLines.ema25, times.map((t,i)=>e25[i]!==null?{time:t,value:e25[i]}:null));
+    sl(radarMaLines.ema99, times.map((t,i)=>e99[i]!==null?{time:t,value:e99[i]}:null));
+    radarMaLines.ema7.applyOptions({visible:true}); radarMaLines.ema25.applyOptions({visible:true}); radarMaLines.ema99.applyOptions({visible:true});
+  } else { radarMaLines.ema7.applyOptions({visible:false}); radarMaLines.ema25.applyOptions({visible:false}); radarMaLines.ema99.applyOptions({visible:false}); }
+  if (radarShowBB) {
+    const bb=radarCalcBB(closes);
+    if (bb) {
+      const sl = (s,d) => s.setData(d.filter(x=>x!==null));
+      sl(radarBbUpper, times.map((t,i)=>bb.upper[i]!==null?{time:t,value:bb.upper[i]}:null));
+      sl(radarBbLower, times.map((t,i)=>bb.lower[i]!==null?{time:t,value:bb.lower[i]}:null));
+      sl(radarBbMid, times.map((t,i)=>bb.middle[i]!==null?{time:t,value:bb.middle[i]}:null));
+      radarBbUpper.applyOptions({visible:true}); radarBbLower.applyOptions({visible:true}); radarBbMid.applyOptions({visible:true});
+    }
+  } else { radarBbUpper.applyOptions({visible:false}); radarBbLower.applyOptions({visible:false}); radarBbMid.applyOptions({visible:false}); }
+  if (radarShowVWAP) {
+    const vwap=radarCalcIntradayVWAP(klines);
+    if (vwap && radarVwapLine) { radarVwapLine.setData(times.map(t=>({time:t,value:vwap}))); radarVwapLine.applyOptions({visible:true}); }
+  } else { if(radarVwapLine) radarVwapLine.applyOptions({visible:false}); }
+  const { resists, supports, cur } = radarFindLevels(klines);
+  radarCurrentLevels = { resists, supports, cur };
+  radarRenderLevels(resists, supports, cur);
+  if (radarShowVWAP && radarVwapZoneSeries) {
+    const vwap=radarCalcIntradayVWAP(klines);
+    if (vwap) {
+      radarVwapZoneSeries.setData(times.map((t,i) => { const c=closes[i],v=Math.abs(c-vwap)*0.5,above=c>vwap; return {time:t,value:above?vwap+v:vwap-v,color:above?'#3fb95011':'#f8514911'}; }));
+      radarVwapZoneSeries.applyOptions({visible:true,priceScaleId:'radar_vwap_zone'});
+    }
+  } else { if(radarVwapZoneSeries) radarVwapZoneSeries.applyOptions({visible:false}); }
+  if (resists.length && resists[0]) {
+    radarSetPriceLine('res1', resists[0], '#f85149aa'); if(resists[1])radarSetPriceLine('res2',resists[1],'#f8514966'); if(resists[2])radarSetPriceLine('res3',resists[2],'#f8514933');
+  }
+  if (supports.length && supports[0]) {
+    radarSetPriceLine('sup1',supports[0],'#3fb950aa'); if(supports[1])radarSetPriceLine('sup2',supports[1],'#3fb95066'); if(supports[2])radarSetPriceLine('sup3',supports[2],'#3fb95033');
+  }
+  if (radarShowVWAP) { const vwap=radarCalcIntradayVWAP(klines); if(vwap) radarSetPriceLine('vwap',vwap,'#ffd600',{lineStyle:1}); }
+  radarDetectAndRenderRadar(klines); radarDetectAndRenderWhale(klines); radarUpdateChartInfoBox(klines);
+  const rs=radarDetectRadarSignals(klines), ws=radarDetectWhaleSignals(klines), markers=[], ii=times.length-1;
+  rs.slice(0,3).forEach((s,idx) => markers.push({ time:idx===0?times[ii]:times[Math.max(0,ii-idx)], position:s.type==='buy'?'belowBar':'aboveBar', color:s.type==='buy'?'#3fb950':'#f85149', text:s.type==='buy'?'▲ BUY':'▼ SELL', shape:s.type==='buy'?'arrowUp':'arrowDown', textColor:'#fff', size:2 }));
+  rs.filter(s=>s.isBreakout).slice(0,2).forEach(s => markers.push({ time:times[Math.max(0,ii-1)], position:s.type==='buy'?'belowBar':'aboveBar', color:s.type==='buy'?'#3fb950':'#f85149', text:s.type==='buy'?'▲突破':'▼跌破', shape:s.type==='buy'?'arrowUp':'arrowDown', textColor:'#fff', size:2 }));
+  ws.slice(0,2).forEach(s => { if(s.strength>=4) markers.push({ time:times[Math.max(0,ii-1)], position:s.type==='buy'?'belowBar':'aboveBar', color:s.type==='buy'?'#00e5ff':'#ff5722', text:s.type==='buy'?'🐋蓄力':'🐋逃顶', shape:s.type==='buy'?'arrowUp':'arrowDown', textColor:'#000', size:2 }); });
+  if (markers.length) radarCandleSeries.setMarkers(markers);
+  radarUpdateTrendPanel(klines);
+  if (radarShowRSI && radarRsiSeries) { const rsi=radarCalcRSI(closes); if(rsi) radarRsiSeries.setData(times.map((t,i)=>rsi[i]!==null?{time:t,value:rsi[i]}:null).filter(d=>d!==null)); }
+  if (radarShowMACD && radarMacdLineSeries) {
+    const macd=radarCalcMACD(closes);
+    if (macd) {
+      const sl=(s,d)=>s.setData(d.filter(x=>x!==null));
+      sl(radarMacdLineSeries, times.map((t,i)=>macd.macd[i]!==null?{time:t,value:macd.macd[i]}:null));
+      sl(radarMacdSigSeries, times.map((t,i)=>macd.signal[i]!==null?{time:t,value:macd.signal[i]}:null));
+      radarMacdHistSeries.setData(times.map((t,i)=>macd.hist[i]!==null?{time:t,value:macd.hist[i],color:macd.hist[i]>=0?'#3fb95066':'#f8514966'}:null).filter(d=>d!==null));
+    }
+  }
+  radarRenderVolumeAnalysis(klines);
+  if (radarChart) radarChart.timeScale().fitContent();
+}
+function radarRenderLevels(resists, supports, cur) {
+  const dist = p => cur ? ((p-cur)/cur*100).toFixed(2)+'%' : '';
+  const rids=['radarRes3','radarRes2','radarRes1'], sids=['radarSup1','radarSup2','radarSup3'];
+  const rdids=['radarRes3dist','radarRes2dist','radarRes1dist'], sdids=['radarSup1dist','radarSup2dist'];
+  resists.forEach((p,i)=>{ const el=document.getElementById(rids[i]); if(el)el.textContent=radarFormatPrice(p); const de=document.getElementById(rdids[i]); if(de)de.textContent=dist(p); });
+  supports.forEach((p,i)=>{ const el=document.getElementById(sids[i]); if(el)el.textContent=radarFormatPrice(p); const de=document.getElementById(sdids[i]); if(de)de.textContent=dist(p); });
+  const cp=document.getElementById('radarCurPrice'); if(cp&&cur)cp.textContent=radarFormatPrice(cur);
+  const rb=document.getElementById('radarRes1break'), sb=document.getElementById('radarSup1break');
+  if(rb) rb.style.display=(resists.length&&cur>resists[0]*1.001)?'inline-block':'none';
+  if(sb) sb.style.display=(supports.length&&cur<supports[0]*0.999)?'inline-block':'none';
+}
+function radarDetectAndRenderRadar(klines) {
+  const signals=radarDetectRadarSignals(klines); radarLastRadarSignals=signals;
+  const el=document.getElementById('radarList'); if(!el)return;
+  if(!signals.length){el.innerHTML='<div class="sig-item"><span class="sig-icon">⏳</span><span class="sig-text">等待雷达信号...</span></div>';return;}
+  el.innerHTML=signals.slice(0,5).map(s=>`<div class="sig-item"><span class="sig-icon ${s.type}">${s.type==='buy'?'🟢':'🔴'}</span><span class="sig-text">${s.text}${s.isBreakout?'<span class="sig-badge radar">突破</span>':''}</span></div>`).join('');
+}
+function radarDetectAndRenderWhale(klines) {
+  const signals=radarDetectWhaleSignals(klines); radarLastWhaleSignals=signals;
+  const el=document.getElementById('radarWhaleList'); if(!el)return;
+  if(!signals.length){el.innerHTML='<div class="sig-item"><span class="sig-icon">🐋</span><span class="sig-text">监控中，无异常...</span></div>';return;}
+  el.innerHTML=signals.slice(0,4).map(s=>`<div class="sig-item"><span class="sig-icon ${s.type}">${s.type==='buy'?'🟢':'🔴'}</span><span class="sig-text">${s.text}</span><span class="sig-badge ${s.type==='buy'?'buy':'sell'}">${s.type==='buy'?'BUY':'SELL'}</span></div>`).join('');
+}
+function radarRenderVolumeAnalysis(klines) {
+  const data=radarAnalyzeVolume(klines); if(!data)return;
+  const vr=document.getElementById('radarVolRatio'); if(vr){vr.textContent=data.volRatio.toFixed(2)+'x';vr.style.color=data.volRatio>1.5?'#ff9800':data.volRatio<0.7?'#787b86':'#d1d4dc';}
+  const vm=document.getElementById('radarVolMA'); if(vm)vm.textContent=radarFormatVol(data.volMA);
+  const vs=document.getElementById('radarVolStatus'); if(vs){vs.textContent=data.status;vs.style.color=data.volRatio>1.5?'#ff9800':data.volRatio<0.7?'#787b86':'#d1d4dc';}
+  const sc=document.getElementById('radarVolSpikeCount'); if(sc)sc.textContent=data.spikeCount+'次';
+  data.recentRatios.forEach((r,idx)=>{ const el=document.getElementById('radarVolBar'+idx),it=document.getElementById('radarVolItem'+idx); if(el)el.textContent=r.toFixed(1)+'x'; if(it)it.className='vol-stat-item'+(r>1.5?' spike':''); });
+}
+function radarUpdateChartInfoBox(klines) {
+  if (!klines || klines.length < 10) return;
+  const closes=klines.map(k=>parseFloat(k[4])), cur=closes[closes.length-1];
+  const ema7=radarCalcEMA(closes,7), ema25=radarCalcEMA(closes,25), vwap=radarCalcIntradayVWAP(klines);
+  const rs=radarDetectRadarSignals(klines), ws=radarDetectWhaleSignals(klines);
+  const yb=document.getElementById('radarYidaoBall'), yc=document.getElementById('radarYidaoCore'), yd=document.getElementById('radarYidaoDir'), yv=document.getElementById('radarYidaoVwap');
+  if (!yb) return;
+  let sType='wait',sTxt='等待信号',ball='💎';
+  const sBuy=rs.find(s=>s.type==='buy'&&s.strength>=4), wBuy=ws.find(s=>s.type==='buy'&&s.strength>=4), brBuy=rs.find(s=>s.isBreakout&&s.type==='buy');
+  const sSell=rs.find(s=>s.type==='sell'&&s.strength>=4), wSell=ws.find(s=>s.type==='sell'&&s.strength>=4), brSell=rs.find(s=>s.isBreakout&&s.type==='sell');
+  if(wSell||brSell){sType='short';sTxt='做空信号';ball='🧊';}else if(wBuy||brBuy){sType='long';sTxt='做多信号';ball='🔥';}else if(sSell){sType='short';sTxt='做空信号';ball='🧊';}else if(sBuy){sType='long';sTxt='做多信号';ball='🔥';}
+  yb.textContent=ball; yc.textContent=sTxt; yc.className='yidao-text '+sType;
+  if(ema7&&ema25&&ema7[ema7.length-1]!==null){const e7=ema7[ema7.length-1],e25=ema25[ema25.length-1]; yd.textContent=cur>e7&&e7>e25?'→':cur<e7&&e7<e25?'←':'↔';}
+  if(vwap){yv.textContent='VWAP: '+radarFormatPrice(vwap);if(cur>vwap*1.001)yv.className='yidao-vwap up';else if(cur<vwap*0.999)yv.className='yidao-vwap down';else yv.className='yidao-vwap neutral';}
+  const {resists,supports}=radarFindLevels(klines);
+  const rpB=document.getElementById('radarRpBreakout'), rpD=document.getElementById('radarRpBreakdown'), rpWT=document.getElementById('radarRpWhaleTop'), rpWB=document.getElementById('radarRpWhaleBottom'), rpV=document.getElementById('radarRpVolEye');
+  if(rpB){if(brBuy&&resists.length){rpB.textContent='⬆️ 上破阻力: '+radarFormatPrice(resists[0]);rpB.className='ci-badge green active';}else{rpB.textContent='上破阻力: --';rpB.className='ci-badge warn dim';}}
+  if(rpD){if(brSell&&supports.length){rpD.textContent='⬇️ 下破支撑: '+radarFormatPrice(supports[0]);rpD.className='ci-badge red active';}else{rpD.textContent='下破支撑: --';rpD.className='ci-badge warn dim';}}
+  if(rpWT){if(wSell){rpWT.textContent='🐋逃顶: '+wSell.text;rpWT.className='ci-badge red active';}else{rpWT.textContent='主力逃顶: --';rpWT.className='ci-badge warn dim';}}
+  if(rpWB){if(wBuy){rpWB.textContent='🐋蓄力: '+wBuy.text;rpWB.className='ci-badge cyan active';}else{rpWB.textContent='主力蓄力: --';rpWB.className='ci-badge warn dim';}}
+  if(rpV){const vols=klines.map(k=>parseFloat(k[5])),volMA=vols.slice(-20).reduce((a,b)=>a+b,0)/20,vr=vols[vols.length-1]/volMA;if(vr>=2){rpV.textContent='🔥量能天眼: '+vr.toFixed(1)+'x';rpV.className='ci-badge orange active';}else if(vr>=1.5){rpV.textContent='⚡量能天眼: '+vr.toFixed(1)+'x';rpV.className='ci-badge warn active';}else{rpV.textContent='量能天眼: --';rpV.className='ci-badge warn dim';}}
+}
+function radarUpdateChartMarkers(klines) {
+  if (!radarCandleSeries || klines.length < 20) return;
+  const times=klines.map(k=>k[0]/1000), i=times.length-1;
+  const rs=radarDetectRadarSignals(klines), ws=radarDetectWhaleSignals(klines), markers=[];
+  rs.slice(0,3).forEach((s,idx)=>markers.push({time:idx===0?times[i]:times[Math.max(0,i-idx)],position:s.type==='buy'?'belowBar':'aboveBar',color:s.type==='buy'?'#3fb950':'#f85149',text:s.type==='buy'?'▲ BUY':'▼ SELL',shape:s.type==='buy'?'arrowUp':'arrowDown',textColor:'#fff',size:2}));
+  rs.filter(s=>s.isBreakout).slice(0,2).forEach(s=>markers.push({time:times[Math.max(0,i-1)],position:s.type==='buy'?'belowBar':'aboveBar',color:s.type==='buy'?'#3fb950':'#f85149',text:s.type==='buy'?'▲突破':'▼跌破',shape:s.type==='buy'?'arrowUp':'arrowDown',textColor:'#fff',size:2}));
+  ws.slice(0,2).forEach(s=>{if(s.strength>=4)markers.push({time:times[Math.max(0,i-1)],position:s.type==='buy'?'belowBar':'aboveBar',color:s.type==='buy'?'#00e5ff':'#ff5722',text:s.type==='buy'?'🐋蓄力':'🐋逃顶',shape:s.type==='buy'?'arrowUp':'arrowDown',textColor:'#000',size:2});});
+  if(markers.length)radarCandleSeries.setMarkers(markers);
+}
+
+// ==================== RADAR TAB: WebSocket ====================
+function radarConnectWebSocket(symbol) {
+  if (radarWs && radarWs.readyState === WebSocket.OPEN) return;
+  if (radarWs) { radarWs.onclose=null; radarWs.onerror=null; radarWs.close(); radarWs=null; }
+  const pair=symbol.replace('USDT','').toLowerCase(), interval=radarTf||'1h';
+  const wsUrl=`wss://139.rams.cc.cd/?url=wss://fstream.binance.com:9443/ws/${pair}@kline_${interval}`;
+  const myId=++radarWsConnId; radarWsReconnectDelay=5000; radarSetWsStatus(false,true);
+  try {
+    radarWs=new WebSocket(wsUrl);
+    radarWs.onopen=()=>{if(myId===radarWsConnId){radarWsReconnecting=false;radarSetWsStatus(true);}};
+    radarWs.onerror=(err)=>{if(myId!==radarWsConnId)return;radarWsRetryCount++;radarSetWsStatus(false,false,true);};
+    radarWs.onclose=(e)=>{if(myId!==radarWsConnId)return;radarSetWsStatus(false);if(radarWsReconnecting)return;radarWsReconnecting=true;const d=radarWsReconnectDelay;radarWsReconnectDelay=Math.min(d*2,30000);setTimeout(()=>{radarWsReconnecting=false;if(myId!==radarWsConnId)return;if(radarSymbol)radarConnectWebSocket(radarSymbol);},d);};
+    radarWs.onmessage=(e)=>{
+      if(myId!==radarWsConnId)return;
+      try{
+        const d=JSON.parse(e.data); if(!d.k)return;
+        const k=d.k,t=Math.floor(k.t/1000),price=parseFloat(k.c),chg=parseFloat(d.P||0);
+        if(radarCandleSeries)radarCandleSeries.update({time:t,open:parseFloat(k.o),high:parseFloat(k.h),low:parseFloat(k.l),close:price});
+        if(radarVolSeries)radarVolSeries.update({time:t,value:parseFloat(k.v),color:price>=parseFloat(k.o)?'#3fb95066':'#f8514966'});
+        radarUpdatePriceDisplay(price,chg);
+        if(radarLastKlines.length>0){const lt=radarLastKlines[radarLastKlines.length-1][0];if(k.t===lt)radarLastKlines[radarLastKlines.length-1]=[k.t,k.o,k.h,k.l,k.c,k.v];else if(k.t>lt){radarLastKlines.push([k.t,k.o,k.h,k.l,k.c,k.v]);if(radarLastKlines.length>300)radarLastKlines.shift();}}
+        if(radarShowVWAP){const v=radarCalcIntradayVWAP(radarLastKlines);if(v&&radarVwapLine)radarVwapLine.setData(radarLastKlines.map(k2=>({time:k2[0]/1000,value:v})));}
+        radarUpdateChartMarkers(radarLastKlines); radarUpdateTrendPanel(radarLastKlines); radarUpdateChartInfoBox(radarLastKlines); radarRenderVolumeAnalysis(radarLastKlines);
+        radarDetectAndRenderRadar(radarLastKlines); radarDetectAndRenderWhale(radarLastKlines);
+      }catch(err){}
+    };
+  }catch(e){radarWsRetryCount++;radarSetWsStatus(false,false,true);}
+}
+function radarSetWsStatus(online, connecting=false, error=false) {
+  const dot=document.getElementById('radarWsDot'), text=document.getElementById('radarWsText'), btn=document.getElementById('radarReconnectBtn');
+  if(!dot||!text)return;
+  if(online){dot.className='ws-dot online';text.textContent='实时在线';text.style.color='#3fb950';if(btn)btn.style.display='none';radarWsRetryCount=0;}
+  else if(connecting){dot.className='ws-dot connecting';text.textContent='连接中...';text.style.color='#ff9800';if(btn)btn.style.display='none';}
+  else if(error){dot.className='ws-dot error';text.textContent='连接失败(重试'+radarWsRetryCount+')';text.style.color='#f85149';if(btn)btn.style.display='inline';}
+  else{dot.className='ws-dot';text.textContent='离线';text.style.color='#787b86';if(btn)btn.style.display=radarWsRetryCount>0?'inline':'none';}
+}
+function radarManualReconnect() {
+  radarWsRetryCount=0; radarWsReconnectDelay=5000; radarWsReconnecting=false;
+  if(radarSymbol){radarSetWsStatus(false,true);radarConnectWebSocket(radarSymbol);}
+}
+function radarUpdatePriceDisplay(price, chg) {
+  const el=document.getElementById('radarPriceInfo');
+  if(el) el.innerHTML=radarFormatPrice(price)+`<span class="price-change ${chg>=0?'up':'dn'}">${chg>=0?'+':''}${parseFloat(chg).toFixed(2)}%</span>`;
+}
+
+// ==================== RADAR TAB: 加载币种 ====================
+async function radarLoadSymbol() {
+  const inp=document.getElementById('radarSymInput'); if(!inp)return;
+  radarSymbol=(inp.value.trim().toUpperCase().replace(/USDT$/i,'')||'BTC')+'USDT';
+  inp.value=radarSymbol.replace('USDT','');
+  const loading=document.getElementById('radarLoading');
+  if(loading)loading.classList.remove('hidden');
+  try {
+    radarTf=document.getElementById('radarTfSelect')?.value||'1h';
+    const [klines,ticker]=await Promise.all([
+      apiFetch(`/fapi/v1/klines?symbol=${radarSymbol}&interval=${radarTf}&limit=200`),
+      apiFetch(`/fapi/v1/ticker/24hr?symbol=${radarSymbol}`)
+    ]);
+    if(!klines||!klines.length) throw new Error('无数据');
+    if(loading)loading.classList.add('hidden');
+    if(!radarChart)radarInitChart();
+    radarRenderChart(klines);
+    const price=parseFloat(ticker.lastPrice), chg=parseFloat(ticker.priceChangePercent);
+    radarUpdatePriceDisplay(price,chg);
+    radarConnectWebSocket(radarSymbol);
+  }catch(e){
+    console.error('[radar] 加载失败',e);
+    if(loading)loading.textContent='加载失败: '+e.message;
+  }
+}
+
+// ==================== RADAR TAB: 指标切换 ====================
+function radarToggleMA(btn){radarShowMA=!radarShowMA;btn.classList.toggle('active',radarShowMA);if(radarMaLines.ema7){radarMaLines.ema7.applyOptions({visible:radarShowMA});radarMaLines.ema25.applyOptions({visible:radarShowMA});radarMaLines.ema99.applyOptions({visible:radarShowMA});}}
+function radarToggleBB(btn){radarShowBB=!radarShowBB;btn.classList.toggle('active',radarShowBB);if(radarBbUpper){radarBbUpper.applyOptions({visible:radarShowBB});radarBbLower.applyOptions({visible:radarShowBB});radarBbMid.applyOptions({visible:radarShowBB});}}
+function radarToggleVWAP(btn){radarShowVWAP=!radarShowVWAP;btn.classList.toggle('active',radarShowVWAP);if(radarVwapLine)radarVwapLine.applyOptions({visible:radarShowVWAP});if(radarVwapZoneSeries)radarVwapZoneSeries.applyOptions({visible:radarShowVWAP});if(radarPriceLines['vwap'])radarPriceLines['vwap'].applyOptions({visible:radarShowVWAP});}
+function radarToggleRSI(btn){radarShowRSI=!radarShowRSI;btn.classList.toggle('active',radarShowRSI);if(!radarChart)return;if(radarShowRSI&&!radarRsiChart)radarInitRSIChart();const p=document.getElementById('radarRsiPanel'),el=document.getElementById('radarRsiChart');if(radarShowRSI){if(el)el.style.display='block';if(p)p.style.display='block';}else{if(el)el.style.display='none';if(p)p.style.display='none';}}
+function radarToggleMACD(btn){radarShowMACD=!radarShowMACD;btn.classList.toggle('active',radarShowMACD);if(!radarChart)return;if(radarShowMACD&&!radarMacdChart)radarInitMACDChart();const p=document.getElementById('radarMacdPanel'),el=document.getElementById('radarMacdChart');if(radarShowMACD){if(el)el.style.display='block';if(p)p.style.display='block';}else{if(el)el.style.display='none';if(p)p.style.display='none';}}
+function radarToggleVol(btn){radarShowVol=!radarShowVol;btn.classList.toggle('active',radarShowVol);if(radarVolSeries)radarVolSeries.applyOptions({visible:radarShowVol});}
+function radarToggleLevelLine(btn){radarShowLevelLine=!radarShowLevelLine;btn.classList.toggle('active',radarShowLevelLine);['res1','res2','res3','sup1','sup2','sup3'].forEach(k=>{if(radarPriceLines[k])radarPriceLines[k].applyOptions({visible:radarShowLevelLine});});}
+function radarToggleRadarMark(btn){radarShowRadarMark=!radarShowRadarMark;btn.classList.toggle('active',radarShowRadarMark);if(!radarCandleSeries)return;if(radarShowRadarMark&&radarLastKlines.length)radarUpdateChartMarkers(radarLastKlines);else radarCandleSeries.setMarkers([]);}
+
+// ==================== RADAR TAB: 初始化 ====================
+function radarInit() {
+  const inp=document.getElementById('radarSymInput');
+  if(inp){
+    const sym=currentSymbol||'BTCUSDT';
+    radarSymbol=sym; inp.value=sym.replace('USDT','');
+    inp.addEventListener('keydown',e=>{if(e.key==='Enter')radarLoadSymbol();});
+  }
+  const tfSel=document.getElementById('radarTfSelect');
+  if(tfSel)tfSel.addEventListener('change',radarLoadSymbol);
+  window.addEventListener('beforeunload',()=>{if(radarWs)radarWs.close();if(detailWs)detailWs.close();if(detailKlineWs)detailKlineWs.close();});
+  radarInitChart();
+  radarLoadSymbol();
+}
 
 // 立即执行，不要依赖 DOMContentLoaded（因为脚本可能在 body 底部）
 if (document.readyState === 'loading') {
