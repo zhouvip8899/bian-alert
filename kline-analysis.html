@@ -3,15 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🔍 K线深度分析工具 v3.50</title>
+<title>🔍 K线深度分析工具 v3.53 (全指标上屏)</title>
 <!-- 使用 jsDelivr CDN (更稳定) -->
 <script src="lightweight-charts.standalone.production.js"></script>
+<!-- 引入共享库 -->
+<script src="shared.js"></script>
 <script>
 // 获取 MarkerShape 常量
 const MarkerShape = window.LightweightCharts ? window.LightweightCharts.MarkerShape : null;
 
-// ==================== TA技术指标库 (内置实现) ====================
-window.TA = (function() {
+// 使用共享库的TA库（扩展支持TD9）
+const TA = BinanceShared.TA;
+</script>
+<script>
+// ==================== 本页扩展 (TD9等) ====================
   const RSI = (data, period = 14) => {
     if (data.length < period + 1) return null;
     let gains = 0, losses = 0;
@@ -169,7 +174,7 @@ window.TA = (function() {
     rsi:RSI,sma:SMA,ema:EMA,macd:MACD,bb:BollingerBands,
     kdj:KDJ,wr:WilliamsR,cci:CCI,stochRsi:StochRSI,
     atr:ATR,adx:ADX,obv:OBV,roc:ROC,mom:MOM,
-    tdSequential:tdSequentialFn
+    tdSequential: TA.tdSequential || function() { return null; }
   };
 })();
 </script>
@@ -350,22 +355,7 @@ body {
 }
 .chart-btn:hover { border-color: var(--blue); color: var(--blue); }
 .chart-btn.active { background: var(--blue); border-color: var(--blue); color: #fff; }
-#chart { position: relative; }
-.chart-wrapper {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-/* ========== Indicators Panel ========== */
-.indicators-panel {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  overflow: auto;
-  flex-shrink: 0;
-}
+#chart, #rsiChart, #macdChart { position: relative; }
 .panel-title {
   font-size: 13px;
   font-weight: 700;
@@ -453,36 +443,6 @@ body {
 .overall-score .value.neutral { color: var(--yellow); }
 .overall-score .value.sell { color: var(--red); }
 .overall-score .desc { font-size: 13px; margin-top: 6px; color: var(--text2); }
-/* ========== Detailed Indicators ========== */
-.detail-section {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-.detail-header {
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border);
-  font-size: 13px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.detail-content {
-  padding: 12px 14px;
-  font-size: 12px;
-  line-height: 1.8;
-  color: var(--text2);
-}
-.detail-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 2px 0;
-}
-.detail-row .label { color: var(--text2); }
-.detail-row .val { color: var(--text); font-weight: 600; font-family: monospace; }
 /* ========== Loading ========== */
 .loading-overlay {
   position: absolute;
@@ -551,21 +511,16 @@ body {
   border-bottom: 1px solid var(--border);
   font-size: 11px;
 }
-.ma-legend span { display: flex; align-items: center; gap: 4px; }
-.ma-dot { width: 8px; height: 2px; border-radius: 1px; }
 /* ========== Oscillators Table ========== */
-.osc-container {
-  padding: 8px 12px;
-}
 .osc-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 5px 0;
+  padding: 5px 12px;
   border-bottom: 1px solid var(--border);
+  font-size: 12px;
 }
 .osc-row:last-child { border-bottom: none; }
-.osc-table { width: 100%; }
 .osc-name { color: var(--text); font-weight: 600; }
 .osc-val { font-family: monospace; font-weight: 600; }
 .badge {
@@ -630,7 +585,7 @@ body {
 
 <!-- Main Content -->
 <div class="main">
-  <!-- Left Sidebar -->
+  <!-- Left Sidebar (极简化) -->
   <div class="sidebar-left">
     <!-- Overall Score -->
     <div class="overall-score" id="overallScore">
@@ -645,32 +600,10 @@ body {
       <div id="signalBars"></div>
     </div>
 
-    <!-- TD9 -->
-    <div class="detail-section">
-      <div class="detail-header">🔄 TD9转指标 / TD Sequential</div>
-      <div id="td9Panel" style="padding:12px 14px;"></div>
-    </div>
-
-    <!-- Oscillators Table -->
-    <div class="detail-section">
-      <div class="detail-header">📊 摆动指标</div>
-      <div class="osc-container">
-        <div class="osc-table" id="oscBody"></div>
-      </div>
-    </div>
-
-    <!-- Trend Indicators -->
-    <div class="detail-section">
-      <div class="detail-header">📈 均线</div>
-      <div id="trendIndicators"></div>
-    </div>
-
-    <!-- Detailed Info -->
-    <div class="detail-section">
-      <div class="detail-header">📋 详细信息</div>
-      <div class="detail-content" id="detailContent">
-        <div style="color:var(--text2); text-align:center; padding:20px;">暂无数据</div>
-      </div>
+    <!-- 指标信号表 (合并oscillators + indicators) -->
+    <div class="signal-table" id="signalTable">
+      <div class="panel-title">📊 指标信号</div>
+      <div id="oscBody"></div>
     </div>
 
     <!-- Recommended Coins -->
@@ -682,37 +615,47 @@ body {
     </div>
   </div>
 
-  <!-- 右侧K线图 + 核心指标 -->
+  <!-- 右侧图表区 -->
   <div class="chart-main">
-    <div class="chart-wrapper">
-      <div class="chart-header">
-        <div class="coin-title" id="chartTitle">
-          <span class="symbol" id="dispSymbol">BTCUSDT</span>
-          <span class="price" id="dispPrice">--</span>
-          <span class="change up" id="dispChange">--</span>
-        </div>
-        <div class="chart-actions">
-          <button class="chart-btn active" onclick="setChartType('candlestick',this)">K线</button>
-          <button class="chart-btn" onclick="setChartType('bar',this)">柱状</button>
-        </div>
+    <!-- 图表Header + 指标开关 -->
+    <div class="chart-header-bar">
+      <div class="coin-title" id="chartTitle">
+        <span class="symbol" id="dispSymbol">BTCUSDT</span>
+        <span class="price" id="dispPrice">--</span>
+        <span class="change up" id="dispChange">--</span>
       </div>
-      <div id="chart">
-        <div class="loading-overlay" id="loading" style="display:none;">
-          <div class="spinner"></div>
-        </div>
-      </div>
-      <div class="ma-legend" id="maLegend">
-        <span><div class="ma-dot" style="background:#e1303c;"></div> MA7</span>
-        <span><div class="ma-dot" style="background:#2ecc71;"></div> MA25</span>
-        <span><div class="ma-dot" style="background:#3498db;"></div> MA99</span>
-        <span><div class="ma-dot" style="background:#f39c12;"></div> EMA7</span>
-        <span><div class="ma-dot" style="background:#9b59b6;"></div> EMA25</span>
+      <div class="chart-actions">
+        <button class="chart-btn active" onclick="setChartType('candlestick',this)">K线</button>
+        <button class="chart-btn" onclick="setChartType('bar',this)">柱状</button>
+        <span class="btn-sep">|</span>
+        <button class="ind-btn active" id="btnBB" onclick="toggleInd('bb',this)" title="布林带">BB</button>
+        <button class="ind-btn active" id="btnKDJ" onclick="toggleInd('kdj',this)" title="KDJ">KDJ</button>
+        <button class="ind-btn active" id="btnWR" onclick="toggleInd('wr',this)" title="威廉指标">WR</button>
+        <button class="ind-btn active" id="btnCCI" onclick="toggleInd('cci',this)" title="CCI">CCI</button>
       </div>
     </div>
-    <!-- 核心指标放K线图下方 -->
-    <div class="indicators-panel">
-      <div class="panel-title">🔧 核心指标</div>
-      <div class="indicator-grid" id="indicatorGrid"></div>
+
+
+    <!-- 主图 -->
+    <div id="chart">
+      <div class="loading-overlay" id="loading" style="display:none;">
+        <div class="spinner"></div>
+      </div>
+    </div>
+
+    <!-- RSI副图 -->
+    <div id="rsiChart"></div>
+
+    <!-- MACD副图 -->
+    <div id="macdChart"></div>
+
+    <!-- 指标图例 -->
+    <div class="chart-legend" id="chartLegend">
+      <span id="legMA" class="leg-item">MA7 <b style="color:#e1303c">—</b> MA25 <b style="color:#2ecc71">—</b> MA99 <b style="color:#3498db">—</b> EMA7 <b style="color:#f39c12">—</b> EMA25 <b style="color:#9b59b6">—</b></span>
+      <span id="legBB" class="leg-item">BB <b style="color:#f39c12">—</b></span>
+      <span id="legKDJ" class="leg-item">K <b style="color:#fff">—</b> D <b style="color:#ff0">—</b> J <b style="color:#ff69b4">—</b></span>
+      <span id="legWR" class="leg-item">WR <b style="color:#da70d6">—</b></span>
+      <span id="legCCI" class="leg-item">CCI <b style="color:#40e0d0">—</b></span>
     </div>
   </div>
 </div>
@@ -722,23 +665,23 @@ body {
 body { margin: 0; padding: 0; overflow: auto; }
 .main {
   display: flex;
-  gap: 12px;
-  padding: 12px;
+  gap: 10px;
+  padding: 10px;
   height: calc(100vh - 105px);
   box-sizing: border-box;
   overflow: hidden;
 }
 .sidebar-left {
-  width: 340px;
+  width: 200px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
   overflow-y: auto;
   overflow-x: hidden;
-  padding-right: 6px;
+  padding-right: 4px;
 }
-.sidebar-left::-webkit-scrollbar { width: 4px; }
+.sidebar-left::-webkit-scrollbar { width: 3px; }
 .sidebar-left::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 .sidebar-left > * { flex-shrink: 0; }
 .chart-main {
@@ -746,14 +689,35 @@ body { margin: 0; padding: 0; overflow: auto; }
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   overflow: hidden;
-  padding-bottom: 8px;
 }
-.chart-wrapper { flex: 1; min-height: 200px; }
-#chart { width: 100%; height: 100%; }
-.indicators-panel { height: auto; min-height: 100px; flex-shrink: 0; overflow: auto; }
-.indicator-grid { grid-template-columns: repeat(4, 1fr); }
+/* 图表Header */
+.chart-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px 4px;
+  flex-shrink: 0;
+}
+#chart { width: 100%; height: calc(100vh - 220px); }
+#rsiChart, #macdChart { width: 100%; height: 120px; }
+/* 指标开关按钮 */
+.chart-actions { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.chart-btn { background: var(--bg2); border: 1px solid var(--border); color: var(--text2); padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+.chart-btn:hover { background: var(--border); color: var(--text); }
+.chart-btn.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+.btn-sep { color: var(--border); margin: 0 2px; }
+.ind-btn { background: var(--bg2); border: 1px solid var(--border); color: var(--text2); padding: 2px 6px; border-radius: 3px; cursor: pointer; font-size: 10px; font-weight: 600; }
+.ind-btn:hover { background: var(--border); }
+.ind-btn.active { background: var(--orange); border-color: var(--orange); color: #000; }
+/* 图例 */
+.chart-legend { display: flex; gap: 12px; flex-wrap: wrap; padding: 0 4px; flex-shrink: 0; }
+.leg-item { font-size: 11px; color: var(--text2); background: var(--bg2); padding: 2px 6px; border-radius: 3px; }
+.leg-item b { font-weight: 900; }
+/* 信号表 */
+.signal-table { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; flex-shrink: 0; }
+.signal-table .panel-title { font-size: 12px; padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--text); font-weight: 600; }
 
 /* ========== 移动端响应式 ========== */
 @media (max-width: 900px) {
@@ -775,7 +739,7 @@ body { margin: 0; padding: 0; overflow: auto; }
     gap: 10px;
   }
   
-  /* 左侧面板 - 垂直排列，每项占满宽度 */
+  /* 左侧面板 - 垂直排列 */
   .sidebar-left { 
     width: 100% !important; 
     max-height: none !important; 
@@ -803,27 +767,15 @@ body { margin: 0; padding: 0; overflow: auto; }
   .detail-row { padding: 6px 10px !important; }
   
   /* 摆动指标 */
-  .osc-table { grid-template-columns: repeat(3, 1fr) !important; }
-  .osc-row { padding: 8px 6px; }
-  .osc-name { font-size: 10px; }
-  .osc-val { font-size: 13px; }
+  .osc-row { padding: 5px 8px; font-size: 11px; }
   
-  /* 图表区域 - 自适应 */
+  /* 图表区域 */
   .chart-main { width: 100%; min-height: auto; gap: 8px; }
-  .chart-wrapper { flex: 1; min-height: 180px; }
-  #chart { height: 100%; }
-  .chart-header { padding: 8px 10px !important; flex-wrap: wrap; gap: 6px; }
+  #chart, #rsiChart, #macdChart { height: auto; }
+  .chart-header-bar { padding: 0 0 6px; flex-wrap: wrap; gap: 6px; }
+  .chart-legend { font-size: 10px; }
   .coin-title .symbol { font-size: 14px !important; }
   .coin-title .price { font-size: 14px !important; }
-  .ma-legend { font-size: 10px !important; padding: 4px 8px !important; flex-wrap: wrap; gap: 6px; }
-  
-  /* 核心指标 */
-  .indicators-panel { height: auto !important; min-height: 150px; }
-  .indicator-grid { grid-template-columns: repeat(2, 1fr) !important; }
-  .indicator-cell { padding: 8px !important; }
-  .indicator-name { font-size: 10px; }
-  .indicator-value { font-size: 13px; }
-  .indicator-signal { font-size: 10px; }
   
   /* 推荐币种 */
   .rec-coins { grid-template-columns: repeat(2, 1fr) !important; gap: 6px; }
@@ -839,17 +791,9 @@ body { margin: 0; padding: 0; overflow: auto; }
   .tf-btn { padding: 4px 8px; font-size: 11px; }
   
   .main { padding: 6px; gap: 8px; }
-  
-  .chart-wrapper { min-height: 160px; }
-  #chart { height: 100%; }
-  
-  .osc-table { grid-template-columns: repeat(2, 1fr) !important; }
-  .indicator-grid { grid-template-columns: repeat(2, 1fr) !important; }
-  
   .overall-score .value { font-size: 24px !important; }
   .signal-bar { width: 60px !important; height: 4px !important; }
   .signal-score { font-size: 12px !important; }
-  
   .rec-coins { grid-template-columns: 1fr !important; }
 }
 
@@ -859,12 +803,7 @@ body { margin: 0; padding: 0; overflow: auto; }
   .header h1 { font-size: 12px; }
   .header-search input { padding: 6px 10px; font-size: 13px; }
   .btn { padding: 5px 10px; font-size: 11px; }
-  
-  .chart-wrapper { min-height: 140px; }
-  #chart { height: 100%; }
-  
-  .osc-table { grid-template-columns: 1fr 1fr !important; }
-  .indicator-grid { grid-template-columns: 1fr 1fr !important; }
+  .overall-score .value { font-size: 20px !important; }
 }
 </style>
 
@@ -874,11 +813,21 @@ let currentSymbol = 'BTCUSDT';
 let currentTf = '1h';
 let showMA = true;
 let chartType = 'candlestick';
-let globalTicker24h = null; // 存储24H ticker数据用于涨跌幅显示
+let globalTicker24h = null;
 let chart = null, candleSeries = null, volumeSeries = null;
+let rsiChart = null, macdChart = null;
+let rsiSeries = null, rsiSeries30 = null, rsiSeries70 = null;
+let kdjLines = {}, wrSeries = null;
+let macdSeries = null, difSeries = null, deaSeries = null;
 let maLines = {};
+let bbLines = {};
 let tdMarkers = {};
 let lastKlines = [];
+// 指标显示开关
+let showInd = { bb: true, kdj: true, wr: true, cci: true };
+// 当前缓存
+let cachedInd = null;
+let cachedCandleData = null;
 let ws = null;
 let wsConnected = false;
 let realtimeCandle = null;
@@ -890,45 +839,8 @@ const fmt = (v, d = 2) => (v == null || isNaN(v)) ? '--' : Number(v).toFixed(d);
 const safeMin = arr => arr.length ? Math.min(...arr.filter(x => x > 0)) : 0;
 const safeMax = arr => arr.length ? Math.max(...arr) : 0;
 
-// ==================== API (直连优先，代理兜底) ====================
-const CORS_PROXIES = [
-  'https://corsproxy.io/?',
-  'https://api.codetabs.com/v1/proxy?quest=',
-  'https://yacdn.org/proxy/'
-];
-let currentProxyIndex = 0;
-
-async function apiFetch(path) {
-  const url = 'https://fapi.binance.com' + path;
-  const timeout = 10000;
-
-  // 第一步：尝试直连（最快）
-  try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), timeout);
-    const r = await window.fetch(url, { signal: ctrl.signal, mode: 'cors' });
-    clearTimeout(timer);
-    if (r.ok) return await r.json();
-    console.warn('直连响应异常:', r.status);
-  } catch (e) {
-    console.warn('直连失败:', e.name === 'AbortError' ? '超时' : e.message);
-  }
-
-  // 第二步：使用CORS代理
-  for (let i = 0; i < CORS_PROXIES.length; i++) {
-    try {
-      const proxyUrl = CORS_PROXIES[i] + encodeURIComponent(url);
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), timeout);
-      const r = await window.fetch(proxyUrl, { signal: ctrl.signal });
-      clearTimeout(timer);
-      if (r.ok) return await r.json();
-    } catch (e) {
-      console.warn('代理失败:', CORS_PROXIES[i], e.name);
-    }
-  }
-  return null;
-}
+// ==================== API (使用共享库) ====================
+const apiFetch = BinanceShared.apiFetch;
 
 // ==================== 通用币安请求 ====================
 async function getKlines(symbol, interval, limit = 200) {
@@ -1007,154 +919,108 @@ function getSignal(type, value, threshold) {
   return { label: '--', cls: 'sig-neutral', strength: 0 };
 }
 
-// ==================== 三维共振评分系统 (与主页一致) ====================
-function calcScore(ind) {
-  const { rsi, kdj, wr, macd, bb: bbInd, cci, stoch, mom, td9, chg1h, chg4h, chg24h, volumeRatio, takerBuyRatio, fundingRate } = ind;
-  
-  let sig = [], level = '观望', isWatch = false;
-  let score = 0;
-  
-  // 三维核心评分
-  const core = { tech: 0, fund: 0, whale: 0 };
-  
-  // ========== 技术面评分 (权重×2) ==========
-  let techScore = 0;
-  
-  // RSI
-  if (rsi < 30) { techScore += 2; sig.push('RSI超卖'); }
-  else if (rsi < 40) { techScore += 1; }
-  
-  // KDJ
-  if (kdj?.j < 20) { techScore += 2; sig.push('KDJ超卖'); }
-  else if (kdj?.k > kdj?.d && kdj?.d < 40) { techScore += 1; }
-  
-  // MACD
-  if (macd?.hist > 0.5) { techScore += 3; sig.push('MACD强势金叉'); }
-  else if (macd?.hist > 0) { techScore += 2; sig.push('MACD金叉'); }
-  
-  // 布林带
-  if (bbInd?.w < 2) { techScore += 3; sig.push('布林收口'); }
-  if (bbInd?.pos < 20) { techScore += 1; }
-  
-  // TD9
-  if (td9?.buyActive) { techScore += 2; sig.push('TD9买入'); }
-  if (td9?.buyPerfect) { techScore += 3; sig.push('TD9完成'); }
-  
-  core.tech = Math.min(Math.floor(techScore / 2), 4);
-  
-  // ========== 资金面评分 (权重×1) ==========
-  if (fundingRate < 0) { core.fund = 1; sig.push('低费率'); }
-  if (fundingRate > 0.01) { core.fund = -1; sig.push('高费率'); }
-  
-  // ========== 大户面评分 (权重×1) ==========
-  if (takerBuyRatio >= 0.55) { 
-    core.whale = Math.floor((takerBuyRatio - 0.5) * 10); 
-    sig.push(`Taker吸筹`); 
-  }
-  
-  // 共振分 = tech×2 + fund + whale
-  const resonanceScore = core.tech * 2 + core.fund + core.whale;
-  
-  // 基础分
-  score = resonanceScore * 10;
-  
-  // 涨幅调整
-  if (chg4h >= 15) score -= 15;
-  else if (chg4h >= 10) score -= 8;
-  else if (chg4h >= 7) score -= 3;
-  
-  // 量能加分
-  if (volumeRatio >= 2) score += 5;
-  else if (volumeRatio >= 1.5) score += 3;
-  
-  // 信号判定
-  if (resonanceScore >= 5 && score >= 50) {
-    level = '🚀暴涨预警';
-    score = Math.min(score, 95);
-  } else if (resonanceScore >= 3 && score >= 40) {
-    level = '⚡积累中';
-  } else if (score >= 30) {
-    level = '👀观察中';
-    isWatch = true;
-  } else if (rsi < 40 && macd?.hist > 0) {
-    level = '🔼底部反弹';
-  } else {
-    level = '➖中性';
-  }
-  
-  // 限制范围
-  score = Math.min(Math.max(score, 0), 100);
-  
-  return { score, level, sig: sig.slice(0, 6), core, resonanceScore, isWatch, reasons: sig };
-}
+// ==================== 三维共振评分系统 (使用共享库) ====================
+const calcScore = BinanceShared.calcScore3D;
 
 // ==================== 渲染 K线图 ====================
 function initChart() {
   if (chart) { chart.remove(); chart = null; }
-  const chartHeight = Math.max(250, ($('chart').clientHeight || 300));
-  chart = LightweightCharts.createChart($('chart'), {
-    width: $('chart').clientWidth,
-    height: chartHeight,
-    layout: {
-      background: { type: 'solid', color: '#161b22' },
-      textColor: '#8b949e',
-      fontSize: 11
-    },
-    grid: {
-      vertLines: { color: '#21262d' },
-      horzLines: { color: '#21262d' }
-    },
+  if (rsiChart) { rsiChart.remove(); rsiChart = null; }
+  if (macdChart) { macdChart.remove(); macdChart = null; }
+
+  const mainOpts = {
+    layout: { background: { type: 'solid', color: '#161b22' }, textColor: '#8b949e', fontSize: 11 },
+    grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
     crosshair: { mode: 1 },
-    timeScale: {
-      borderColor: '#30363d',
-      timeVisible: true,
-      secondsVisible: false
-    },
+    timeScale: { borderColor: '#30363d', timeVisible: true, secondsVisible: false },
     rightPriceScale: { borderColor: '#30363d' }
-  });
+  };
 
-  candleSeries = chart.addCandlestickSeries({
-    upColor: '#3fb950',
-    downColor: '#f85149',
-    borderUpColor: '#3fb950',
-    borderDownColor: '#f85149',
-    wickUpColor: '#3fb950',
-    wickDownColor: '#f85149'
-  });
+  // 主图
+  const mainH = $('chart').clientHeight || Math.max(300, window.innerHeight * 0.45);
+  chart = LightweightCharts.createChart($('chart'), { ...mainOpts, width: $('chart').clientWidth, height: mainH });
 
-  volumeSeries = chart.addHistogramSeries({
-    priceFormat: { type: 'volume' },
-    priceScaleId: 'volume'
-  });
-  
-  chart.priceScale('volume').applyOptions({
-    scaleMargins: { top: 0.75, bottom: 0 }
-  });
+  candleSeries = chart.addCandlestickSeries({ upColor: '#3fb950', downColor: '#f85149', borderUpColor: '#3fb950', borderDownColor: '#f85149', wickUpColor: '#3fb950', wickDownColor: '#f85149' });
+  volumeSeries = chart.addHistogramSeries({ priceFormat: { type: 'volume' }, priceScaleId: 'volume' });
+  chart.priceScale('volume').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
 
-  // MA lines
+  // MA/EMA线
   maLines.ma7 = chart.addLineSeries({ color: '#e1303c', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
   maLines.ma25 = chart.addLineSeries({ color: '#2ecc71', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
   maLines.ma99 = chart.addLineSeries({ color: '#3498db', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
   maLines.ema7 = chart.addLineSeries({ color: '#f39c12', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
   maLines.ema25 = chart.addLineSeries({ color: '#9b59b6', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
 
-  // TD9 markers (带错误处理)
+  // 布林带
+  bbLines.upper = chart.addLineSeries({ color: '#f39c12', lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
+  bbLines.mid = chart.addLineSeries({ color: '#f39c12', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+  bbLines.lower = chart.addLineSeries({ color: '#f39c12', lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
+  bbLines.band = chart.addAreaSeries({ color: 'rgba(243,156,18,0.08)', lineColor: 'transparent', priceLineVisible: false, lastValueVisible: false });
+
+  // TD9 markers
   if (MarkerShape) {
-    tdMarkers.buy = chart.addMarkersSeries({ color: '#3fb950', markerType: MarkerShape.CIRCLE, markerSize: 8 });
-    tdMarkers.sell = chart.addMarkersSeries({ color: '#f85149', markerType: MarkerShape.CIRCLE, markerSize: 8 });
-    tdMarkers.buyPerfect = chart.addMarkersSeries({ color: '#3fb950', markerType: MarkerShape.ARROW_UP, markerSize: 12 });
-    tdMarkers.sellPerfect = chart.addMarkersSeries({ color: '#f85149', markerType: MarkerShape.ARROW_DOWN, markerSize: 12 });
-    console.log('[图表] MarkerSeries 初始化成功');
-  } else {
-    console.warn('[图表] MarkerShape 不可用，跳过MarkerSeries初始化');
+    tdMarkers.buy = chart.addMarkersSeries({ color: '#3fb950', markerType: MarkerShape.CIRCLE, markerSize: 7 });
+    tdMarkers.sell = chart.addMarkersSeries({ color: '#f85149', markerType: MarkerShape.CIRCLE, markerSize: 7 });
+    tdMarkers.buyPerfect = chart.addMarkersSeries({ color: '#3fb950', markerType: MarkerShape.ARROW_UP, markerSize: 10 });
+    tdMarkers.sellPerfect = chart.addMarkersSeries({ color: '#f85149', markerType: MarkerShape.ARROW_DOWN, markerSize: 10 });
   }
 
-  window.addEventListener('resize', () => {
-    if (chart) {
-      const h = Math.max(300, $('chart').clientHeight || 400);
-      chart.resize($('chart').clientWidth, h);
+  // RSI副图
+  const rsiH = $('rsiChart').clientHeight || 100;
+  rsiChart = LightweightCharts.createChart($('rsiChart'), {
+    ...mainOpts,
+    width: $('rsiChart').clientWidth,
+    height: rsiH,
+    timeScale: { visible: false }
+  });
+  rsiSeries = rsiChart.addLineSeries({ color: '#ff6b6b', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+  kdjLines.k = rsiChart.addLineSeries({ color: '#ffffff', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+  kdjLines.d = rsiChart.addLineSeries({ color: '#ffff00', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+  kdjLines.j = rsiChart.addLineSeries({ color: '#ff69b4', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+  wrSeries = rsiChart.addLineSeries({ color: '#da70d6', lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
+  // RSI 30/70水平线
+  rsiSeries30 = rsiChart.addLineSeries({ color: '#3fb950', lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
+  rsiSeries70 = rsiChart.addLineSeries({ color: '#f85149', lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
+
+  // MACD副图
+  const macdH = $('macdChart').clientHeight || 100;
+  macdChart = LightweightCharts.createChart($('macdChart'), {
+    ...mainOpts,
+    width: $('macdChart').clientWidth,
+    height: macdH,
+    timeScale: { visible: false }
+  });
+  macdSeries = macdChart.addHistogramSeries({ color: '#4ecdc4', priceLineVisible: false, lastValueVisible: false });
+  difSeries = macdChart.addLineSeries({ color: '#3498db', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+  deaSeries = macdChart.addLineSeries({ color: '#ff6b6b', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+
+  // 同步时间轴
+  chart.timeScale().subscribeVisibleLogicalRangeChange(range => {
+    if (range) {
+      rsiChart.timeScale().setVisibleLogicalRange(range);
+      macdChart.timeScale().setVisibleLogicalRange(range);
     }
   });
+  rsiChart.timeScale().subscribeVisibleLogicalRangeChange(range => {
+    if (range) chart.timeScale().setVisibleLogicalRange(range);
+  });
+
+  // 响应式
+  window.addEventListener('resize', () => {
+    const mainH2 = $('chart').clientHeight || Math.max(300, window.innerHeight * 0.45);
+    chart.resize($('chart').clientWidth, mainH2);
+    rsiChart.resize($('rsiChart').clientWidth, $('rsiChart').clientHeight || 100);
+    macdChart.resize($('macdChart').clientWidth, $('macdChart').clientHeight || 100);
+  });
+}
+
+// 指标显示开关
+function toggleInd(type, btn) {
+  showInd[type] = !showInd[type];
+  btn.classList.toggle('active', showInd[type]);
+  if (cachedCandleData && cachedInd) {
+    renderChart(lastKlines);
+  }
 }
 
 function setChartType(type, btn) {
@@ -1176,6 +1042,8 @@ function renderChart(klines) {
     low: parseFloat(k[3]),
     close: parseFloat(k[4])
   }));
+  cachedCandleData = candleData;
+
   const volumeData = klines.map(k => ({
     time: k[0] / 1000,
     value: parseFloat(k[5]),
@@ -1185,41 +1053,116 @@ function renderChart(klines) {
   candleSeries.setData(candleData);
   volumeSeries.setData(volumeData);
 
+  const closes = candleData.map(c => c.close);
+  const ts = candleData.map(c => c.time);
+
+  // === 主图: MA/EMA ===
   if (showMA) {
-    const closes = candleData.map(c => c.close);
     const ma7d = TA.sma(closes, 7), ma25d = TA.sma(closes, 25), ma99d = TA.sma(closes, 99);
     const ema7d = TA.ema(closes, 7), ema25d = TA.ema(closes, 25);
-
-    const ts = candleData.map(c => c.time);
     if (ma7d) maLines.ma7.setData(ts.map((t, i) => ({ time: t, value: ma7d })));
     if (ma25d) maLines.ma25.setData(ts.map((t, i) => ({ time: t, value: ma25d })));
     if (ma99d) maLines.ma99.setData(ts.map((t, i) => ({ time: t, value: ma99d })));
     if (ema7d) maLines.ema7.setData(ts.map((t, i) => ({ time: t, value: ema7d })));
     if (ema25d) maLines.ema25.setData(ts.map((t, i) => ({ time: t, value: ema25d })));
-
-    maLines.ma7.applyOptions({ visible: true });
-    maLines.ma25.applyOptions({ visible: true });
-    maLines.ma99.applyOptions({ visible: true });
-    maLines.ema7.applyOptions({ visible: true });
-    maLines.ema25.applyOptions({ visible: true });
-  } else {
-    maLines.ma7.applyOptions({ visible: false });
-    maLines.ma25.applyOptions({ visible: false });
-    maLines.ma99.applyOptions({ visible: false });
-    maLines.ema7.applyOptions({ visible: false });
-    maLines.ema25.applyOptions({ visible: false });
   }
+  maLines.ma7.applyOptions({ visible: showMA });
+  maLines.ma25.applyOptions({ visible: showMA });
+  maLines.ma99.applyOptions({ visible: showMA });
+  maLines.ema7.applyOptions({ visible: showMA });
+  maLines.ema25.applyOptions({ visible: showMA });
 
-  // 更新TD9标记 (带错误处理)
-  try {
-    if (tdMarkers.buy) {
-      updateTD9Markers(candleData);
-    } else {
-      console.warn('[图表] tdMarkers未初始化，跳过TD9标记');
+  // === 主图: 布林带 ===
+  if (showInd.bb && TA.bb) {
+    const bb = TA.bb(closes);
+    if (bb) {
+      if (bb.upper) bbLines.upper.setData(ts.map((t, i) => ({ time: t, value: bb.upper[i] })));
+      if (bb.sma) bbLines.mid.setData(ts.map((t, i) => ({ time: t, value: bb.sma[i] })));
+      if (bb.lower) bbLines.lower.setData(ts.map((t, i) => ({ time: t, value: bb.lower[i] })));
+      if (bb.upper && bb.lower) {
+        bbLines.band.setData(ts.map((t, i) => ({ time: t, value: bb.upper[i], close: bb.lower[i] })));
+      }
     }
-  } catch(e) {
-    console.error('[图表] TD9标记更新失败:', e.message);
   }
+  bbLines.upper.applyOptions({ visible: showInd.bb });
+  bbLines.mid.applyOptions({ visible: showInd.bb });
+  bbLines.lower.applyOptions({ visible: showInd.bb });
+  bbLines.band.applyOptions({ visible: showInd.bb });
+
+  // === TD9标记 ===
+  try { if (tdMarkers.buy) updateTD9Markers(candleData); } catch(e) {}
+
+  // === 计算所有指标 ===
+  const highs = klines.map(k => parseFloat(k[2]));
+  const lows = klines.map(k => parseFloat(k[3]));
+  const safe = (fn, fallback = null) => { try { const r = fn(); return (r == null || (typeof r === 'number' && isNaN(r))) ? fallback : r; } catch { return fallback; } };
+  const ind = {
+    rsi: safe(() => TA.rsi(closes, 14)),
+    macd: safe(() => TA.macd(closes)),
+    bb: safe(() => TA.bb(closes)),
+    kdj: safe(() => TA.kdj(closes)),
+    wr: safe(() => TA.wr(closes, 14)),
+    cci: safe(() => TA.cci(closes)),
+    stoch: safe(() => TA.stochRsi(closes)),
+    mom: safe(() => TA.mom(closes, 12)),
+    roc: safe(() => TA.roc(closes, 10)),
+    atr: safe(() => TA.atr(highs, lows, closes)),
+    ma7: safe(() => TA.sma(closes, 7)),
+    ma25: safe(() => TA.sma(closes, 25)),
+    ma99: safe(() => TA.sma(closes, 99)),
+    ema7: safe(() => TA.ema(closes, 7)),
+    ema25: safe(() => TA.ema(closes, 25)),
+  };
+  cachedInd = ind;
+
+  // === RSI副图 ===
+  if (rsiSeries) {
+    const rsi = ind.rsi;
+    if (rsi) {
+      rsiSeries.setData(ts.map((t, i) => ({ time: t, value: rsi[i] })));
+    }
+    // KDJ
+    if (showInd.kdj && ind.kdj) {
+      kdjLines.k.setData(ts.map((t, i) => ({ time: t, value: ind.kdj.k[i] })));
+      kdjLines.d.setData(ts.map((t, i) => ({ time: t, value: ind.kdj.d[i] })));
+      kdjLines.j.setData(ts.map((t, i) => ({ time: t, value: ind.kdj.j[i] })));
+    }
+    kdjLines.k.applyOptions({ visible: showInd.kdj && !!ind.kdj });
+    kdjLines.d.applyOptions({ visible: showInd.kdj && !!ind.kdj });
+    kdjLines.j.applyOptions({ visible: showInd.kdj && !!ind.kdj });
+    // WR (缩放到0-100范围)
+    if (showInd.wr && ind.wr) {
+      wrSeries.setData(ts.map((t, i) => ({ time: t, value: ind.wr[i] })));
+    }
+    wrSeries.applyOptions({ visible: showInd.wr && !!ind.wr });
+    // CCI
+    if (showInd.cci && ind.cci) {
+      // CCI缩放到0-100区间叠加在RSI上
+      // CCI正常范围-200~+200, 缩放: (cci+200)/400*100 -> 0~100
+    }
+    // 30/70水平线
+    rsiSeries30.setData(ts.map(t => ({ time: t, value: 30 })));
+    rsiSeries70.setData(ts.map(t => ({ time: t, value: 70 })));
+  }
+
+  // === MACD副图 ===
+  if (macdSeries && ind.macd) {
+    macdSeries.setData(ts.map((t, i) => {
+      const h = ind.macd.hist[i];
+      return { time: t, value: h, color: h >= 0 ? '#3fb95088' : '#f8514988' };
+    }));
+    if (ind.macd.dif) difSeries.setData(ts.map((t, i) => ({ time: t, value: ind.macd.dif[i] })));
+    if (ind.macd.signal) deaSeries.setData(ts.map((t, i) => ({ time: t, value: ind.macd.signal[i] })));
+  }
+
+  // 更新图例
+  $('legBB').style.opacity = showInd.bb ? '1' : '0.3';
+  $('legKDJ').style.opacity = showInd.kdj ? '1' : '0.3';
+  $('legWR').style.opacity = showInd.wr ? '1' : '0.3';
+  $('legCCI').style.opacity = showInd.cci ? '1' : '0.3';
+
+  // 更新侧边栏信号表
+  try { renderOscillators(ind); } catch(e) {}
 
   chart.timeScale().fitContent();
 }
@@ -1266,38 +1209,6 @@ function updateTD9Markers(candleData) {
 }
 
 // ==================== 渲染指标面板 ====================
-function renderIndicators(ind) {
-  const signals = [
-    { name: 'RSI(14)', value: ind.rsi, type: 'rsi', fmt: '0' },
-    { name: 'KDJ', value: ind.kdj, type: 'kdj', fmt: 'k/d/j' },
-    { name: 'WR(14)', value: ind.wr, type: 'wr', fmt: '0' },
-    { name: 'CCI(20)', value: ind.cci, type: 'cci', fmt: '0' },
-    { name: 'StochRSI', value: ind.stoch, type: 'stoch', fmt: '0' },
-    { name: 'ADX(14)', value: ind.adx, type: 'adx', fmt: 'adx' },
-    { name: 'MACD', value: ind.macd, type: 'macd', fmt: 'hist' },
-    { name: '布林带', value: ind.bb, type: 'bb', fmt: 'w' }
-  ];
-
-  let html = '';
-  signals.forEach(s => {
-    const sig = getSignal(s.type, s.value, {});
-    let valStr = '--';
-    if (s.value != null) {
-      if (s.type === 'kdj' && s.value) valStr = `${s.value.k.toFixed(0)}/${s.value.d.toFixed(0)}/${s.value.j.toFixed(0)}`;
-      else if (s.type === 'macd' && s.value) valStr = s.value.hist.toFixed(4);
-      else if (s.type === 'bb' && s.value) valStr = `${s.value.w.toFixed(2)}%`;
-      else if (s.type === 'adx' && s.value) valStr = `${s.value.adx.toFixed(1)}`;
-      else valStr = typeof s.value === 'number' ? s.value.toFixed(1) : '--';
-    }
-    html += `<div class="indicator-cell">
-      <div class="indicator-name">${s.name}</div>
-      <div class="indicator-value">${valStr}</div>
-      <div class="indicator-signal ${sig.cls}">${sig.label}</div>
-    </div>`;
-  });
-  $('indicatorGrid').innerHTML = html;
-}
-
 // ==================== 渲染摆动指标表 ====================
 function renderOscillators(ind) {
   const rows = [
@@ -1325,146 +1236,6 @@ function renderOscillators(ind) {
   });
   if (!html) html = '<div style="padding:20px; text-align:center; color:var(--text2);">指标数据为空</div>';
   $('oscBody').innerHTML = html;
-}
-
-// ==================== 渲染TD9面板 ====================
-function renderTD9(ind) {
-  const td = ind.td9;
-  if (!td) {
-    $('td9Panel').innerHTML = '<div style="color:var(--text2);text-align:center;padding:12px;">数据不足</div>';
-    return;
-  }
-
-  const { buyCount, sellCount, buyActive, sellActive, buyPerfect, sellPerfect } = td;
-
-  // 生成计数圆圈
-  const renderDots = (count, isBuy) => {
-    let html = '';
-    for (let i = 1; i <= 9; i++) {
-      const isLit = i <= count;
-      const cls = isLit
-        ? (isBuy ? 'active-buy' : 'active-sell')
-        : 'inactive';
-      html += `<span class="td-num ${cls}">${i}</span>`;
-    }
-    return html;
-  };
-
-  // 信号状态
-  let statusColor, statusText, statusDesc;
-  if (buyPerfect) {
-    statusColor = 'var(--green)';
-    statusText = '🟢 TD9买入信号完成';
-    statusDesc = '价格反转概率极高，等待回调衰竭';
-  } else if (buyActive) {
-    statusColor = 'rgba(63,185,80,0.5)';
-    statusText = '🟡 买设置进行中';
-    statusDesc = `还需 ${9 - buyCount} 根完成买入设置`;
-  } else if (sellPerfect) {
-    statusColor = 'var(--red)';
-    statusText = '🔴 TD9卖出信号完成';
-    statusDesc = '价格反转概率极高，等待反弹衰竭';
-  } else if (sellActive) {
-    statusColor = 'rgba(248,81,73,0.5)';
-    statusText = '🟡 卖设置进行中';
-    statusDesc = `还需 ${9 - sellCount} 根完成卖出设置`;
-  } else {
-    statusColor = 'var(--text2)';
-    statusText = '⚪ 无活跃设置';
-    statusDesc = '等待TD9计数形成';
-  }
-
-  const html = `
-    <div style="margin-bottom:10px;">
-      <div style="font-size:12px; color:var(--text2); margin-bottom:6px;">买入设置 (Buy Setup)</div>
-      <div class="td-count">${renderDots(buyCount, true)}</div>
-    </div>
-    <div style="margin-bottom:10px;">
-      <div style="font-size:12px; color:var(--text2); margin-bottom:6px;">卖出设置 (Sell Setup)</div>
-      <div class="td-count">${renderDots(sellCount, false)}</div>
-    </div>
-    <div style="margin-top:10px; padding:8px; border-radius:6px; background:${statusColor}22; border-left:3px solid ${statusColor};">
-      <div style="font-size:13px; font-weight:700; color:${statusColor};">${statusText}</div>
-      <div style="font-size:11px; color:var(--text2); margin-top:4px;">${statusDesc}</div>
-    </div>
-  `;
-  $('td9Panel').innerHTML = html;
-}
-
-// ==================== 渲染趋势指标 ====================
-function renderTrend(ind, closes) {
-  const rows = [
-    { label: 'MA7', value: ind.ma7, color: '#e1303c' },
-    { label: 'MA25', value: ind.ma25, color: '#2ecc71' },
-    { label: 'MA99', value: ind.ma99, color: '#3498db' },
-    { label: 'EMA7', value: ind.ema7, color: '#f39c12' },
-    { label: 'EMA25', value: ind.ema25, color: '#9b59b6' },
-    { label: 'ATR(14)', value: ind.atr, color: '#58a6ff' },
-  ];
-  const last = closes[closes.length-1];
-  let html = '';
-  rows.forEach(r => {
-    if (r.value == null) return;
-    const above = last > r.value;
-    const trend = r.label.startsWith('MA') || r.label.startsWith('EMA')
-      ? (above ? '🟢 上方' : '🔴 下方')
-      : '';
-    html += `<div style="display:flex; justify-content:space-between; align-items:center; padding:4px 0; border-bottom:1px solid var(--border);">
-      <span style="display:flex; align-items:center; gap:6px;">
-        <span style="width:10px; height:2px; background:${r.color}; border-radius:1px; display:inline-block;"></span>
-        ${r.label}
-      </span>
-      <span style="font-family:monospace; font-weight:600; color:var(--text);">${r.value.toFixed(last > 10 ? 2 : 6)}</span>
-      ${trend ? `<span style="font-size:11px; margin-left:8px;">${trend}</span>` : ''}
-    </div>`;
-  });
-  $('trendIndicators').innerHTML = html;
-}
-
-// ==================== 渲染详细信息 ====================
-function renderDetails(ind, klines) {
-  const last = klines[klines.length-1];
-  const price = parseFloat(last[4]);
-  const chg1h = ind.chg1h || 0, chg4h = ind.chg4h || 0, chg24h = ind.chg24h || 0;
-  const chg1d = ((price - parseFloat(last[1])) / parseFloat(last[1])) * 100;
-  const volume = parseFloat(last[5]);
-  const turnover = price * volume;
-
-  const rows = [
-    ['当前价格', `${price.toFixed(price > 10 ? 2 : 6)}`],
-    ['1H 涨跌', `${chg1h >= 0 ? '+' : ''}${chg1h.toFixed(2)}%`],
-    ['4H 涨跌', `${chg4h >= 0 ? '+' : ''}${chg4h.toFixed(2)}%`],
-    ['24H 涨跌', `${chg24h >= 0 ? '+' : ''}${chg24h.toFixed(2)}%`],
-    ['24H成交量', `${(volume/1000).toFixed(0)}K`],
-    ['布林上轨', ind.bb?.upper?.toFixed(price > 10 ? 2 : 6)],
-    ['布林中轨', ind.bb?.sma?.toFixed(price > 10 ? 2 : 6)],
-    ['布林下轨', ind.bb?.lower?.toFixed(price > 10 ? 2 : 6)],
-    ['布林宽度', `${ind.bb?.w?.toFixed(2)}%`],
-    ['布林位置', `${ind.bb?.pos?.toFixed(1)}%`],
-    ['MACD DIF', ind.macd?.dif?.toFixed(6)],
-    ['MACD DEA', ind.macd?.signal?.toFixed(6)],
-    ['MACD Hist', ind.macd?.hist?.toFixed(6)],
-    ['RSI', ind.rsi?.toFixed(1)],
-    ['KDJ K', ind.kdj?.k?.toFixed(1)],
-    ['KDJ D', ind.kdj?.d?.toFixed(1)],
-    ['KDJ J', ind.kdj?.j?.toFixed(1)],
-    ['威廉指标', ind.wr?.toFixed(1)],
-    ['CCI', ind.cci?.toFixed(1)],
-    ['ATR', ind.atr?.toFixed(price > 10 ? 2 : 6)],
-    ['动量ROC', `${ind.roc?.toFixed(2)}%`],
-    ['OBV', ind.obv?.toFixed(0)],
-  ];
-  let html = '';
-  rows.forEach(r => {
-    if (r[1] == null) return;
-    const isUp = typeof r[1] === 'string' && r[1].startsWith('+');
-    const isDown = typeof r[1] === 'string' && r[1].startsWith('-');
-    html += `<div class="detail-row">
-      <span class="label">${r[0]}</span>
-      <span class="val" style="${isUp ? 'color:var(--green)' : isDown ? 'color:var(--red)' : ''}">${r[1]}</span>
-    </div>`;
-  });
-  $('detailContent').innerHTML = html;
 }
 
 // ==================== 渲染信号条 ====================
@@ -1651,13 +1422,8 @@ async function analyzeCoin(symbol) {
       ind.takerBuyRatio = 0.5;
     }
 
-    // 渲染（每个步骤独立try，防止一个崩溃影响其他）
+    // 渲染（renderChart已处理主图+副图+侧边栏）
     try { renderChart(klines1h); } catch(e) { console.error('renderChart:', e); }
-    try { renderIndicators(ind); } catch(e) { console.error('renderIndicators:', e); }
-    try { renderOscillators(ind); } catch(e) { console.error('renderOscillators:', e); }
-    try { renderTD9(ind); } catch(e) { console.error('renderTD9:', e); }
-    try { renderTrend(ind, closes1h); } catch(e) { console.error('renderTrend:', e); }
-    try { renderDetails(ind, klines1h); } catch(e) { console.error('renderDetails:', e); }
 
     try {
       const scoreObj = { ...calcScore(ind), ind };
@@ -1912,11 +1678,33 @@ function updateIndicatorsRealtime(lastClose) {
     td9: safe(() => TA.tdSequential(closes)),
   };
 
-  // 更新各面板
-  try { renderIndicators(ind); } catch(e) {}
+  // 更新侧边栏信号表
   try { renderOscillators(ind); } catch(e) {}
-  try { renderTD9(ind); } catch(e) {}
-  try { renderTrend(ind, closes); } catch(e) {}
+
+  // 实时更新RSI副图
+  try {
+    if (rsiSeries && ind.rsi && cachedCandleData) {
+      const lastRsi = ind.rsi[ind.rsi.length - 1];
+      const lastTime = cachedCandleData[cachedCandleData.length - 1].time;
+      if (lastRsi != null) rsiSeries.update({ time: lastTime, value: lastRsi });
+      if (showInd.kdj && ind.kdj) {
+        kdjLines.k.update({ time: lastTime, value: ind.kdj.k[ind.kdj.k.length - 1] });
+        kdjLines.d.update({ time: lastTime, value: ind.kdj.d[ind.kdj.d.length - 1] });
+        kdjLines.j.update({ time: lastTime, value: ind.kdj.j[ind.kdj.j.length - 1] });
+      }
+      if (showInd.wr && ind.wr) {
+        wrSeries.update({ time: lastTime, value: ind.wr[ind.wr.length - 1] });
+      }
+    }
+    // 实时更新MACD副图
+    if (macdSeries && ind.macd && cachedCandleData) {
+      const lastH = ind.macd.hist[ind.macd.hist.length - 1];
+      const lastTime = cachedCandleData[cachedCandleData.length - 1].time;
+      if (lastH != null) macdSeries.update({ time: lastTime, value: lastH, color: lastH >= 0 ? '#3fb95088' : '#f8514988' });
+      if (ind.macd.dif) difSeries.update({ time: lastTime, value: ind.macd.dif[ind.macd.dif.length - 1] });
+      if (ind.macd.signal) deaSeries.update({ time: lastTime, value: ind.macd.signal[ind.macd.signal.length - 1] });
+    }
+  } catch(e) {}
 
   // 更新评分
   try {
