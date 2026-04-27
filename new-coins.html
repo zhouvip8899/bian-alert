@@ -78,7 +78,7 @@ body{font-family:'PingFang SC','Microsoft YaHei',sans-serif;background:var(--bg)
 .analysis-card h4{font-size:13px;margin-bottom:10px;color:var(--text)}
 .analysis-card .bar-row{display:flex;align-items:center;gap:8px;font-size:11px;margin-bottom:6px}
 .analysis-card .bar-row .lbl{min-width:50px;color:var(--text2)}
-.analysis-card .bar-row .bar{flex:1;height:8px;background:var(--card2);border-radius:4px;overflow:hidden}
+.analysis-card .bar-row .bar{flex:1;height:8px;background:var(--card2);border-radius:4px;overflow:hidden;position:relative}
 .analysis-card .bar-row .bar-fill{height:100%;border-radius:4px;background:var(--warn)}
 .analysis-card .bar-row .val{min-width:40px;text-align:right;color:var(--text3)}
 
@@ -95,7 +95,7 @@ body{font-family:'PingFang SC','Microsoft YaHei',sans-serif;background:var(--bg)
 .score-card .sym{font-size:15px;font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:6px}
 .score-card .score-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px}
 .score-card .score-row .lbl{color:var(--text2);width:60px}
-.score-card .score-row .bar{flex:1;height:6px;background:var(--card2);border-radius:3px;overflow:hidden}
+.score-card .score-row .bar{flex:1;height:6px;background:var(--card2);border-radius:3px;overflow:hidden;position:relative}
 .score-card .score-row .bar-fill{height:100%;border-radius:3px}
 .score-card .score-row .val{font-weight:600;min-width:35px;text-align:right}
 .score-card .total-score{font-size:22px;font-weight:700;text-align:center;margin:10px 0 4px;color:var(--text)}
@@ -166,7 +166,7 @@ body{font-family:'PingFang SC','Microsoft YaHei',sans-serif;background:var(--bg)
     <button class="filter-btn" onclick="setFilter('rose')">🟢 有效上涨</button>
     <button class="filter-btn" onclick="setFilter('top20')">最惨Top20</button>
     <button class="filter-btn" onclick="setFilter('score')">📊 预警评分</button>
-    <button class="filter-btn" onclick="setFilter('规律')">🔍 规律分析</button>
+    <button class="filter-btn" onclick="setFilter('pattern')">🔍 规律分析</button>
   </div>
 
   <!-- 主数据区 -->
@@ -183,19 +183,15 @@ let allData = [];
 let filterMode = 'all';
 let canvasCache = new Map();
 
-function fetchJson(url) {
-  return new Promise((resolve, reject) => {
-    const proxyUrl = PROXY + encodeURIComponent(url);
-    const https = require('https');
-    https.get(proxyUrl, { timeout: 20000 }, (res) => {
-      let data = '';
-      res.on('data', d => data += d);
-      res.on('end', () => {
-        try { resolve(JSON.parse(data)); }
-        catch(e) { reject(new Error('JSON parse: ' + data.slice(0,100))); }
-      });
-    }).on('error', reject);
-  });
+async function fetchJson(url) {
+  const proxyUrl = PROXY + encodeURIComponent(url);
+  try {
+    const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(20000) });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return await res.json();
+  } catch (e) {
+    throw new Error('Fetch failed: ' + e.message);
+  }
 }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -298,10 +294,8 @@ async function loadData() {
     }));
     
     if (i + BATCH < newSymbols.length) await sleep(200);
-    process.stderr.write(`\r进度: ${Math.min(i + BATCH, newSymbols.length)}/${newSymbols.length}`);
   }
   
-  process.stderr.write('\n');
   results.sort((a,b) => a.totalChange - b.totalChange);
   return results;
 }
@@ -321,7 +315,7 @@ function renderContent() {
       renderTable(el); break;
     case 'score':
       renderScore(el); break;
-    case '规律':
+    case 'pattern':
       renderAnalysis(el); break;
   }
 }

@@ -3,10 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🔍 综合分析平台 v4.0</title>
-<!-- 使用 jsDelivr CDN (更稳定) -->
+<title>🔍 综合分析平台 v5.1</title>
+<!-- TradingView Lightweight Charts v4.1.0 -->
 <script src="lightweight-charts.standalone.production.js"></script>
 <script>
+// 检查 LightweightCharts 是否加载成功
+if (typeof window.LightweightCharts === 'undefined') {
+    console.error('LightweightCharts 未加载!');
+    document.body.innerHTML = '<div style="padding:50px;text-align:center;color:red;font-size:24px">⚠️ 图表库加载失败，请刷新页面或检查网络</div>';
+}
+
 // 获取 MarkerShape 常量
 const MarkerShape = window.LightweightCharts ? window.LightweightCharts.MarkerShape : null;
 
@@ -694,23 +700,39 @@ html { overflow-x: hidden; }
       <button class="tf-btn" data-tf="1d" onclick="setTf(this)">1d</button>
     </div>
   </div>
-  <button class="btn btn-ghost" onclick="showMA = !showMA" id="maToggle">均线: ON</button>
+  <button class="btn btn-ghost" id="maToggle">均线: ON</button>
   <span id="wsIndicator" style="font-size:11px; color:var(--text2);">⚪ 等待连接</span>
 </div>
 
 <!-- Coin Tags -->
 <div style="padding: 8px 20px; display:flex; gap:6px; flex-wrap:wrap;" id="coinTags"></div>
 
-<!-- 页内Tab切换栏 -->
-<div id="innerTabBar" style="display:flex;gap:0;border-bottom:2px solid var(--border);padding:0 12px;background:var(--card);">
-  <button class="inner-tab active" id="tabBtnKline" onclick="switchInnerTab('kline')">📊 K线分析</button>
-  <button class="inner-tab" id="tabBtnDetail" onclick="switchInnerTab('detail')">📋 币种详情</button>
-  <button class="inner-tab" id="tabBtnRadar" onclick="switchInnerTab('radar')">📡 雷达核心</button>
-</div>
-<div id="tab-kline" class="inner-tab-panel">
+
+
+<!-- ==================== 统一分析页面 ==================== -->
 <div class="main">
   <!-- Left Sidebar -->
   <div class="sidebar-left">
+    <!-- VWAP 一刀之眼 -->
+    <div class="detail-section">
+      <div class="detail-header">💎 一刀之眼 / VWAP 状态</div>
+      <div class="yidao-strip" id="yidaoStrip">
+        <div class="yidao-row">
+          <span class="yidao-ball" id="yidaoBall">💎</span>
+          <span class="yidao-text wait" id="yidaoCoreText">等待信号</span>
+          <span class="yidao-dir" id="yidaoDir">→</span>
+        </div>
+        <div class="yidao-vwap-row">
+          <span style="color:#787b86;font-size:11px">VWAP位置</span>
+          <span class="yidao-vwap neutral" id="yidaoVwap">--</span>
+        </div>
+        <div class="yidao-vwap-row">
+          <span style="color:#787b86;font-size:11px">相对VWAP</span>
+          <span id="yidaoVwapDist" style="font-size:11px;color:#d1d4dc;">--</span>
+        </div>
+      </div>
+    </div>
+
     <!-- Overall Score -->
     <div class="overall-score" id="overallScore">
       <div class="label">综合评分</div>
@@ -724,16 +746,27 @@ html { overflow-x: hidden; }
       <div id="signalBars"></div>
     </div>
 
-    <!-- TD9 -->
+    <!-- 雷达核心指令 -->
     <div class="detail-section">
-      <div class="detail-header">🔄 TD9转指标 / TD Sequential</div>
-      <div id="td9Panel" style="padding:12px 14px;"></div>
+      <div class="detail-header">🎯 雷达核心指令</div>
+      <div class="radar-signal-list" id="radarList" style="padding:4px 0;">
+        <div class="radar-sig-item"><span>⏳</span><span>等待雷达信号...</span></div>
+      </div>
     </div>
 
-    <!-- 庄家信号面板 -->
+    <!-- 主力行为 -->
     <div class="detail-section">
-      <div class="detail-header">🎯 庄家行为检测</div>
+      <div class="detail-header">🐋 主力行为</div>
       <div id="smartMoneyPanel" style="padding:10px 14px;"></div>
+      <div class="radar-signal-list" id="radarWhaleList" style="padding:4px 0;">
+        <div class="radar-sig-item"><span>⏳</span><span>监控中...</span></div>
+      </div>
+    </div>
+
+    <!-- TD9 -->
+    <div class="detail-section">
+      <div class="detail-header">🔄 TD9序贯指标</div>
+      <div id="td9Panel" style="padding:12px 14px;"></div>
     </div>
 
     <!-- Oscillators Table -->
@@ -750,7 +783,38 @@ html { overflow-x: hidden; }
       <div id="trendIndicators"></div>
     </div>
 
-    <!-- Detailed Info -->
+    <!-- 关键突破价位 -->
+    <div class="detail-section">
+      <div class="detail-header">⚡ 关键突破价位</div>
+      <div class="radar-ind-card" id="radarLevelsCard" style="margin:0 2px;">
+        <div class="radar-level-item"><span class="radar-level-res" id="radarRes3">--</span><span id="radarRes3dist">阻力3</span></div>
+        <div class="radar-level-item"><span class="radar-level-res" id="radarRes2">--</span><span id="radarRes2dist">阻力2</span></div>
+        <div class="radar-level-item"><span class="radar-level-res" id="radarRes1">--</span><span>阻力1</span></div>
+        <div class="radar-level-item"><span style="color:#fff;font-weight:700" id="radarCurPrice">--</span><span>当前价</span></div>
+        <div class="radar-level-item"><span class="radar-level-sup" id="radarSup1">--</span><span>支撑1</span></div>
+        <div class="radar-level-item"><span class="radar-level-sup" id="radarSup2">--</span><span id="radarSup2dist">支撑2</span></div>
+        <div class="radar-level-item"><span class="radar-level-sup" id="radarSup3">--</span><span id="radarSup3dist">支撑3</span></div>
+      </div>
+    </div>
+
+    <!-- 量能天眼 -->
+    <div class="detail-section">
+      <div class="detail-header">🔥 量能天眼</div>
+      <div class="radar-ind-card" style="margin:0 2px;">
+        <div class="radar-vwap-row"><span style="color:#787b86">量比(均值)</span><span id="radarVolRatio" style="font-size:12px;font-weight:700;">--</span></div>
+        <div class="radar-vwap-row"><span style="color:#787b86">均量MA20</span><span id="radarVolMA" style="font-size:11px;color:#d1d4dc;">--</span></div>
+        <div class="radar-vwap-row"><span style="color:#787b86">量能状态</span><span id="radarVolStatus" style="font-size:11px;color:#d1d4dc;">--</span></div>
+        <div class="radar-vol-stat">
+          <div class="radar-vol-stat-item" id="radarVolItem0"><div class="radar-vol-stat-val" id="radarVolBar0">--</div><div class="radar-vol-stat-lbl">近1</div></div>
+          <div class="radar-vol-stat-item" id="radarVolItem1"><div class="radar-vol-stat-val" id="radarVolBar1">--</div><div class="radar-vol-stat-lbl">近2</div></div>
+          <div class="radar-vol-stat-item" id="radarVolItem2"><div class="radar-vol-stat-val" id="radarVolBar2">--</div><div class="radar-vol-stat-lbl">近3</div></div>
+          <div class="radar-vol-stat-item" id="radarVolItem3"><div class="radar-vol-stat-val" id="radarVolBar3">--</div><div class="radar-vol-stat-lbl">近4</div></div>
+          <div class="radar-vol-stat-item" id="radarVolItem4"><div class="radar-vol-stat-val" id="radarVolBar4">--</div><div class="radar-vol-stat-lbl">近5</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 详细信息 -->
     <div class="detail-section">
       <div class="detail-header">📋 详细信息</div>
       <div class="detail-content" id="detailContent">
@@ -764,28 +828,10 @@ html { overflow-x: hidden; }
       <div id="rsiExtremePanel" style="padding:10px 14px; font-size:12px;"></div>
     </div>
 
-    <!-- 量能异动 -->
+    <!-- 资金费率 & 多空比 -->
     <div class="detail-section">
-      <div class="detail-header">🔥 量能异动检测</div>
-      <div id="volSpikePanel" style="padding:10px 14px; font-size:12px;"></div>
-    </div>
-
-    <!-- 资金费率 -->
-    <div class="detail-section">
-      <div class="detail-header">💰 资金费率监控</div>
+      <div class="detail-header">💰 资金费率 & 多空比</div>
       <div id="fundingPanel" style="padding:10px 14px; font-size:12px;"></div>
-    </div>
-
-    <!-- 多空比极端 -->
-    <div class="detail-section">
-      <div class="detail-header">⚖️ 多空比极端</div>
-      <div id="lsExtremePanel" style="padding:10px 14px; font-size:12px;"></div>
-    </div>
-
-    <!-- 多周期共振 -->
-    <div class="detail-section">
-      <div class="detail-header">🔄 多周期共振</div>
-      <div id="mtfPanel" style="padding:10px 14px; font-size:12px;"></div>
     </div>
 
     <!-- 清算密集区 -->
@@ -794,7 +840,7 @@ html { overflow-x: hidden; }
       <div id="liqZonePanel" style="padding:10px 14px; font-size:12px;"></div>
     </div>
 
-    <!-- Recommended Coins -->
+    <!-- 推荐关注 -->
     <div class="recommended-section">
       <div class="panel-title">⭐ 推荐关注</div>
       <div class="rec-coins" id="recCoins">
@@ -803,7 +849,7 @@ html { overflow-x: hidden; }
     </div>
   </div>
 
-  <!-- 右侧K线图 + 核心指标 -->
+  <!-- 右侧K线图 + 副图指标 -->
   <div class="chart-main">
     <div class="chart-wrapper">
       <div class="chart-header">
@@ -830,201 +876,27 @@ html { overflow-x: hidden; }
         <span><div class="ma-dot" style="background:#9b59b6;"></div> EMA25</span>
       </div>
     </div>
-    <!-- 核心指标放K线图下方 -->
+
+    <!-- RSI & MACD 副图（雷达核心合并） -->
+    <div class="unified-indicators" id="unifiedIndicators">
+      <div class="unified-ind-panel" id="rsiPanel">
+        <div class="unified-ind-title">RSI(14)</div>
+        <div class="unified-ind-chart" id="rsiChart"></div>
+      </div>
+      <div class="unified-ind-panel" id="macdPanel">
+        <div class="unified-ind-title">MACD(12,26,9)</div>
+        <div class="unified-ind-chart" id="macdChart"></div>
+      </div>
+    </div>
+
+    <!-- 核心指标 -->
     <div class="indicators-panel">
       <div class="panel-title">🔧 核心指标</div>
       <div class="indicator-grid" id="indicatorGrid"></div>
     </div>
   </div>
 </div>
-</div><!-- /tab-kline -->
 
-<!-- ========== 币种详情 Tab ========== -->
-<div id="tab-detail" class="inner-tab-panel" style="display:none;">
-  <div class="detail-top-bar">
-    <div class="detail-search-box">
-      <input type="text" id="detailSymInput" placeholder="输入币种 如 BTC" />
-      <button onclick="detailLoadSymbol()">查询</button>
-    </div>
-    <span id="detailUpdateTime" style="font-size:12px;color:#999;margin-left:auto"></span>
-  </div>
-  <!-- 基础信息 -->
-  <div class="detail-info-block">
-    <div class="detail-info-inner">
-      <div class="detail-coin-header">
-        <div class="detail-coin-logo" id="detailCoinLogo">-</div>
-        <div class="detail-coin-name-wrap">
-          <div class="detail-coin-name" id="detailCoinName">--</div>
-          <div class="detail-coin-code" id="detailCoinCode">--</div>
-        </div>
-        <div class="detail-coin-price">
-          <span id="detailCoinPrice" style="font-size:24px;font-weight:700;color:#ef4444">--</span>
-          <span class="detail-price-change" id="detailCoinChange">--</span>
-        </div>
-        <div class="detail-coin-stats" id="detailCoinStats"></div>
-      </div>
-    </div>
-  </div>
-  <!-- 数据面板 -->
-  <div class="detail-panels" id="detailPanelArea">
-    <div class="detail-panel"><div class="detail-panel-title">📊 合约数据</div><div id="detailContractPanel"><div class="detail-data-row"><span>加载中...</span></div></div></div>
-    <div class="detail-panel"><div class="detail-panel-title">⚖️ 多空比</div><div id="detailLsPanel"><div class="detail-data-row"><span>加载中...</span></div></div></div>
-    <div class="detail-panel"><div class="detail-panel-title">💰 资金费率 & OI</div><div id="detailFundingPanel"><div class="detail-data-row"><span>加载中...</span></div></div></div>
-  </div>
-  <!-- 爆仓面板 -->
-  <div class="detail-liq-panels" id="detailLiqArea">
-    <div class="detail-liq-panel" id="detailLiq1h"><div class="detail-liq-title">1小时爆仓</div><div style="color:#999;font-size:12px">加载中...</div></div>
-    <div class="detail-liq-panel" id="detailLiq4h"><div class="detail-liq-title">4小时爆仓</div><div style="color:#999;font-size:12px">加载中...</div></div>
-    <div class="detail-liq-panel" id="detailLiq12h"><div class="detail-liq-title">12小时爆仓</div><div style="color:#999;font-size:12px">加载中...</div></div>
-    <div class="detail-liq-panel" id="detailLiq24h"><div class="detail-liq-title">24小时爆仓</div><div style="color:#999;font-size:12px">加载中...</div></div>
-  </div>
-  <!-- K线图 -->
-  <div class="detail-chart-block">
-    <div class="detail-chart-wrap">
-      <div class="detail-chart-toolbar">
-        <span class="detail-symbol-label" id="detailChartLabel">--</span>
-        <span style="color:#888;font-size:12px;margin-right:8px">周期:</span>
-        <button class="detail-tf-btn" onclick="detailChangeTf('15m',this)">15m</button>
-        <button class="detail-tf-btn active" onclick="detailChangeTf('1h',this)">1H</button>
-        <button class="detail-tf-btn" onclick="detailChangeTf('4h',this)">4H</button>
-        <button class="detail-tf-btn" onclick="detailChangeTf('1d',this)">日线</button>
-        <span style="color:#555;font-size:11px;margin-left:auto" id="detailKlineStatus">--</span>
-      </div>
-      <div id="detailChart" style="height:420px;"></div>
-    </div>
-  </div>
-  <!-- 实时状态栏 -->
-  <div class="detail-status-bar" id="detailStatusBar">
-    <span class="detail-ws-dot" id="detailWsDot"></span>
-    <span id="detailWsStatusText">连接中...</span>
-    <span style="margin-left:auto;color:#999;font-size:11px" id="detailLastUpdate">--</span>
-  </div>
-</div><!-- /tab-detail -->
-
-<!-- ========== 雷达核心 Tab ========== -->
-<div id="tab-radar" class="inner-tab-panel" style="display:none;">
-  <div class="radar-top-bar">
-    <h2 style="font-size:15px;font-weight:600;color:#fff;margin:0">📡 雷达核心版</h2>
-    <input class="radar-sym-input" id="radarSymInput" value="BTCUSDT" placeholder="BTCUSDT">
-    <select id="radarTfSelect" style="background:#2a2e39;border:1px solid #363a45;color:#fff;border-radius:4px;padding:5px 8px;font-size:12px;">
-      <option value="1m">1m</option>
-      <option value="5m">5m</option>
-      <option value="15m">15m</option>
-      <option value="1h" selected>1h</option>
-      <option value="4h">4h</option>
-      <option value="1d">1d</option>
-    </select>
-    <button class="radar-load-btn" onclick="radarLoadSymbol()">加载</button>
-    <span class="radar-price-info" id="radarPriceInfo"></span>
-    <div class="radar-ws-status" id="radarWsStatus">
-      <div class="radar-ws-dot" id="radarWsDot"></div>
-      <span id="radarWsText" style="font-size:11px;color:#787b86;">离线</span>
-    </div>
-    <button class="radar-reconnect-btn" id="radarReconnectBtn" onclick="radarManualReconnect()" style="display:none">🔄</button>
-  </div>
-  <div class="radar-main-layout">
-    <!-- 左侧指标面板 -->
-    <div class="radar-left-panel">
-      <div class="radar-ind-section">
-        <div class="radar-ind-title">📈 全局趋势 / VWAP日内状态</div>
-        <div class="radar-vwap-card">
-          <div class="radar-vwap-row"><span style="color:#787b86">趋势方向</span><span id="radarTrendDir" class="radar-vwap-badge neutral">--</span></div>
-          <div class="radar-vwap-row"><span style="color:#787b86">VWAP位置</span><span id="radarVwapPos" style="font-size:11px;color:#d1d4dc;">--</span></div>
-          <div class="radar-vwap-row"><span style="color:#787b86">日内VWAP</span><span id="radarVwapVal" style="font-size:12px;font-weight:700;color:#ffd600;">--</span></div>
-          <div class="radar-vwap-row"><span style="color:#787b86">相对VWAP</span><span id="radarVwapDist" style="font-size:11px;color:#d1d4dc;">--</span></div>
-          <div class="radar-vwap-row"><span style="color:#787b86">EMA多头</span><span id="radarEmaStatus" style="font-size:11px;color:#d1d4dc;">--</span></div>
-        </div>
-      </div>
-      <div class="radar-divider"></div>
-      <div class="radar-ind-section">
-        <div class="radar-ind-title">🎯 雷达核心指令</div>
-        <div class="radar-signal-list" id="radarList"><div class="radar-sig-item"><span>⏳</span><span>等待雷达信号...</span></div></div>
-      </div>
-      <div class="radar-divider"></div>
-      <div class="radar-ind-section">
-        <div class="radar-ind-title">🐋 主力逃顶</div>
-        <div class="radar-signal-list" id="radarWhaleList"><div class="radar-sig-item"><span>⏳</span><span>监控中...</span></div></div>
-      </div>
-      <div class="radar-divider"></div>
-      <div class="radar-ind-section">
-        <div class="radar-ind-title">⚡ 关键突破价位</div>
-        <div class="radar-ind-card" id="radarLevelsCard">
-          <div class="radar-level-item"><span class="radar-level-res" id="radarRes3">--</span><span id="radarRes3dist">阻力3</span></div>
-          <div class="radar-level-item"><span class="radar-level-res" id="radarRes2">--</span><span id="radarRes2dist">阻力2</span></div>
-          <div class="radar-level-item"><span class="radar-level-res" id="radarRes1">--</span><span>阻力1</span></div>
-          <div class="radar-level-item"><span style="color:#fff;font-weight:700" id="radarCurPrice">--</span><span>当前价</span></div>
-          <div class="radar-level-item"><span class="radar-level-sup" id="radarSup1">--</span><span>支撑1</span></div>
-          <div class="radar-level-item"><span class="radar-level-sup" id="radarSup2">--</span><span id="radarSup2dist">支撑2</span></div>
-          <div class="radar-level-item"><span class="radar-level-sup" id="radarSup3">--</span><span id="radarSup3dist">支撑3</span></div>
-        </div>
-      </div>
-      <div class="radar-divider"></div>
-      <div class="radar-ind-section">
-        <div class="radar-ind-title">👁️ 量能天眼</div>
-        <div class="radar-ind-card">
-          <div class="radar-vwap-row"><span style="color:#787b86">量比(均值)</span><span id="radarVolRatio" style="font-size:12px;font-weight:700;">--</span></div>
-          <div class="radar-vwap-row"><span style="color:#787b86">均量MA20</span><span id="radarVolMA" style="font-size:11px;color:#d1d4dc;">--</span></div>
-          <div class="radar-vwap-row"><span style="color:#787b86">量能状态</span><span id="radarVolStatus" style="font-size:11px;color:#d1d4dc;">--</span></div>
-          <div class="radar-vwap-row"><span style="color:#787b86">放量周期</span><span id="radarVolSpikeCount" style="font-size:11px;color:#d1d4dc;">--</span></div>
-          <div class="radar-vol-stat">
-            <div class="radar-vol-stat-item" id="radarVolItem0"><div class="radar-vol-stat-val" id="radarVolBar0">--</div><div class="radar-vol-stat-lbl">近1</div></div>
-            <div class="radar-vol-stat-item" id="radarVolItem1"><div class="radar-vol-stat-val" id="radarVolBar1">--</div><div class="radar-vol-stat-lbl">近2</div></div>
-            <div class="radar-vol-stat-item" id="radarVolItem2"><div class="radar-vol-stat-val" id="radarVolBar2">--</div><div class="radar-vol-stat-lbl">近3</div></div>
-            <div class="radar-vol-stat-item" id="radarVolItem3"><div class="radar-vol-stat-val" id="radarVolBar3">--</div><div class="radar-vol-stat-lbl">近4</div></div>
-            <div class="radar-vol-stat-item" id="radarVolItem4"><div class="radar-vol-stat-val" id="radarVolBar4">--</div><div class="radar-vol-stat-lbl">近5</div></div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <!-- 右侧图表 -->
-    <div class="radar-right-panel">
-      <div class="radar-chart-wrap" id="radarChartWrap">
-        <div class="radar-loading hidden" id="radarLoading">加载中...</div>
-        <div class="radar-chart-ctrl">
-          <button class="radar-ci-btn active" onclick="radarToggleMA(this)">MA</button>
-          <button class="radar-ci-btn active" onclick="radarToggleBB(this)">BB</button>
-          <button class="radar-ci-btn active" onclick="radarToggleVWAP(this)">VWAP</button>
-          <button class="radar-ci-btn active" onclick="radarToggleRSI(this)">RSI</button>
-          <button class="radar-ci-btn active" onclick="radarToggleMACD(this)">MACD</button>
-          <button class="radar-ci-btn active" onclick="radarToggleVol(this)">VOL</button>
-          <button class="radar-ci-btn active" onclick="radarToggleLevelLine(this)">📍价位</button>
-          <button class="radar-ci-btn active" onclick="radarToggleRadarMark(this)">🎯雷达</button>
-        </div>
-        <div id="radarChart"></div>
-        <!-- 一刀之眼 -->
-        <div class="radar-chart-info" id="radarChartInfo">
-          <div class="radar-yidao-core">
-            <div class="radar-yidao-row">
-              <span class="radar-yidao-ball" id="radarYidaoBall">💎</span>
-              <span class="radar-yidao-text wait" id="radarYidaoCore">等待信号</span>
-              <span class="radar-yidao-dir" id="radarYidaoDir">→</span>
-            </div>
-            <span class="radar-yidao-vwap neutral" id="radarYidaoVwap">VWAP: --</span>
-          </div>
-        </div>
-        <!-- 雷达核心指令面板 -->
-        <div class="radar-radar-panel" id="radarRadarPanel">
-          <span class="radar-ci-badge warn" id="radarRpBreakout">上破阻力: --</span>
-          <span class="radar-ci-badge warn" id="radarRpBreakdown">下破支撑: --</span>
-          <span class="radar-ci-badge warn" id="radarRpWhaleTop">主力逃顶: --</span>
-          <span class="radar-ci-badge warn" id="radarRpWhaleBottom">主力蓄力: --</span>
-          <span class="radar-ci-badge warn" id="radarRpVolEye">量能天眼: --</span>
-        </div>
-      </div>
-      <div class="radar-resize-handle" id="radarResizeHandle"></div>
-      <div class="radar-oscillators">
-        <div class="radar-osc-panel" id="radarRsiPanel">
-          <div class="radar-osc-title">RSI(14)</div>
-          <div class="radar-osc-content" id="radarRsiChart"></div>
-        </div>
-        <div class="radar-osc-panel" id="radarMacdPanel">
-          <div class="radar-osc-title">MACD(12,26,9)</div>
-          <div class="radar-osc-content" id="radarMacdChart"></div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div><!-- /tab-radar -->
 
 <style>
 /* ========== Main Layout ========== */
@@ -1063,6 +935,13 @@ body { margin: 0; padding: 0; overflow: auto; }
 #chart { flex: 1; width: 100%; height: 100%; min-height: 0; overflow: hidden; }
 .indicators-panel { height: auto; min-height: 120px; flex-shrink: 0; overflow: auto; }
 .indicator-grid { grid-template-columns: repeat(4, 1fr); }
+
+/* ===== 统一副图（RSI + MACD）===== */
+.unified-indicators { display: flex; height: 120px; border-top: 1px solid var(--border); flex-shrink: 0; }
+.unified-ind-panel { flex: 1; border-right: 1px solid var(--border); padding: 4px 6px; min-width: 0; display: flex; flex-direction: column; }
+.unified-ind-panel:last-child { border-right: none; }
+.unified-ind-title { font-size: 10px; color: var(--text2); margin-bottom: 3px; font-weight: 600; }
+.unified-ind-chart { flex: 1; min-height: 0; position: relative; }
 
 /* ========== 移动端响应式 ========== */
 @media (max-width: 1200px) {
@@ -1216,16 +1095,24 @@ body { margin: 0; padding: 0; overflow: auto; }
   .nav-item { padding:0 10px; font-size:12px; }
 }
 
-/* ===== 页内 Tab 切换 ===== */
-.inner-tab {
-  padding:10px 20px; background:transparent; border:none;
-  color:#aaa; font-size:13px; font-weight:500; cursor:pointer;
-  border-bottom:2px solid transparent; white-space:nowrap;
-  transition:all .2s;
-}
-.inner-tab:hover { color:#f0b90b; }
-.inner-tab.active { color:#f0b90b; border-bottom-color:#f0b90b; }
-.inner-tab-panel { display:block; }
+
+
+/* ===== 统一页面样式 ===== */
+
+/* 一刀之眼 / VWAP */
+.yidao-strip { padding: 6px 10px; }
+.yidao-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.yidao-ball { font-size:18px; }
+.yidao-text { font-size:11px; font-weight:700; padding:2px 8px; border-radius:3px; }
+.yidao-text.long { background:#3fb95033; color:#3fb950; border:1px solid #3fb95066; }
+.yidao-text.short { background:#f8514933; color:#f85149; border:1px solid #f8514966; }
+.yidao-text.wait { background:#2962ff33; color:#2962ff; border:1px solid #2962ff66; }
+.yidao-dir { font-size:12px; color:#787b86; }
+.yidao-vwap-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:3px; font-size:11px; }
+.yidao-vwap { font-size:10px; padding:2px 6px; border-radius:2px; }
+.yidao-vwap.up { background:#3fb95022; color:#3fb950; }
+.yidao-vwap.down { background:#f8514922; color:#f85149; }
+.yidao-vwap.neutral { background:#2962ff22; color:#2962ff; }
 
 /* ===== 币种详情 Tab 样式 ===== */
 .detail-top-bar { background:#fff; border-bottom:1px solid #e8e8e8; padding:14px 20px; display:flex; align-items:center; gap:16px; }
@@ -1268,20 +1155,6 @@ body { margin: 0; padding: 0; overflow: auto; }
 @media(max-width:600px){ .detail-panels { grid-template-columns:1fr; padding:0 10px; } .detail-liq-panels { grid-template-columns:1fr 1fr; padding:0 10px; } }
 
 /* ===== 雷达核心 Tab 样式 ===== */
-.radar-top-bar { background:#1e222d; border-bottom:1px solid #2a2e39; padding:10px 20px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-.radar-sym-input { background:#2a2e39; border:1px solid #363a45; color:#fff; border-radius:4px; padding:5px 10px; font-size:13px; width:130px; outline:none; }
-.radar-load-btn { padding:5px 14px; background:#2962ff; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:13px; }
-.radar-load-btn:hover { background:#0039cb; }
-.radar-price-info { font-size:17px; font-weight:700; color:#fff; }
-.radar-ws-status { display:flex; align-items:center; gap:5px; }
-.radar-ws-dot { width:8px; height:8px; border-radius:50%; background:#555; flex-shrink:0; }
-.radar-ws-dot.online { background:#3fb950; animation:pulse 2s infinite; }
-.radar-ws-dot.connecting { background:#ff9800; animation:pulse 1s infinite; }
-.radar-ws-dot.error { background:#f85149; }
-.radar-reconnect-btn { background:none; border:1px solid #3fb95044; color:#3fb950; border-radius:4px; padding:2px 6px; cursor:pointer; font-size:11px; }
-.radar-main-layout { display:flex; height:calc(100vh - 160px); background:#131722; color:#d1d4dc; }
-.radar-left-panel { width:290px; background:#1e222d; border-right:1px solid #2a2e39; overflow-y:auto; padding:10px; flex-shrink:0; }
-.radar-right-panel { flex:1; display:flex; flex-direction:column; min-width:0; }
 .radar-ind-section { margin-bottom:12px; }
 .radar-ind-title { font-size:10px; color:#787b86; font-weight:600; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; }
 .radar-ind-card { background:#2a2e39; border-radius:5px; padding:8px 10px; margin-bottom:6px; }
@@ -1304,32 +1177,6 @@ body { margin: 0; padding: 0; overflow: auto; }
 .radar-vol-stat-item.spike { background:#ff980033; }
 .radar-vol-stat-item.spike .radar-vol-stat-val { color:#ff9800; }
 .radar-divider { border-bottom:1px solid #2a2e39; margin:10px 0; }
-.radar-chart-wrap { flex:1; position:relative; min-height:400px; height:55vh; }
-#radarChart { width:100%; height:100%; min-height:350px; }
-.radar-chart-ctrl { position:absolute; top:6px; left:6px; display:flex; gap:3px; z-index:10; }
-.radar-ci-btn { padding:3px 9px; background:#2a2e39; border:1px solid #363a45; color:#787b86; border-radius:3px; cursor:pointer; font-size:11px; }
-.radar-ci-btn.active { background:#2962ff; border-color:#2962ff; color:#fff; }
-.radar-chart-info { position:absolute; top:6px; left:50%; transform:translateX(-50%); z-index:10; pointer-events:none; }
-.radar-yidao-core { display:flex; flex-direction:column; gap:2px; align-items:center; }
-.radar-yidao-row { display:flex; align-items:center; gap:6px; }
-.radar-yidao-ball { font-size:16px; }
-.radar-yidao-text { font-size:11px; font-weight:700; padding:2px 8px; border-radius:3px; }
-.radar-yidao-text.long { background:#3fb95033; color:#3fb950; border:1px solid #3fb95066; }
-.radar-yidao-text.short { background:#f8514933; color:#f85149; border:1px solid #f8514966; }
-.radar-yidao-text.wait { background:#2962ff33; color:#2962ff; border:1px solid #2962ff66; }
-.radar-yidao-dir { font-size:12px; color:#787b86; }
-.radar-yidao-vwap { font-size:10px; padding:2px 6px; border-radius:2px; }
-.radar-yidao-vwap.up { background:#3fb95022; color:#3fb950; }
-.radar-yidao-vwap.down { background:#f8514922; color:#f85149; }
-.radar-yidao-vwap.neutral { background:#2962ff22; color:#2962ff; }
-.radar-radar-panel { position:absolute; top:6px; right:10px; z-index:10; display:flex; flex-direction:column; gap:3px; pointer-events:none; max-width:160px; }
-.radar-ci-badge { display:inline-flex; align-items:center; gap:4px; padding:2px 6px; border-radius:3px; font-size:10px; font-weight:700; background:#ff980033; color:#ff9800; border:1px solid #ff980066; }
-.radar-ci-badge.green { color:#3fb950; border-color:#3fb95044; background:#3fb95011; }
-.radar-ci-badge.red { color:#f85149; border-color:#f8514944; background:#f8514911; }
-.radar-ci-badge.cyan { color:#00e5ff; border-color:#00e5ff44; background:#00e5ff11; }
-.radar-ci-badge.orange { color:#ff9800; border-color:#ff980044; background:#ff980011; }
-.radar-resize-handle { height:6px; background:linear-gradient(90deg,transparent,#363a45 20%,#363a45 80%,transparent); cursor:ns-resize; flex-shrink:0; }
-.radar-resize-handle:hover { background:linear-gradient(90deg,transparent,#2962ff 20%,#2962ff 80%,transparent); }
 .radar-oscillators { display:flex; border-top:1px solid #2a2e39; height:120px; flex-shrink:0; }
 .radar-osc-panel { flex:1; border-right:1px solid #2a2e39; padding:4px 6px; min-width:0; }
 .radar-osc-panel:last-child { border-right:none; }
@@ -1337,16 +1184,8 @@ body { margin: 0; padding: 0; overflow: auto; }
 .radar-osc-content { height:calc(100% - 15px); position:relative; }
 .radar-loading { position:absolute; inset:0; background:rgba(19,23,34,0.9); display:flex; align-items:center; justify-content:center; font-size:13px; color:#787b86; z-index:20; }
 .hidden { display:none !important; }
-@media(max-width:900px){
-  .radar-main-layout { flex-direction:column; height:auto; }
-  .radar-left-panel { width:100%; max-height:40vh; border-right:none; border-bottom:1px solid #2a2e39; }
-  .radar-right-panel { height:60vh; min-height:400px; }
-}
-@media(max-width:600px){
-  .radar-top-bar { gap:8px; }
-  .radar-sym-input { width:100px; }
-  .inner-tab { padding:8px 12px; font-size:12px; }
-}
+
+
 </style>
 
 <script>
@@ -1813,6 +1652,127 @@ function renderIndicators(ind) {
   $('indicatorGrid').innerHTML = html;
 }
 
+// ==================== 统一副图渲染（RSI + MACD）====================
+let unifiedRsiChart = null, unifiedMacdChart = null;
+let unifiedRsiSeries = null, unifiedMacdDifSeries = null, unifiedMacdSigSeries = null, unifiedMacdHistSeries = null;
+
+function renderUnifiedSubCharts(klines, closes) {
+  const rsiContainer = document.getElementById('rsiChart');
+  const macdContainer = document.getElementById('macdChart');
+  if (!rsiContainer || !macdContainer || !klines || !klines.length) return;
+
+  // klines 是数组格式 [timestamp, open, high, low, close, volume]
+  // 转换为秒级时间戳
+  const getTime = (k) => (Array.isArray(k) ? k[0] : k.time) / 1000;
+
+  // --- RSI Chart ---
+  if (!unifiedRsiChart) {
+    unifiedRsiChart = LightweightCharts.createChart(rsiContainer, {
+      width: rsiContainer.clientWidth || 400,
+      height: rsiContainer.clientHeight || 85,
+      layout: { background: { color: 'transparent' }, textColor: '#787b86' },
+      grid: { vertLines: { color: '#1e222d' }, horzLines: { color: '#1e222d' } },
+      rightPriceScale: { borderColor: '#363a45' },
+      timeScale: { visible: false },
+      crosshair: { mode: 0 },
+      handleScroll: false, handleScale: false
+    });
+    unifiedRsiSeries = unifiedRsiChart.addLineSeries({
+      color: '#f7931a', lineWidth: 1, priceLineVisible: false
+    });
+    // 30/70 参考线
+    unifiedRsiChart.addLineSeries({ color: '#f8514966', lineWidth: 1, lineStyle: 2, priceLineVisible: false })
+      .setData(closes.map((c, i) => ({ time: getTime(klines[i]), value: 70 })));
+    unifiedRsiChart.addLineSeries({ color: '#3fb95066', lineWidth: 1, lineStyle: 2, priceLineVisible: false })
+      .setData(closes.map((c, i) => ({ time: getTime(klines[i]), value: 30 })));
+  }
+
+  // --- MACD Chart ---
+  if (!unifiedMacdChart) {
+    unifiedMacdChart = LightweightCharts.createChart(macdContainer, {
+      width: macdContainer.clientWidth || 400,
+      height: macdContainer.clientHeight || 85,
+      layout: { background: { color: 'transparent' }, textColor: '#787b86' },
+      grid: { vertLines: { color: '#1e222d' }, horzLines: { color: '#1e222d' } },
+      rightPriceScale: { borderColor: '#363a45' },
+      timeScale: { visible: false },
+      crosshair: { mode: 0 },
+      handleScroll: false, handleScale: false
+    });
+    unifiedMacdHistSeries = unifiedMacdChart.addHistogramSeries({
+      color: '#2962ff', priceLineVisible: false
+    });
+    unifiedMacdSigSeries = unifiedMacdChart.addLineSeries({
+      color: '#ff9800', lineWidth: 1, priceLineVisible: false
+    });
+    unifiedMacdDifSeries = unifiedMacdChart.addLineSeries({
+      color: '#2962ff', lineWidth: 1, priceLineVisible: false
+    });
+  }
+
+  // 计算 RSI 序列
+  const rsiData = [];
+  const period = 14;
+  if (closes.length >= period + 1) {
+    let avgGain = 0, avgLoss = 0;
+    for (let i = 0; i < period; i++) {
+      const diff = closes[i + 1] - closes[i];
+      if (diff > 0) avgGain += diff; else avgLoss -= diff;
+    }
+    avgGain /= period; avgLoss /= period;
+    for (let i = period; i < closes.length; i++) {
+      if (i > period) {
+        const diff = closes[i] - closes[i - 1];
+        avgGain = (avgGain * (period - 1) + (diff > 0 ? diff : 0)) / period;
+        avgLoss = (avgLoss * (period - 1) + (diff < 0 ? -diff : 0)) / period;
+      }
+      const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+      rsiData.push({ time: getTime(klines[i]), value: 100 - (100 / (1 + rs)) });
+    }
+  }
+  unifiedRsiSeries.setData(rsiData);
+
+  // 计算 MACD 序列
+  const macdData = [];
+  const macdHistData = [];
+  const f = 12, s = 26, sig = 9;
+  if (closes.length >= s) {
+    const emaF = (d, p) => {
+      let e = d.slice(0, p).reduce((a, b) => a + b, 0) / p;
+      for (let i = p; i < d.length; i++) e = d[i] * (2 / (p + 1)) + e * (1 - 2 / (p + 1));
+      return e;
+    };
+    const macdLine = [];
+    for (let i = s; i < closes.length; i++) {
+      const e12 = emaF(closes.slice(0, i + 1), f);
+      const e26 = emaF(closes.slice(0, i + 1), s);
+      if (e12 && e26) macdLine.push(e12 - e26);
+    }
+    if (macdLine.length >= sig) {
+      let sma = macdLine.slice(0, sig).reduce((a, b) => a + b, 0) / sig;
+      for (let i = 0; i < macdLine.length; i++) {
+        const t = getTime(klines[s + i]);
+        macdData.push({ time: t, value: macdLine[i] });
+        if (i >= sig - 1) {
+          const hist = (macdLine[i] - sma) * 2;
+          macdHistData.push({ time: t, value: hist, color: hist >= 0 ? '#3fb95066' : '#f8514966' });
+          if (i === sig - 1) sma = macdLine.slice(0, sig).reduce((a, b) => a + b, 0) / sig;
+          else sma = macdLine[i] * (2 / (sig + 1)) + sma * (1 - 2 / (sig + 1));
+        }
+      }
+    }
+  }
+  unifiedMacdHistSeries.setData(macdHistData);
+  if (unifiedMacdDifSeries) unifiedMacdDifSeries.setData(macdData);
+
+  // Resize on window resize
+  const resizeObs = () => {
+    if (unifiedRsiChart) unifiedRsiChart.resize(rsiContainer.clientWidth || 400, rsiContainer.clientHeight || 85);
+    if (unifiedMacdChart) unifiedMacdChart.resize(macdContainer.clientWidth || 400, macdContainer.clientHeight || 85);
+  };
+  window.addEventListener('resize', resizeObs);
+}
+
 // ==================== 渲染庄家信号面板 ====================
 function renderSmartMoney(ind) {
   const panel = document.getElementById('smartMoneyPanel');
@@ -2251,8 +2211,9 @@ function renderLiqZone(ind) {
   }
 
   const price = ind.price || 0;
-  const distUpper = (price - bb.upper) / bb.upper * 100;
-  const distLower = (bb.lower - price) / price * 100;
+  // 安全计算，防止除以0
+  const distUpper = (price > 0 && bb.upper > 0) ? (price - bb.upper) / bb.upper * 100 : 0;
+  const distLower = (price > 0 && bb.lower > 0) ? (bb.lower - price) / price * 100 : 0;
 
   let zone = null, zoneDist = 999, liqScore = 0;
   if (distUpper > 0 && distUpper < 2) {
@@ -2476,44 +2437,45 @@ async function analyzeCoin(symbol) {
     const lows1h = klines1h.map(k => parseFloat(k[3]));
 
     // 安全调用TA函数（防止某个指标失败导致整体崩溃）
-    const safe = (fn, fallback = null) => {
+    const safe = (name, fn, fallback = null) => {
       try {
         const r = fn();
-        if (r == null) return fallback;
-        if (typeof r === 'number' && Number.isNaN(r)) return fallback;
+        if (r == null) { console.log(`[TA] ${name} = null (数据不足)`); return fallback; }
+        if (typeof r === 'number' && Number.isNaN(r)) { console.log(`[TA] ${name} = NaN`); return fallback; }
         if (typeof r === 'object' && !Array.isArray(r)) {
           const vals = Object.values(r).filter(v => typeof v === 'number');
-          if (vals.length === 0 || vals.every(v => Number.isNaN(v))) return fallback;
+          if (vals.length === 0 || vals.every(v => Number.isNaN(v))) { console.log(`[TA] ${name} 全NaN`); return fallback; }
         }
+        console.log(`[TA] ${name} =`, typeof r === 'object' ? JSON.stringify(r).slice(0,50) : r);
         return r;
-      } catch { return fallback; }
+      } catch(e) { console.log(`[TA] ${name} 错误:`, e.message); return fallback; }
     };
-
+        if (typeof r === 'number' && Number.isNaN(r)) return fallback;
     // 计算指标
     const ind = {
-      rsi: safe(() => TA.rsi(closes1h, 14)),
-      macd: safe(() => TA.macd(closes1h)),
-      bb: safe(() => TA.bb(closes1h)),
-      kdj: safe(() => TA.kdj(closes1h)),
-      wr: safe(() => TA.wr(closes1h, 14)),
-      cci: safe(() => TA.cci(closes1h)),
-      stoch: safe(() => TA.stochRsi(closes1h)),
-      adx: safe(() => TA.adx(highs1h, lows1h, closes1h)),
-      mom: safe(() => TA.mom(closes1h, 12)),
-      roc: safe(() => TA.roc(closes1h, 10)),
-      atr: safe(() => TA.atr(highs1h, lows1h, closes1h)),
-      ma7: safe(() => TA.sma(closes1h, 7)),
-      ma25: safe(() => TA.sma(closes1h, 25)),
-      ma99: safe(() => TA.sma(closes1h, 99)),
-      ema7: safe(() => TA.ema(closes1h, 7)),
-      ema25: safe(() => TA.ema(closes1h, 25)),
-      td9: safe(() => TA.tdSequential(closes1h)),
-      obv: safe(() => { const arr = TA.obv(closes1h, volumes1h); return Array.isArray(arr) ? arr[arr.length - 1] : arr; }),
-      obvArr: safe(() => TA.obvArray(closes1h, volumes1h)),
-      bb4h: klines4h ? safe(() => TA.bb(klines4h.map(k => parseFloat(k[4])))) : null,
+      rsi: safe('RSI', () => TA.rsi(closes1h, 14)),
+      macd: safe('MACD', () => TA.macd(closes1h)),
+      bb: safe('BB', () => TA.bb(closes1h)),
+      kdj: safe('KDJ', () => TA.kdj(closes1h)),
+      wr: safe('WR', () => TA.wr(closes1h, 14)),
+      cci: safe('CCI', () => TA.cci(closes1h)),
+      stoch: safe('StochRSI', () => TA.stochRsi(closes1h)),
+      adx: safe('ADX', () => TA.adx(highs1h, lows1h, closes1h)),
+      mom: safe('MOM', () => TA.mom(closes1h, 12)),
+      roc: safe('ROC', () => TA.roc(closes1h, 10)),
+      atr: safe('ATR', () => TA.atr(highs1h, lows1h, closes1h)),
+      ma7: safe('MA7', () => TA.sma(closes1h, 7)),
+      ma25: safe('MA25', () => TA.sma(closes1h, 25)),
+      ma99: safe('MA99', () => TA.sma(closes1h, 99)),
+      ema7: safe('EMA7', () => TA.ema(closes1h, 7)),
+      ema25: safe('EMA25', () => TA.ema(closes1h, 25)),
+      td9: safe('TD9', () => TA.tdSequential(closes1h)),
+      obv: safe('OBV', () => { const arr = TA.obv(closes1h, volumes1h); return Array.isArray(arr) ? arr[arr.length - 1] : arr; }),
+      obvArr: safe('OBV_Arr', () => TA.obvArray(closes1h, volumes1h)),
+      bb4h: klines4h ? safe('BB_4H', () => TA.bb(klines4h.map(k => parseFloat(k[4])))) : null,
       // 背离检测
-      obvDivergence: safe(() => TA.detectDivergence(closes1h, volumes1h, 20)),
-      volPriceDivergence: safe(() => TA.detectVolPriceDivergence(closes1h, volumes1h, 10)),
+      obvDivergence: safe('OBV_Div', () => TA.detectDivergence(closes1h, volumes1h, 20)),
+      volPriceDivergence: safe('VP_Div', () => TA.detectVolPriceDivergence(closes1h, volumes1h, 10)),
     };
 
     // 计算涨跌幅（使用24hr API的真实数据）
@@ -2528,6 +2490,7 @@ async function analyzeCoin(symbol) {
     ind.chg1h = chg1h;
     ind.chg4h = chg4hK;
     ind.chg24h = chg24h;
+    ind.price = price; // 设置当前价格，供其他模块使用
     
     // 获取资金费率
     try {
@@ -2576,6 +2539,7 @@ async function analyzeCoin(symbol) {
 
     // 渲染（每个步骤独立try，防止一个崩溃影响其他）
     try { renderChart(klines1h); } catch(e) { console.error('renderChart:', e); }
+    try { renderUnifiedSubCharts(klines1h, closes1h); } catch(e) { console.error('renderUnifiedSubCharts:', e); }
     try { renderIndicators(ind); } catch(e) { console.error('renderIndicators:', e); }
     try { renderOscillators(ind); } catch(e) { console.error('renderOscillators:', e); }
     try { renderTD9(ind); } catch(e) { console.error('renderTD9:', e); }
@@ -2588,6 +2552,9 @@ async function analyzeCoin(symbol) {
     try { renderLSExtreme(ind); } catch(e) { console.error('renderLSExtreme:', e); }
     try { renderMTFPanel(ind); } catch(e) { console.error('renderMTFPanel:', e); }
     try { renderLiqZone(ind); } catch(e) { console.error('renderLiqZone:', e); }
+
+    // 更新左侧面板的雷达指标（阻力位、支撑位、量能天眼）
+    try { updateLeftPanelRadar(klines1h); } catch(e) { console.error('updateLeftPanelRadar:', e); }
 
     try {
       const scoreObj = { ...calcScore(ind), ind };
@@ -2885,33 +2852,33 @@ function updateIndicatorsRealtime(lastClose) {
   highs[highs.length - 1] = Math.max(highs[highs.length - 1], lastClose);
   lows[lows.length - 1] = Math.min(lows[lows.length - 1], lastClose);
 
-  const safe = (fn, fallback = null) => {
+  const safe = (name, fn, fallback = null) => {
     try {
       const r = fn();
       if (r == null) return fallback;
       if (typeof r === 'number' && Number.isNaN(r)) return fallback;
       return r;
-    } catch { return fallback; }
+    } catch(e) { console.log(`[TA_RT] ${name} 错误:`, e.message); return fallback; }
   };
 
   const ind = {
-    rsi: safe(() => TA.rsi(closes, 14)),
-    macd: safe(() => TA.macd(closes)),
-    bb: safe(() => TA.bb(closes)),
-    kdj: safe(() => TA.kdj(closes)),
-    wr: safe(() => TA.wr(closes, 14)),
-    cci: safe(() => TA.cci(closes)),
-    stoch: safe(() => TA.stochRsi(closes)),
-    adx: safe(() => TA.adx(highs, lows, closes)),
-    mom: safe(() => TA.mom(closes, 12)),
-    roc: safe(() => TA.roc(closes, 10)),
-    atr: safe(() => TA.atr(highs, lows, closes)),
-    ma7: safe(() => TA.sma(closes, 7)),
-    ma25: safe(() => TA.sma(closes, 25)),
-    ma99: safe(() => TA.sma(closes, 99)),
-    ema7: safe(() => TA.ema(closes, 7)),
-    ema25: safe(() => TA.ema(closes, 25)),
-    td9: safe(() => TA.tdSequential(closes)),
+    rsi: safe('RSI', () => TA.rsi(closes, 14)),
+    macd: safe('MACD', () => TA.macd(closes)),
+    bb: safe('BB', () => TA.bb(closes)),
+    kdj: safe('KDJ', () => TA.kdj(closes)),
+    wr: safe('WR', () => TA.wr(closes, 14)),
+    cci: safe('CCI', () => TA.cci(closes)),
+    stoch: safe('StochRSI', () => TA.stochRsi(closes)),
+    adx: safe('ADX', () => TA.adx(highs, lows, closes)),
+    mom: safe('MOM', () => TA.mom(closes, 12)),
+    roc: safe('ROC', () => TA.roc(closes, 10)),
+    atr: safe('ATR', () => TA.atr(highs, lows, closes)),
+    ma7: safe('MA7', () => TA.sma(closes, 7)),
+    ma25: safe('MA25', () => TA.sma(closes, 25)),
+    ma99: safe('MA99', () => TA.sma(closes, 99)),
+    ema7: safe('EMA7', () => TA.ema(closes, 7)),
+    ema25: safe('EMA25', () => TA.ema(closes, 25)),
+    td9: safe('TD9', () => TA.tdSequential(closes)),
   };
 
   // 更新各面板
@@ -3036,8 +3003,6 @@ function startup() {
   // 检查URL参数
   const urlParams = new URLSearchParams(window.location.search);
   const symbolParam = urlParams.get('symbol');
-  const tabParam = urlParams.get('tab');
-
   if (symbolParam) {
     console.log('[URL参数] 检测到币种:', symbolParam);
     const normalizedSymbol = symbolParam.toUpperCase().trim().replace(/usdt$/i, '') + 'USDT';
@@ -3045,23 +3010,12 @@ function startup() {
       currentSymbol = normalizedSymbol;
       const symInput = $('symInput');
       if (symInput) symInput.value = normalizedSymbol.replace('USDT', '');
-      // 如有 tab 参数，切换到对应 tab
-      if (tabParam && tabParam !== 'kline') {
-        setTimeout(() => switchInnerTab(tabParam), 300);
-      }
     }).catch(e => {
       console.error('初始化失败:', e);
     });
     return;
   }
 
-  // 如有 tab 参数但无 symbol
-  if (tabParam && tabParam !== 'kline') {
-    init().then(() => {
-      setTimeout(() => switchInnerTab(tabParam), 300);
-    }).catch(e => console.error('初始化失败:', e));
-    return;
-  }
   
   init().catch(e => {
     console.error('初始化失败:', e);
@@ -3073,79 +3027,7 @@ function startup() {
   });
 }
 
-// ==================== 页内 Tab 切换 ====================
-let currentInnerTab = 'kline';
-let detailInited = false, radarInited = false;
-function switchInnerTab(tab) {
-  document.querySelectorAll('.inner-tab-panel').forEach(el => el.style.display = 'none');
-  document.querySelectorAll('.inner-tab').forEach(el => el.classList.remove('active'));
-  const target = document.getElementById('tab-' + tab);
-  if (target) target.style.display = 'block';
-  const btn = document.getElementById('tabBtn' + tab.charAt(0).toUpperCase() + tab.slice(1));
-  if (btn) btn.classList.add('active');
-  currentInnerTab = tab;
-  if (tab === 'kline' && chart) {
-    setTimeout(() => chart.resize(document.getElementById('chart').clientWidth, document.getElementById('chart').clientHeight), 100);
-  }
-  if (tab === 'detail') {
-    if (!detailInited) { detailInited = true; detailInit(); }
-    else if (detailChart) setTimeout(() => detailChart.applyOptions({ width: document.getElementById('detailChart').clientWidth, height: document.getElementById('detailChart').clientHeight || 420 }), 100);
-  }
-  if (tab === 'radar') {
-    if (!radarInited) { radarInited = true; radarInit(); }
-    else if (radarChart) setTimeout(() => { const w = document.getElementById('radarChartWrap'); if(w) radarChart.resize(w.clientWidth, Math.max(w.clientHeight-150,300)); }, 100);
-  }
-}
 
-// ==================== DETAIL TAB: 全局状态 ====================
-let detailSymbol = 'BTCUSDT';
-let detailTf = '1h';
-let detailChart = null, detailCandleSeries = null, detailVolumeSeries = null;
-let detailWs = null, detailKlineWs = null, detailWsRetry = 0, detailPanelTimer = null;
-
-function detailFmtNum(n, d=2) {
-  if (n == null || isNaN(n)) return '--';
-  return Number(n).toFixed(d);
-}
-function detailFmtMoney(n) {
-  if (n == null || isNaN(n)) return '--';
-  if (Math.abs(n) >= 1e8) return (n/1e8).toFixed(2) + '亿';
-  if (Math.abs(n) >= 1e4) return (n/1e4).toFixed(2) + '万';
-  return n.toFixed(2);
-}
-function detailFmtPrice(n) {
-  if (n == null) return '--';
-  if (n >= 1000) return Number(n).toLocaleString('en-US', {maximumFractionDigits:2});
-  if (n >= 1) return Number(n).toFixed(4);
-  if (n >= 0.01) return Number(n).toFixed(5);
-  return Number(n).toFixed(8);
-}
-function detailColorClass(v) {
-  return v > 0 ? 'val-up' : v < 0 ? 'val-down' : 'val-neutral';
-}
-
-function detailUpdateLivePrice(tick) {
-  var price = parseFloat(tick.c || 0), change = parseFloat(tick.P || 0);
-  var vol = parseFloat(tick.q || 0), high = parseFloat(tick.h || 0), low = parseFloat(tick.l || 0);
-  var elP = document.getElementById('detailCoinPrice');
-  if (elP) { elP.textContent = '$' + detailFmtPrice(price); elP.className = change >= 0 ? 'val-up' : 'val-down'; }
-  var elC = document.getElementById('detailCoinChange');
-  if (elC) { elC.textContent = (change >= 0 ? '+' : '') + detailFmtNum(change, 2) + '%'; elC.className = 'coin-price-change' + (change >= 0 ? ' up' : ''); }
-  var sv = document.querySelectorAll('#detailCoinStats .stat-item .s-val');
-  if (sv[0]) sv[0].textContent = '$' + detailFmtMoney(vol * 1e6);
-  if (high > 0 && sv[2]) sv[2].textContent = '$' + detailFmtPrice(high);
-  if (low > 0 && sv[3]) sv[3].textContent = '$' + detailFmtPrice(low);
-  detailSetWsStatus('online', '实时在线');
-  var lu = document.getElementById('detailLastUpdate');
-  if (lu) lu.textContent = '更新于 ' + new Date().toLocaleTimeString('zh-CN');
-}
-
-function detailSetWsStatus(state, msg) {
-  var dot = document.getElementById('detailWsDot'), txt = document.getElementById('detailWsStatusText');
-  if (!dot || !txt) return;
-  dot.className = 'ws-dot ' + (state === 'online' ? 'online' : state === 'error' ? 'error' : '');
-  txt.textContent = msg || (state === 'online' ? '实时在线' : '连接中');
-}
 
 // ==================== DETAIL TAB: 主加载 ====================
 async function detailLoadSymbol() {
@@ -3404,7 +3286,7 @@ function detailInitChart() {
   });
   detailChart.priceScale('detailVol').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
   window.addEventListener('resize', () => {
-    if (detailChart && currentInnerTab === 'detail') {
+    if (detailChart) {
       detailChart.applyOptions({ width: el.clientWidth });
     }
   });
@@ -3698,7 +3580,7 @@ function radarInitChart() {
   radarInitRSIChart(); radarInitMACDChart();
   if (window._radarRO) window._radarRO.disconnect();
   window._radarRO = new ResizeObserver(() => {
-    if (!radarChart || currentInnerTab !== 'radar') return;
+    if (!radarChart) return;
     radarChart.resize(wrap.clientWidth, Math.max(wrap.clientHeight - 150, 300));
     const re = document.getElementById('radarRsiChart'), me = document.getElementById('radarMacdChart');
     if (radarRsiChart && re) radarRsiChart.resize(re.clientWidth, re.clientHeight);
@@ -3851,6 +3733,58 @@ function radarRenderVolumeAnalysis(klines) {
   const vs=document.getElementById('radarVolStatus'); if(vs){vs.textContent=data.status;vs.style.color=data.volRatio>1.5?'#ff9800':data.volRatio<0.7?'#787b86':'#d1d4dc';}
   const sc=document.getElementById('radarVolSpikeCount'); if(sc)sc.textContent=data.spikeCount+'次';
   data.recentRatios.forEach((r,idx)=>{ const el=document.getElementById('radarVolBar'+idx),it=document.getElementById('radarVolItem'+idx); if(el)el.textContent=r.toFixed(1)+'x'; if(it)it.className='vol-stat-item'+(r>1.5?' spike':''); });
+}
+// 更新左侧面板的雷达指标（被主分析模块analyzeCoin调用）
+function updateLeftPanelRadar(klines) {
+  if (!klines || klines.length < 10) return;
+  // 更新阻力位和支撑位
+  const { resists, supports, cur } = radarFindLevels(klines);
+  radarRenderLevels(resists, supports, cur);
+  // 更新量能天眼
+  radarRenderVolumeAnalysis(klines);
+  // 更新雷达核心指令列表
+  radarDetectAndRenderRadar(klines);
+  // 更新主力行为列表
+  radarDetectAndRenderWhale(klines);
+  // 更新综合评分面板的一刀之眼/VWAP
+  const closes = klines.map(k => parseFloat(k[4]));
+  const ema7 = radarCalcEMA(closes, 7), ema25 = radarCalcEMA(closes, 25), vwap = radarCalcIntradayVWAP(klines);
+  const rs = radarDetectRadarSignals(klines), ws = radarDetectWhaleSignals(klines);
+  // 使用正确的HTML元素ID
+  const yb = document.getElementById('yidaoBall'), yc = document.getElementById('yidaoCoreText'), yd = document.getElementById('yidaoDir'), yv = document.getElementById('yidaoVwap'), yvd = document.getElementById('yidaoVwapDist');
+  if (yb) {
+    let sType = 'wait', sTxt = '等待信号', ball = '💎';
+    const sBuy = rs.find(s => s.type === 'buy' && s.strength >= 4), wBuy = ws.find(s => s.type === 'buy' && s.strength >= 4), brBuy = rs.find(s => s.isBreakout && s.type === 'buy');
+    const sSell = rs.find(s => s.type === 'sell' && s.strength >= 4), wSell = ws.find(s => s.type === 'sell' && s.strength >= 4), brSell = rs.find(s => s.isBreakout && s.type === 'sell');
+    if (wSell || brSell) { sType = 'short'; sTxt = '做空信号'; ball = '🧊'; }
+    else if (wBuy || brBuy) { sType = 'long'; sTxt = '做多信号'; ball = '🔥'; }
+    else if (sSell) { sType = 'short'; sTxt = '做空信号'; ball = '🧊'; }
+    else if (sBuy) { sType = 'long'; sTxt = '做多信号'; ball = '🔥'; }
+    yb.textContent = ball;
+    if (yc) { yc.textContent = sTxt; yc.className = 'yidao-text ' + sType; }
+    if (ema7 && ema25 && ema7[ema7.length - 1] !== null) {
+      const e7 = ema7[ema7.length - 1], e25 = ema25[ema25.length - 1];
+      if (yd) yd.textContent = cur > e7 && e7 > e25 ? '→' : cur < e7 && e7 < e25 ? '←' : '↔';
+    }
+    if (yv && vwap && cur) {
+      const dist = ((cur - vwap) / vwap * 100).toFixed(2);
+      yv.textContent = 'VWAP: ' + radarFormatPrice(vwap);
+      yv.className = 'yidao-vwap ' + (cur > vwap * 1.001 ? 'up' : cur < vwap * 0.999 ? 'down' : 'neutral');
+      if (yvd) { yvd.textContent = (dist >= 0 ? '+' : '') + dist + '%'; yvd.style.color = dist >= 0 ? '#3fb950' : '#f85149'; }
+    }
+  }
+  // 更新推荐关注面板的信号
+  const rpB = document.getElementById('radarRpBreakout'), rpD = document.getElementById('radarRpBreakdown'), rpWT = document.getElementById('radarRpWhaleTop'), rpWB = document.getElementById('radarRpWhaleBottom'), rpV = document.getElementById('radarRpVolEye');
+  if (rpB) { if (brBuy && resists.length) { rpB.textContent = '⬆️ 上破阻力: ' + radarFormatPrice(resists[0]); rpB.className = 'ci-badge green active'; } else { rpB.textContent = '上破阻力: --'; rpB.className = 'ci-badge warn dim'; } }
+  if (rpD) { if (brSell && supports.length) { rpD.textContent = '⬇️ 下破支撑: ' + radarFormatPrice(supports[0]); rpD.className = 'ci-badge red active'; } else { rpD.textContent = '下破支撑: --'; rpD.className = 'ci-badge warn dim'; } }
+  if (rpWT) { if (wSell) { rpWT.textContent = '🐋逃顶: ' + wSell.text; rpWT.className = 'ci-badge red active'; } else { rpWT.textContent = '主力逃顶: --'; rpWT.className = 'ci-badge warn dim'; } }
+  if (rpWB) { if (wBuy) { rpWB.textContent = '🐋蓄力: ' + wBuy.text; rpWB.className = 'ci-badge cyan active'; } else { rpWB.textContent = '主力蓄力: --'; rpWB.className = 'ci-badge warn dim'; } }
+  if (rpV) {
+    const vols = klines.map(k => parseFloat(k[5])), volMA = vols.slice(-20).reduce((a, b) => a + b, 0) / 20, vr = vols[vols.length - 1] / volMA;
+    if (vr >= 2) { rpV.textContent = '🔥量能天眼: ' + vr.toFixed(1) + 'x'; rpV.className = 'ci-badge orange active'; }
+    else if (vr >= 1.5) { rpV.textContent = '⚡量能天眼: ' + vr.toFixed(1) + 'x'; rpV.className = 'ci-badge warn active'; }
+    else { rpV.textContent = '量能天眼: --'; rpV.className = 'ci-badge warn dim'; }
+  }
 }
 function radarUpdateChartInfoBox(klines) {
   if (!klines || klines.length < 10) return;

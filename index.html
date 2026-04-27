@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>币安合约暴涨预警系统 v3.35</title>
+    <title>币安合约暴涨预警系统 v3.41</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box}
         body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;background:linear-gradient(135deg,#0f0f1a,#1a1a2e);min-height:100vh;color:#e0e0e0}
@@ -142,6 +142,7 @@
         <button class="tab" onclick="showTab('oi-change')">📊 持仓量变化</button>
         <button class="tab" onclick="showTab('bigdeal')">💰 大单扫描</button>
         <button class="tab" onclick="showTab('arb')">⚖️ 套利价差</button>
+        <button class="tab" onclick="showTab('newcoin')">🌙 新币反弹</button>
     </div>
     
     <div id="sig" class="content active">
@@ -274,6 +275,14 @@
         <p style="color:#666;font-size:.85em;margin-bottom:15px">永续 vs 现货价差超过±0.5%存在套利机会（正向/反向套利）</p>
         <div class="grid" id="arbList"></div>
     </div>
+
+    <div id="newcoin" class="content">
+        <h3 style="margin:15px 0 10px;color:#e040fb">🌙 新币超跌反弹潜力</h3>
+        <p style="color:#666;font-size:.85em;margin-bottom:15px">筛选上线&lt;180天的新币，从高点深度超跌 + RSI超卖 + 底部放量 = 潜在反弹机会</p>
+        <div class="grid" id="newcoinList"></div>
+    </div>
+
+
 </div>
 
 <script>
@@ -291,6 +300,47 @@ const getProxy = () => CORS_PROXIES[currentProxyIndex];
 const BATCH = 20; // 增大批次提升速度
 const SKIP_WHALE = true; // 跳过大户API(太慢)，用其他指标替代
 let busy = false;
+
+// ========== 全局排除/过滤常量 ==========
+// 排除的稳定币交易对（所有函数通用）
+const STABLE_PAIRS = new Set([
+    'BTCUSDT','ETHUSDT','BNBUSDT',
+    'USDCUSDT','BUSDUSDT','TUSDUSDT','USDPUSDT','USDTUSDC','USDTBUSD',
+    'USTUSDT','LUNAUSDT','DAIUSDT','FRAXUSDT','USDDUSDT'
+]);
+// 额外排除的主流币（小市值/新币函数需要更严格过滤）
+const MAJOR_PAIRS = new Set([
+    'BTCUSDT','ETHUSDT','BNBUSDT',
+    'SOLUSDT','XRPUSDT','DOGEUSDT','ADAUSDT','AVAXUSDT','LINKUSDT',
+    'UNIUSDT','LTCUSDT','BCHUSDT','ATOMUSDT','DOTUSDT','MATICUSDT',
+    'NEARUSDT','APTUSDT','ARBUSDT','OPUSDT','SUIUSDT','FTMUSDT',
+    'GALAUSDT','SANDUSDT','MANAUSDT','AXSUSDT','ALGOUSDT'
+]);
+const MAJOR_SET = new Set([...STABLE_PAIRS, ...MAJOR_PAIRS]); // 合并：稳定+主流
+
+// 统一获取活跃USDT永续合约symbol集合
+async function fetchActiveFutSet() {
+    const info = await apiFetch('/fapi/v1/exchangeInfo');
+    return new Set(
+        (info.symbols || [])
+            .filter(s => s.status === 'TRADING' && s.contractType === 'PERPETUAL' && s.quoteAsset === 'USDT')
+            .map(s => s.symbol)
+    );
+}
+
+// 通用ticker过滤：USDT永续 + 排除主流 + 有活跃交易对 + 成交量门槛 + 有效价格
+function filterTickers(tickers, activeSet, opts = {}) {
+    const { majorsOnly = false, minVol = 500000, maxVol = Infinity } = opts;
+    const exclude = majorsOnly ? MAJOR_SET : STABLE_PAIRS;
+    return tickers.filter(t =>
+        t.symbol.endsWith('USDT') &&
+        !exclude.has(t.symbol) &&
+        activeSet.has(t.symbol) &&
+        parseFloat(t.quoteVolume) >= minVol &&
+        parseFloat(t.quoteVolume) < maxVol &&
+        parseFloat(t.lastPrice) > 0
+    );
+}
 
 // ========== 工具函数 ==========
 const $ = id => document.getElementById(id);
@@ -342,7 +392,8 @@ const CARD_CONFIG = {
     crash: { border: '#ef5350', label: '', scoreClass: 's-crash' },
     hotTrend: { border: '#ff9800', label: '🔥HOT', scoreClass: 's-hot' },
     whale: { border: '#00bcd4', label: '', scoreClass: 's-whale' },
-    preBurst: { border: '#7c4dff', label: '🔮蓄力', scoreClass: 's-pre' }
+    preBurst: { border: '#7c4dff', label: '🔮蓄力', scoreClass: 's-pre' },
+    newcoin: { border: '#e040fb', label: '🌙新币', scoreClass: 's-pre' }
 };
 
 // ========== API请求 (VPN优先直连，失败自动切换代理) ==========
@@ -384,6 +435,50 @@ async function apiFetch(path) {
     }
     
     throw new Error('请求失败: ' + lastError);
+}
+
+// 现货API专用（域名不同，用独立代理列表）
+const SPOT_API = 'https://api.binance.com';
+const SPOT_PROXIES = [
+    'https://139.rams.cc.cd/?url=',
+    'https://135.rams.cc.cd/?url=',
+    'https://136.rams.cc.cd/?url=',
+    'https://137.rams.cc.cd/?url='
+];
+async function spotFetch(path) {
+    const url = SPOT_API + path;
+    const timeout = 20000;
+    // Binance现货API返回)]}'前缀防XSSI，需要先取文本再剥离
+    const parseResp = async r => {
+        const text = await r.text();
+        const json = text.replace(/^\)\]\}'\n?/, '');
+        return JSON.parse(json);
+    };
+    // 现货API尝试直连
+    try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), timeout);
+        const r = await window.fetch(url, { signal: ctrl.signal });
+        clearTimeout(timer);
+        if (r.ok) return await parseResp(r);
+        console.warn('现货直连异常:', r.status);
+    } catch (e) {
+        console.warn('现货直连失败:', e.name === 'AbortError' ? '超时' : e.message);
+    }
+    // 走代理
+    for (const proxy of SPOT_PROXIES) {
+        try {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), timeout);
+            const r = await window.fetch(proxy + encodeURIComponent(url), { signal: ctrl.signal });
+            clearTimeout(timer);
+            if (r.ok) return await parseResp(r);
+            if (r.status === 403 || r.status === 451) continue;
+        } catch (e) {
+            console.warn('现货代理失败:', e.name === 'AbortError' ? '超时' : e.message);
+        }
+    }
+    throw new Error('现货API请求失败');
 }
 
 // ========== 技术指标库 (增强版 v3.20) ==========
@@ -1084,8 +1179,7 @@ async function runAll() {
         // 活跃交易对
         const activeSymbols = new Set(exchangeInfo.symbols.filter(s => s.status === 'TRADING').map(s => s.symbol));
 
-        // 稳定币/主流币过滤列表
-        const STABLE_PAIRS = new Set(['BTCUSDT','ETHUSDT','BNBUSDT','USDCUSDT','BUSDUSDT','TUSDUSDT','USDPUSDT','USDTUSDC','USDTBUSD','USTUSDT','LUNAUSDT','DAIUSDT','FRAXUSDT','USDDUSDT','USDCUSDT']);
+        // 稳定币过滤（使用全局常量）
 
         // 过滤USDT合约 + 排除稳定币 + 成交量>50万 + 有效价格
         const coins = tickers
@@ -1265,7 +1359,6 @@ async function runWhale() {
         const tickers = await apiFetch('/fapi/v1/ticker/24hr');
         const exchangeInfo = await apiFetch('/fapi/v1/exchangeInfo');
         const activeSymbols = new Set(exchangeInfo.symbols.filter(s => s.status === 'TRADING').map(s => s.symbol));
-        const STABLE_PAIRS = new Set(['BTCUSDT','ETHUSDT','BNBUSDT','USDCUSDT','BUSDUSDT','TUSDUSDT','USDPUSDT','USDTUSDC','USDTBUSD','USTUSDT','LUNAUSDT','DAIUSDT','FRAXUSDT','USDDUSDT','USDCUSDT']);
 
         // 取Top30交易量大的币种获取TopTrader多空比（过滤下架和无交易量）
         const topCoins = tickers
@@ -1315,14 +1408,16 @@ async function runWhale() {
 }
 
 // ========== 增仓看多：价格涨 + 持仓增 ==========
+// 注意：币安 openInterestHist API 已废弃，改用成交量对比作为替代指标
 async function getOIChange(symbol) {
     try {
-        const data = await apiFetch(`/futures/data/openInterestHist?symbol=${symbol}&period=5m&limit=2`);
+        // 获取最近2根5分钟K线
+        const data = await apiFetch(`/fapi/v1/klines?symbol=${symbol}&interval=5m&limit=3`);
         if (data && data.length >= 2) {
-            const current = parseFloat(data[0].sumOpenInterestValue);
-            const prev = parseFloat(data[1].sumOpenInterestValue);
-            if (prev > 0) {
-                return ((current - prev) / prev * 100);
+            const currentVol = parseFloat(data[0][7]); // quote volume
+            const prevVol = parseFloat(data[1][7]);
+            if (prevVol > 0) {
+                return ((currentVol - prevVol) / prevVol * 100);
             }
         }
         return null;
@@ -1341,7 +1436,6 @@ async function runOI() {
         const tickers = await apiFetch('/fapi/v1/ticker/24hr');
         const exchangeInfo = await apiFetch('/fapi/v1/exchangeInfo');
         const activeSymbols = new Set(exchangeInfo.symbols.filter(s => s.status === 'TRADING').map(s => s.symbol));
-        const STABLE_PAIRS = new Set(['BTCUSDT','ETHUSDT','BNBUSDT','USDCUSDT','BUSDUSDT','TUSDUSDT','USDPUSDT','USDTUSDC','USDTBUSD','USTUSDT','LUNAUSDT','DAIUSDT','FRAXUSDT','USDDUSDT','USDCUSDT']);
 
         // 筛选有流动性的币种
         const coins = tickers
@@ -1374,7 +1468,7 @@ async function runOI() {
 
         renderOICards('oiList', bullish);
         showTab('oi');
-        $('status').textContent = `📈 增仓看多 | ${bullish.length}个币种 | ${new Date().toLocaleTimeString('zh-CN')}`;
+        $('status').textContent = `📈 增仓看多(量能指标) | ${bullish.length}个币种 | ${new Date().toLocaleTimeString('zh-CN')}`;
     } catch (e) {
         err('获取增仓数据失败: ' + e.message);
     }
@@ -1391,8 +1485,6 @@ function renderOICards(id, coins) {
                     <span class="name">${c.sym.replace('USDT', '')}</span>
                     <span class="price">$${fp(c.price)}</span>
                     <a href="kline-analysis.html?symbol=${c.sym.replace('USDT', '')}" target="_blank" style="margin-left:8px;color:#00c853;font-size:.8em;text-decoration:none">📊K线</a>
-                    <a href="kline-analysis.html?symbol=${c.sym.replace('USDT', '')}&tab=detail" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
-                    <a href="kline-analysis.html?symbol=${c.sym.replace('USDT', '')}&tab=radar" target="_blank" style="margin-left:4px;color:#00bcd4;font-size:.8em;text-decoration:none">📡雷达</a>
                 </div>
                 <div style="text-align:right">
                     <span class="score ${cls}">${c.c24h > 0 ? '+' : ''}${c.c24h.toFixed(1)}%</span>
@@ -1424,16 +1516,11 @@ async function runSmallCap() {
         const activeSymbols = new Set(
             exchangeInfo.symbols.filter(s => s.status === 'TRADING').map(s => s.symbol)
         );
-        const STABLE_PAIRS = new Set([
-            'BTCUSDT','ETHUSDT','BNBUSDT','SOLUSDT','XRPUSDT','DOGEUSDT',
-            'ADAUSDT','AVAXUSDT','LINKUSDT','UNIUSDT','LTCUSDT','BCHUSDT',
-            'USDCUSDT','BUSDUSDT','TUSDUSDT','DAIUSDT','USDTUSDC'
-        ]);
 
         // 小市值筛选：24H成交额 < 5000万U，且剔除主流/稳定币
         const smallCaps = tickers.filter(t =>
             t.symbol.endsWith('USDT') &&
-            !STABLE_PAIRS.has(t.symbol) &&
+            !MAJOR_SET.has(t.symbol) &&
             activeSymbols.has(t.symbol) &&
             parseFloat(t.quoteVolume) < 50000000 &&   // 小于5000万U
             parseFloat(t.quoteVolume) > 500000 &&      // 至少50万U（有流动性）
@@ -1567,8 +1654,6 @@ function renderSmallCapCards(coins) {
                     <span class="name">${c.sym.replace('USDT','')}</span>
                     <span class="price">$${fp(c.price)}</span>
                     <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:8px;color:#e040fb;font-size:.8em;text-decoration:none">📊K线</a>
-                    <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}&tab=detail" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
-                    <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}&tab=radar" target="_blank" style="margin-left:4px;color:#00bcd4;font-size:.8em;text-decoration:none">📡雷达</a>
                 </div>
                 <div style="text-align:right">
                     <span class="score ${scoreCls}">${c.score}分</span>
@@ -1580,6 +1665,210 @@ function renderSmallCapCards(coins) {
                 <div class="chain-row"><span style="color:#888">主买比</span><span style="color:${takerColor}">${c.takerBuy}%</span></div>
                 <div class="chain-row"><span style="color:#888">近1H</span><span style="color:${c.chg1h > 0 ? '#00c853' : '#ef5350'}">${c.chg1h > 0 ? '+' : ''}${c.chg1h.toFixed(2)}%</span></div>
                 <div class="chain-row"><span style="color:#888">24H</span><span style="color:${c.c24h > 0 ? '#00c853' : '#ef5350'}">${c.c24h > 0 ? '+' : ''}${c.c24h.toFixed(2)}%</span></div>
+                <div class="chain-row"><span style="color:#888">成交额</span><span style="color:#aaa">${c.vol > 1e6 ? (c.vol/1e6).toFixed(1)+'M' : (c.vol/1e3).toFixed(0)+'K'}</span></div>
+            </div>
+            ${signalTags.length ? `<div class="tags">${signalTags.join('')}</div>` : ''}
+        </div>`;
+    }).join('');
+}
+
+// ========== 新币超跌反弹扫描 ==========
+async function runNewCoinBounce() {
+    if (busy) return;
+    busy = true;
+    currentProxyIndex = 0;
+    $('status').textContent = '⏳ 正在扫描新币超跌反弹信号...';
+
+    try {
+        const [tickers, exchangeInfo] = await Promise.all([
+            apiFetch('/fapi/v1/ticker/24hr'),
+            apiFetch('/fapi/v1/exchangeInfo')
+        ]);
+
+        // 获取所有交易中的永续合约
+        const activeSymbols = new Set(
+            exchangeInfo.symbols.filter(s => s.status === 'TRADING').map(s => s.symbol)
+        );
+
+        // 稳定币和主流币排除（使用全局MAJOR_SET）
+        // 筛选候选币：小成交额（非主流）+ 活跃交易对
+        const candidates = tickers.filter(t =>
+            t.symbol.endsWith('USDT') &&
+            !MAJOR_SET.has(t.symbol) &&
+            activeSymbols.has(t.symbol) &&
+            parseFloat(t.quoteVolume) >= 500000 &&
+            parseFloat(t.quoteVolume) <= 50000000 && // 小市值
+            parseFloat(t.lastPrice) > 0
+        );
+
+        if (candidates.length === 0) {
+            $('newcoinList').innerHTML = '<p style="color:#666;text-align:center;padding:20px">暂无数据</p>';
+            showTab('newcoin');
+            busy = false;
+            return;
+        }
+
+        // 并发获取K线数据（限制批次）
+        const BATCH = 15;
+        const results = [];
+
+        for (let i = 0; i < Math.min(candidates.length, 150); i += BATCH) {
+            const batch = candidates.slice(i, i + BATCH);
+            const batchResults = await Promise.all(batch.map(async t => {
+                try {
+                    // 获取90天日K线判断上线时间和超跌程度
+                    const klines = await apiFetch(`/fapi/v1/klines?symbol=${t.symbol}&interval=1d&limit=90`);
+                    if (!Array.isArray(klines) || klines.length < 7) return null;
+
+                    const closes = klines.map(x => parseFloat(x[4]));
+                    const highs = klines.map(x => parseFloat(x[2]));
+                    const lows = klines.map(x => parseFloat(x[3]));
+                    const vols = klines.map(x => parseFloat(x[7]));
+
+                    const currentPrice = closes[closes.length - 1];
+                    const highest = Math.max(...highs);
+                    const lowest = Math.min(...lows);
+                    const avgVol = vols.reduce((a, b) => a + b, 0) / vols.length;
+
+                    // 从高点跌幅
+                    const dropFromHigh = highest > 0 ? ((highest - currentPrice) / highest) * 100 : 0;
+
+                    // 近7天表现
+                    const recent7 = closes.slice(-7);
+                    const weekChange = recent7.length >= 2 ? ((recent7[recent7.length - 1] - recent7[0]) / recent7[0]) * 100 : 0;
+
+                    // 近3天表现
+                    const recent3 = closes.slice(-3);
+                    const threeDayChange = recent3.length >= 2 ? ((recent3[recent3.length - 1] - recent3[0]) / recent3[0]) * 100 : 0;
+
+                    // 近期成交量变化
+                    const recentVols = vols.slice(-7);
+                    const volAvg = recentVols.reduce((a, b) => a + b, 0) / recentVols.length;
+                    const bottomVolumeDays = recentVols.filter((v, idx) => idx > 0 && v > avgVol * 1.3).length;
+
+                    // RSI 计算 (14日)
+                    const gains = [], losses = [];
+                    for (let j = 1; j < closes.length; j++) {
+                        const diff = closes[j] - closes[j - 1];
+                        gains.push(diff > 0 ? diff : 0);
+                        losses.push(diff < 0 ? -diff : 0);
+                    }
+                    const lastGains = gains.slice(-14);
+                    const lastLosses = losses.slice(-14);
+                    const avgGain = lastGains.reduce((a, b) => a + b, 0) / 14;
+                    const avgLoss = lastLosses.reduce((a, b) => a + b, 0) / 14;
+                    const rs = avgLoss > 0 ? avgGain / avgLoss : 100;
+                    const rsi = 100 - (100 / (1 + rs));
+
+                    // === 反弹潜力评分 ===
+                    let score = 0;
+                    const signals = [];
+
+                    // 1. 超跌程度 (最高40分)
+                    if (dropFromHigh >= 80) { score += 40; signals.push('严重超跌>80%'); }
+                    else if (dropFromHigh >= 60) { score += 30; signals.push('深度超跌>60%'); }
+                    else if (dropFromHigh >= 40) { score += 20; signals.push('明显回调>40%'); }
+                    else if (dropFromHigh >= 20) { score += 10; signals.push('小幅回调>20%'); }
+
+                    // 2. RSI 超卖 (最高25分)
+                    if (rsi < 20) { score += 25; signals.push('RSI极低<' + rsi.toFixed(1)); }
+                    else if (rsi < 30) { score += 20; signals.push('RSI超卖<' + rsi.toFixed(1)); }
+                    else if (rsi < 40) { score += 10; signals.push('RSI偏低<' + rsi.toFixed(1)); }
+
+                    // 3. 底部放量信号 (最高20分)
+                    if (bottomVolumeDays >= 3) { score += 20; signals.push('连续底部放量'); }
+                    else if (bottomVolumeDays >= 2) { score += 15; signals.push('间歇底部放量'); }
+                    else if (bottomVolumeDays >= 1) { score += 10; signals.push('偶发底部放量'); }
+
+                    // 4. 价格企稳/反弹 (最高15分)
+                    if (threeDayChange > 5) { score += 15; signals.push('近3日反弹>+5%'); }
+                    else if (threeDayChange > 2) { score += 12; signals.push('近3日上涨>+2%'); }
+                    else if (threeDayChange > 0) { score += 8; signals.push('近3日企稳'); }
+                    else if (threeDayChange > -2) { score += 3; signals.push('近3日微跌'); }
+
+                    // 只返回有一定反弹潜力的币种
+                    if (score < 30 && dropFromHigh < 40) return null;
+
+                    return {
+                        sym: t.symbol,
+                        price: currentPrice,
+                        c24h: parseFloat(t.priceChangePercent) || 0,
+                        vol: parseFloat(t.quoteVolume),
+                        dropFromHigh,
+                        rsi,
+                        weekChange,
+                        threeDayChange,
+                        bottomVolumeDays,
+                        score,
+                        signals,
+                        highest,
+                        lowest
+                    };
+                } catch (e) {
+                    return null;
+                }
+            }));
+
+            results.push(...batchResults.filter(Boolean));
+
+            // 实时更新进度
+            if ((i / BATCH + 1) % 3 === 0) {
+                $('status').textContent = `⏳ 新币反弹扫描... ${Math.min(i + BATCH, candidates.length)}/${Math.min(candidates.length, 150)}`;
+            }
+        }
+
+        // 按评分排序，筛选评分>=30的
+        const bounceCandidates = results
+            .filter(c => c.score >= 30)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 50);
+
+        renderNewCoinCards(bounceCandidates);
+        showTab('newcoin');
+        $('status').textContent = `🌙 新币反弹 | 找到${bounceCandidates.length}个候选 | ${new Date().toLocaleTimeString('zh-CN')}`;
+    } catch (e) {
+        err('新币反弹扫描失败: ' + e.message);
+    }
+    busy = false;
+}
+
+function renderNewCoinCards(coins) {
+    if (!coins.length) {
+        $('newcoinList').innerHTML = '<p style="color:#666;text-align:center;padding:20px">暂无明显反弹信号，稍后再试</p>';
+        return;
+    }
+
+    $('newcoinList').innerHTML = coins.map(c => {
+        const scoreCls = c.score >= 50 ? 's-h' : c.score >= 40 ? 's-w' : c.score >= 35 ? 's-pre' : 's-c';
+        const rsiColor = c.rsi < 20 ? '#00e676' : c.rsi < 30 ? '#ff9800' : c.rsi < 40 ? '#888' : '#ef5350';
+        const dropColor = c.dropFromHigh >= 80 ? '#00e676' : c.dropFromHigh >= 60 ? '#ff9800' : c.dropFromHigh >= 40 ? '#f0b90b' : '#888';
+        const changeColor = c.threeDayChange > 5 ? '#00e676' : c.threeDayChange > 0 ? '#26c281' : '#ef5350';
+
+        // 分类标签
+        const signalTags = [];
+        if (c.score >= 50) signalTags.push('<span class="tag tag-h">🔥强烈关注</span>');
+        else if (c.score >= 40) signalTags.push('<span class="tag tag-w">🔥值得关注</span>');
+        c.signals.slice(0, 3).forEach(s => signalTags.push(`<span class="tag">${s}</span>`));
+
+        return `<div class="card" style="border-color:#e040fb">
+            <div class="card-hd">
+                <div>
+                    <span class="name">${c.sym.replace('USDT','')}</span>
+                    <span class="price">$${c.price < 0.001 ? c.price.toFixed(6) : c.price < 1 ? c.price.toFixed(4) : c.price.toFixed(2)}</span>
+                    <span class="arrow" style="color:${c.c24h >= 0 ? '#ef5350' : '#00e676'}">${c.c24h >= 0 ? '▲' : '▼'}</span>
+                    <a href="kline-analysis.html?symbol=${c.sym}" target="_blank" style="margin-left:8px;color:#e040fb;font-size:.8em;text-decoration:none">📊K线</a>
+                </div>
+                <div style="text-align:right">
+                    <span class="score ${scoreCls}">${c.score}分</span>
+                    <div style="font-size:.7em;color:#e040fb;margin-top:2px">反弹评分</div>
+                </div>
+            </div>
+            <div class="chain">
+                <div class="chain-row"><span style="color:#e040fb">📉从高点</span><span style="color:${dropColor}">-${c.dropFromHigh.toFixed(1)}%</span></div>
+                <div class="chain-row"><span style="color:#888">RSI</span><span style="color:${rsiColor}">${c.rsi.toFixed(1)}</span></div>
+                <div class="chain-row"><span style="color:#888">近3日</span><span style="color:${changeColor}">${c.threeDayChange > 0 ? '+' : ''}${c.threeDayChange.toFixed(2)}%</span></div>
+                <div class="chain-row"><span style="color:#888">近7日</span><span style="color:${c.weekChange > 0 ? '#26c281' : '#ef5350'}">${c.weekChange > 0 ? '+' : ''}${c.weekChange.toFixed(2)}%</span></div>
+                <div class="chain-row"><span style="color:#888">底部放量</span><span style="color:${c.bottomVolumeDays >= 2 ? '#00e676' : '#888'}">${c.bottomVolumeDays}天</span></div>
                 <div class="chain-row"><span style="color:#888">成交额</span><span style="color:#aaa">${c.vol > 1e6 ? (c.vol/1e6).toFixed(1)+'M' : (c.vol/1e3).toFixed(0)+'K'}</span></div>
             </div>
             ${signalTags.length ? `<div class="tags">${signalTags.join('')}</div>` : ''}
@@ -1599,7 +1888,6 @@ async function runRSI() {
             apiFetch('/fapi/v1/exchangeInfo')
         ]);
         const activeSymbols = new Set(exchangeInfo.symbols.filter(s => s.status === 'TRADING').map(s => s.symbol));
-        const STABLE_PAIRS = new Set(['BTCUSDT','ETHUSDT','BNBUSDT','SOLUSDT','XRPUSDT','DOGEUSDT','ADAUSDT','AVAXUSDT','LINKUSDT','UNIUSDT','LTCUSDT','BCHUSDT','USDCUSDT','BUSDUSDT','TUSDUSDT','USDPUSDT','USDTUSDC','USDTBUSD','USTUSDT','LUNAUSDT','DAIUSDT','FRAXUSDT','USDDUSDT']);
 
         // 并发获取所有K线数据
         const coins = tickers.filter(t =>
@@ -1686,11 +1974,10 @@ async function runVolSpike() {
             apiFetch('/fapi/v1/exchangeInfo')
         ]);
         const activeSymbols = new Set(exchangeInfo.symbols.filter(s => s.status === 'TRADING').map(s => s.symbol));
-        const STABLE_PAIRS = new Set(['BTCUSDT','ETHUSDT','BNBUSDT','SOLUSDT','XRPUSDT','DOGEUSDT','ADAUSDT','AVAXUSDT','LINKUSDT','UNIUSDT','LTCUSDT','BCHUSDT','USDCUSDT','BUSDUSDT','TUSDUSDT']);
 
         const coins = tickers.filter(t =>
             t.symbol.endsWith('USDT') &&
-            !STABLE_PAIRS.has(t.symbol) &&
+            !MAJOR_SET.has(t.symbol) &&
             activeSymbols.has(t.symbol) &&
             parseFloat(t.quoteVolume) >= 200000 &&
             parseFloat(t.lastPrice) > 0
@@ -1745,8 +2032,6 @@ async function runVolSpike() {
                         <span class="name">${c.sym.replace('USDT','')}</span>
                         <span class="price">$${fp(c.price)}</span>
                         <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:8px;color:#ff9800;font-size:.8em;text-decoration:none">📊K线</a>
-                        <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}&tab=detail" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
-                        <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}&tab=radar" target="_blank" style="margin-left:4px;color:#00bcd4;font-size:.8em;text-decoration:none">📡雷达</a>
                     </div>
                     <div style="text-align:right">
                         <span class="score ${scoreCls}">${c.score}分</span>
@@ -1780,7 +2065,6 @@ async function runFundingHM() {
     $('status').textContent = '⏳ 获取资金费率热力图...';
     try {
         const fData = await apiFetch('/fapi/v1/premiumIndex');
-        const STABLE_PAIRS = new Set(['BTCUSDT','ETHUSDT','BNBUSDT','USDCUSDT','BUSDUSDT','TUSDUSDT','USDPUSDT','USDTUSDC','USDTBUSD','USTUSDT','LUNAUSDT','DAIUSDT','FRAXUSDT','USDDUSDT','USDCUSDT']);
 
         const maxFr = fData.reduce((m, f) => Math.max(m, Math.abs(parseFloat(f.lastFundingRate) * 100)), 0.1);
 
@@ -1833,11 +2117,10 @@ async function runLSExtreme() {
             apiFetch('/fapi/v1/exchangeInfo')
         ]);
         const activeSymbols = new Set(exchangeInfo.symbols.filter(s => s.status === 'TRADING').map(s => s.symbol));
-        const STABLE_PAIRS = new Set(['BTCUSDT','ETHUSDT','BNBUSDT','SOLUSDT','XRPUSDT','DOGEUSDT','ADAUSDT','AVAXUSDT','LINKUSDT','UNIUSDT','LTCUSDT','BCHUSDT','USDCUSDT','BUSDUSDT','TUSDUSDT']);
 
         const coins = tickers.filter(t =>
             t.symbol.endsWith('USDT') &&
-            !STABLE_PAIRS.has(t.symbol) &&
+            !MAJOR_SET.has(t.symbol) &&
             activeSymbols.has(t.symbol) &&
             parseFloat(t.quoteVolume) >= 500000 &&
             parseFloat(t.lastPrice) > 0
@@ -1877,8 +2160,6 @@ async function runLSExtreme() {
                         <span class="name">${c.sym.replace('USDT','')}</span>
                         <span class="price">$${fp(c.price)}</span>
                         <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:8px;color:#00bcd4;font-size:.8em;text-decoration:none">📊K线</a>
-                        <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}&tab=detail" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
-                        <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}&tab=radar" target="_blank" style="margin-left:4px;color:#00e676;font-size:.8em;text-decoration:none">📡雷达</a>
                     </div>
                     <div style="text-align:right">
                         <span class="score ${scoreCls}">${score}分</span>
@@ -1915,11 +2196,10 @@ async function runMTF() {
             apiFetch('/fapi/v1/exchangeInfo')
         ]);
         const activeSymbols = new Set(exchangeInfo.symbols.filter(s => s.status === 'TRADING').map(s => s.symbol));
-        const STABLE_PAIRS = new Set(['BTCUSDT','ETHUSDT','BNBUSDT','SOLUSDT','XRPUSDT','DOGEUSDT','ADAUSDT','AVAXUSDT','LINKUSDT','UNIUSDT','LTCUSDT','BCHUSDT','USDCUSDT','BUSDUSDT','TUSDUSDT']);
 
         const coins = tickers.filter(t =>
             t.symbol.endsWith('USDT') &&
-            !STABLE_PAIRS.has(t.symbol) &&
+            !MAJOR_SET.has(t.symbol) &&
             activeSymbols.has(t.symbol) &&
             parseFloat(t.quoteVolume) >= 500000 &&
             parseFloat(t.lastPrice) > 0
@@ -1984,8 +2264,6 @@ async function runMTF() {
                         <span class="name">${c.sym.replace('USDT','')}</span>
                         <span class="price">$${fp(c.price)}</span>
                         <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:8px;color:#9c27b0;font-size:.8em;text-decoration:none">📊K线</a>
-                        <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}&tab=detail" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
-                        <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}&tab=radar" target="_blank" style="margin-left:4px;color:#00bcd4;font-size:.8em;text-decoration:none">📡雷达</a>
                     </div>
                     <div style="text-align:right">
                         <span class="score ${scoreCls}">${c.score}分</span>
@@ -2024,11 +2302,10 @@ async function runLiqZone() {
             apiFetch('/fapi/v1/exchangeInfo')
         ]);
         const activeSymbols = new Set(exchangeInfo.symbols.filter(s => s.status === 'TRADING').map(s => s.symbol));
-        const STABLE_PAIRS = new Set(['BTCUSDT','ETHUSDT','BNBUSDT','SOLUSDT','XRPUSDT','DOGEUSDT','ADAUSDT','AVAXUSDT','LINKUSDT','UNIUSDT','LTCUSDT','BCHUSDT','USDCUSDT','BUSDUSDT','TUSDUSDT']);
 
         const coins = tickers.filter(t =>
             t.symbol.endsWith('USDT') &&
-            !STABLE_PAIRS.has(t.symbol) &&
+            !MAJOR_SET.has(t.symbol) &&
             activeSymbols.has(t.symbol) &&
             parseFloat(t.quoteVolume) >= 500000 &&
             parseFloat(t.lastPrice) > 0
@@ -2095,8 +2372,6 @@ async function runLiqZone() {
                         <span class="name">${c.sym.replace('USDT','')}</span>
                         <span class="price">$${fp(c.price)}</span>
                         <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:8px;color:#f44336;font-size:.8em;text-decoration:none">📊K线</a>
-                        <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}&tab=detail" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
-                        <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}&tab=radar" target="_blank" style="margin-left:4px;color:#00bcd4;font-size:.8em;text-decoration:none">📡雷达</a>
                     </div>
                     <div style="text-align:right">
                         <span class="score ${scoreCls}">${c.liqScore}分</span>
@@ -2132,50 +2407,52 @@ async function runOIChange() {
     currentProxyIndex = 0;
     $('status').textContent = '⏳ 正在扫描持仓量变化...';
     try {
-        const [tickers, klinesData] = await Promise.all([
-            apiFetch('/fapi/v1/ticker/24hr'),
-            apiFetch('/fapi/v1/allSymbolsKlines')
-        ]);
-        const activeSyms = new Set();
-        const info = await apiFetch('/fapi/v1/exchangeInfo');
-        info.symbols.filter(s => s.status === 'TRADING').forEach(s => activeSyms.add(s.symbol));
+        // ticker/24hr 已包含 openInterest 和价格涨跌幅，无需额外请求
+        const tickers = await apiFetch('/fapi/v1/ticker/24hr');
 
         const results = [];
-        const BATCH = 6;
-        const symbols = Array.from(activeSyms).filter(s => s.endsWith('USDT'));
+        const BATCH = 20;
+        // 过滤活跃USDT合约
+        const validTickers = tickers.filter(tk =>
+            tk.symbol.endsWith('USDT') &&
+            parseFloat(tk.lastPrice) > 0 &&
+            parseFloat(tk.quoteVolume) >= 1000000
+        );
 
-        for (let i = 0; i < symbols.length; i += BATCH) {
-            const batch = symbols.slice(i, i + BATCH);
-            await Promise.all(batch.map(async (sym) => {
+        for (let i = 0; i < validTickers.length; i += BATCH) {
+            const batch = validTickers.slice(i, i + BATCH);
+            await Promise.all(batch.map(async (tk) => {
                 try {
-                    const tk = tickers.find(t => t.symbol === sym);
-                    if (!tk) return;
+                    const sym = tk.symbol;
                     const price = parseFloat(tk.lastPrice);
-                    if (price <= 0 || price > 100000 || tk.quoteVolume < 1000000) return;
-
                     const todayOI = parseFloat(tk.openInterest || 0);
-                    const kl = klinesData[sym];
-                    if (!kl || kl.length < 2) return;
-                    const yesterdayClose = parseFloat(kl[kl.length - 2][4]);
-                    const todayClose = parseFloat(kl[kl.length - 1][4]);
-                    const yesterdayOI = todayClose > 0 ? (yesterdayClose * todayOI / todayClose) : 0;
+                    if (todayOI <= 0) return;
 
-                    if (yesterdayOI <= 0) return;
-                    const oiChange = (todayOI - yesterdayOI) / yesterdayOI * 100;
+                    // 用 /fapi/v1/openInterestHist 获取历史OI（5m，取最近2根）
+                    const oiHist = await apiFetch(`/futures/data/openInterestHist?symbol=${sym}&period=5m&limit=2`).catch(() => null);
+                    let oiChange = 0;
+                    if (oiHist && oiHist.length >= 2) {
+                        const prevOI = parseFloat(oiHist[0].sumOpenInterest);
+                        const curOI  = parseFloat(oiHist[1].sumOpenInterest);
+                        if (prevOI > 0) oiChange = (curOI - prevOI) / prevOI * 100;
+                    } else {
+                        // 降级：用价格涨跌反推OI估算
+                        const pct = parseFloat(tk.priceChangePercent) / 100;
+                        const prevPrice = price / (1 + pct);
+                        const prevOI = prevPrice > 0 ? (prevPrice * todayOI / price) : 0;
+                        if (prevOI > 0) oiChange = (todayOI - prevOI) / prevOI * 100;
+                    }
+
                     const priceChange = parseFloat(tk.priceChangePercent);
+                    const quoteVol = parseFloat(tk.quoteVolume);
 
-                    // 增仓且量比>1.3x
-                    if (oiChange > 0) {
-                        const volRatio = parseFloat(tk.quoteVolume) / 1000000;
-                        const avgVol = volRatio > 0 ? volRatio : 1;
-                        if (oiChange > 5 || (oiChange > 0 && volRatio / avgVol > 1.3)) {
-                            results.push({ sym, price, priceChange, oiChange, quoteVol: parseFloat(tk.quoteVolume) });
-                        }
+                    if (oiChange > 5) {
+                        results.push({ sym, price, priceChange, oiChange, quoteVol });
                     }
                 } catch(e) {}
             }));
-            if (i + BATCH < symbols.length) await sleep(200);
-            $('bar').style.width = Math.min(i + BATCH, symbols.length) / symbols.length * 100 + '%';
+            if (i + BATCH < validTickers.length) await new Promise(r => setTimeout(r, 100));
+            $('bar').style.width = Math.min(i + BATCH, validTickers.length) / validTickers.length * 100 + '%';
         }
 
         const sorted = results.sort((a, b) => b.oiChange - a.oiChange).slice(0, 20);
@@ -2259,6 +2536,7 @@ async function runBigDeal() {
     busy = false;
 }
 
+
 // ========== 套利价差 ==========
 async function runArb() {
     if (busy) return;
@@ -2328,7 +2606,6 @@ async function runRank() {
         ]);
         window._cachedTickers = tickers;
         const activeSymbols = new Set(exchangeInfo.symbols.filter(s => s.status === 'TRADING').map(s => s.symbol));
-        const STABLE_PAIRS = new Set(['BTCUSDT','ETHUSDT','BNBUSDT','USDCUSDT','BUSDUSDT','TUSDUSDT','USDPUSDT','USDTUSDC','USDTBUSD','USTUSDT','LUNAUSDT','DAIUSDT','FRAXUSDT','USDDUSDT','USDCUSDT']);
 
         // USDT合约 + 排除稳定币 + 成交量过滤 + 有效价格
         const coins = tickers
@@ -2371,7 +2648,6 @@ async function runFunding() {
             return `${h}时${m}分后`;
         };
         
-        const STABLE_PAIRS = new Set(['BTCUSDT','ETHUSDT','BNBUSDT','USDCUSDT','BUSDUSDT','TUSDUSDT','USDPUSDT','USDTUSDC','USDTBUSD','USTUSDT','LUNAUSDT','DAIUSDT','FRAXUSDT','USDDUSDT','USDCUSDT']);
         const all = fData
             .map(f => ({
                 sym: f.symbol, fr: parseFloat(f.lastFundingRate) * 100,
@@ -2435,8 +2711,6 @@ function renderCard(c, styleKey = '') {
                 <span class="price" data-p="${fp(c.price)}">$${fp(c.price)}</span>
                 <span class="arrow" style="color:${c24color}">${c.c24h>=0?'▲':'▼'}</span>
                 <a href="kline-analysis.html?symbol=${c.sym}" target="_blank" style="margin-left:8px;color:#00e676;font-size:.8em;text-decoration:none">📊K线</a>
-                <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}&tab=detail" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
-                <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}&tab=radar" target="_blank" style="margin-left:4px;color:#00bcd4;font-size:.8em;text-decoration:none">📡雷达</a>
             </div>
             <div style="text-align:right">
                 <span class="score ${scoreClass}">${scoreText}</span>
@@ -2495,8 +2769,6 @@ function renderWhaleCards(id, coins) {
                     <span class="name">${c.sym.replace('USDT', '')}</span>
                     <span class="price">$${fp(c.price)}</span>
                     <a href="kline-analysis.html?symbol=${c.sym.replace('USDT', '')}" target="_blank" style="margin-left:8px;color:#00bcd4;font-size:.8em;text-decoration:none">📊K线</a>
-                    <a href="kline-analysis.html?symbol=${c.sym.replace('USDT', '')}&tab=detail" target="_blank" style="margin-left:4px;color:#f0b90b;font-size:.8em;text-decoration:none">📋详情</a>
-                    <a href="kline-analysis.html?symbol=${c.sym.replace('USDT', '')}&tab=radar" target="_blank" style="margin-left:4px;color:#00e676;font-size:.8em;text-decoration:none">📡雷达</a>
                     <div style="font-size:.7em;color:${color};margin-top:2px">${tbr > 0.52 ? '🐋看多' : tbr < 0.48 ? '🦈看空' : '⚖️中性'}</div>
                 </div>
             </div>
@@ -2537,6 +2809,7 @@ function showTab(id) {
     if (id === 'oi-change' && !$('oiChangeList').innerHTML) runOIChange();
     if (id === 'bigdeal' && !$('bigDealList').innerHTML) runBigDeal();
     if (id === 'arb' && !$('arbList').innerHTML) runArb();
+    if (id === 'newcoin' && !$('newcoinList').innerHTML) runNewCoinBounce();
 }
 
 // ========== 初始化 ==========
