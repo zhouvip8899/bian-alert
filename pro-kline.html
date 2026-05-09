@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📊 专业K线分析</title>
+<script src="lightweight-charts.standalone.production.js"></script>
+<script>
+if (typeof window.LightweightCharts === 'undefined') {
+    document.body.innerHTML = '<div style="padding:50px;text-align:center;color:red;font-size:24px">⚠️ 图表库加载失败</div>';
+}
+</script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0e17;--panel:#111827;--border:#1e293b;--border2:#334155;
+  --text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;
+  --up:#ef4444;--down:#22c55e;--upBg:rgba(239,68,68,.12);--downBg:rgba(34,197,94,.12);
+  --gold:#f59e0b;--purple:#a78bfa;--blue:#3b82f6;--cyan:#06b6d4;--pink:#ec4899;--orange:#f97316;
+  --bb-upper:#6366f1;--bb-lower:#6366f1;--bb-mid:#4b5563;
+  --vwap:#facc15;
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif}
+
+/* ===== 顶部工具栏 ===== */
+.toolbar{
+  display:flex;align-items:center;gap:12px;padding:8px 16px;
+  background:var(--panel);border-bottom:1px solid var(--border);
+  height:48px;user-select:none;
+}
+.toolbar .logo{font-size:16px;font-weight:700;color:var(--gold);white-space:nowrap}
+.toolbar .sep{width:1px;height:24px;background:var(--border)}
+
+/* 币种搜索 */
+.coin-input{
+  background:var(--bg);border:1px solid var(--border);color:var(--text);
+  padding:5px 12px;border-radius:6px;font-size:13px;width:150px;outline:none;
+}
+.coin-input:focus{border-color:var(--gold)}
+
+/* 时间周期按钮 */
+.tf-group{display:flex;gap:3px}
+.tf-btn{
+  background:transparent;border:1px solid var(--border);color:var(--text2);
+  padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:500;
+  transition:all .15s;
+}
+.tf-btn:hover{border-color:var(--text2);color:var(--text)}
+.tf-btn.active{background:var(--gold);border-color:var(--gold);color:#000;font-weight:700}
+
+/* 指标开关 */
+.ind-group{display:flex;gap:4px;flex-wrap:wrap}
+.ind-btn{
+  background:transparent;border:1px solid var(--border2);color:var(--text3);
+  padding:3px 8px;border-radius:3px;cursor:pointer;font-size:11px;
+  transition:all .15s;display:flex;align-items:center;gap:4px;
+}
+.ind-btn:hover{border-color:var(--text2);color:var(--text)}
+.ind-btn.on{border-color:currentColor;background:rgba(255,255,255,.06)}
+.ind-btn .dot{width:8px;height:3px;border-radius:2px}
+
+/* 实时价格 */
+.live-price{
+  margin-left:auto;display:flex;align-items:center;gap:10px;font-size:13px;
+  white-space:nowrap;
+}
+.live-price .sym{font-weight:700;color:var(--text);font-size:15px}
+.live-price .price{font-weight:700;font-size:18px;font-variant-numeric:tabular-nums}
+.live-price .chg{padding:2px 8px;border-radius:4px;font-weight:600;font-size:12px}
+
+/* ===== 图表区域 ===== */
+.chart-area{
+  display:flex;flex-direction:column;height:calc(100vh - 48px);
+  padding:4px 8px 8px;
+}
+.chart-wrap{flex:1;position:relative;min-height:0;border-radius:6px;overflow:hidden}
+.sub-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:2px 8px;height:22px;border-top:1px solid var(--border);
+}
+.sub-label{font-size:11px;color:var(--text3);font-weight:600}
+.sub-val{font-size:11px;font-variant-numeric:tabular-nums}
+.sub-chart{height:120px;position:relative;min-height:80px}
+
+/* ===== 右侧指标面板 ===== */
+.indicator-panel{
+  position:fixed;right:12px;top:60px;width:220px;
+  background:var(--panel);border:1px solid var(--border);border-radius:8px;
+  padding:12px;font-size:12px;z-index:50;
+  box-shadow:0 4px 24px rgba(0,0,0,.4);
+}
+.indicator-panel h4{color:var(--text2);font-size:11px;margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:1px}
+.ind-row{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.03)}
+.ind-row .lbl{color:var(--text3)}
+.ind-row .val{font-weight:600;font-variant-numeric:tabular-nums}
+.signal-badge{
+  display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700;
+}
+.signal-buy{background:var(--downBg);color:var(--down)}
+.signal-sell{background:var(--upBg);color:var(--up)}
+.signal-neutral{background:rgba(255,255,255,.06);color:var(--text3)}
+
+/* ===== 响应式 ===== */
+@media(max-width:900px){
+  .ind-group{display:none}
+  .indicator-panel{display:none}
+  .live-price .sym{font-size:13px}
+  .live-price .price{font-size:15px}
+}
+</style>
+</head>
+<body>
+
+<!-- 工具栏 -->
+<div class="toolbar">
+  <div class="logo">📊 专业K线</div>
+  <div class="sep"></div>
+  <input class="coin-input" id="coinInput" placeholder="输入币种 如 BTCUSDT" value="BTCUSDT" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+  <button class="tf-btn" style="background:var(--gold);border-color:var(--gold);color:#000;font-weight:700" onclick="loadChart()">GO</button>
+  <div class="sep"></div>
+  <div class="tf-group" id="tfGroup">
+    <button class="tf-btn" data-tf="1m">1m</button>
+    <button class="tf-btn" data-tf="5m">5m</button>
+    <button class="tf-btn" data-tf="15m">15m</button>
+    <button class="tf-btn active" data-tf="1h">1h</button>
+    <button class="tf-btn" data-tf="4h">4h</button>
+    <button class="tf-btn" data-tf="1d">1D</button>
+    <button class="tf-btn" data-tf="1w">1W</button>
+  </div>
+  <div class="sep"></div>
+  <div class="ind-group" id="indGroup">
+    <button class="ind-btn on" data-ind="ma" style="color:#ef4444"><span class="dot" style="background:#ef4444"></span>MA</button>
+    <button class="ind-btn on" data-ind="ema" style="color:#a78bfa"><span class="dot" style="background:#a78bfa"></span>EMA</button>
+    <button class="ind-btn on" data-ind="bb" style="color:#6366f1"><span class="dot" style="background:#6366f1"></span>BOLL</button>
+    <button class="ind-btn on" data-ind="vwap" style="color:#facc15"><span class="dot" style="background:#facc15"></span>VWAP</button>
+    <button class="ind-btn on" data-ind="vol" style="color:#94a3b8"><span class="dot" style="background:#94a3b8"></span>VOL</button>
+    <button class="ind-btn on" data-ind="rsi" style="color:#f59e0b"><span class="dot" style="background:#f59e0b"></span>RSI</button>
+    <button class="ind-btn on" data-ind="macd" style="color:#3b82f6"><span class="dot" style="background:#3b82f6"></span>MACD</button>
+  </div>
+
+  <div class="live-price" id="livePrice">
+    <span class="sym" id="lpSym">-</span>
+    <span class="price" id="lpPrice">-</span>
+    <span class="chg" id="lpChg">-</span>
+  </div>
+</div>
+
+<!-- 图表区域 -->
+<div class="chart-area">
+  <!-- 主图 -->
+  <div class="chart-wrap" id="mainChart"></div>
+
+  <!-- RSI 子图 -->
+  <div class="sub-header">
+    <span class="sub-label">RSI(14)</span>
+    <span class="sub-val" id="rsiVal" style="color:var(--gold)">-</span>
+  </div>
+  <div class="sub-chart" id="rsiChart"></div>
+
+  <!-- MACD 子图 -->
+  <div class="sub-header">
+    <span class="sub-label">MACD(12,26,9)</span>
+    <span class="sub-val" id="macdVal" style="color:var(--blue)">-</span>
+  </div>
+  <div class="sub-chart" id="macdChart"></div>
+</div>
+
+<!-- 右侧指标面板 -->
+<div class="indicator-panel" id="indPanel">
+  <h4>技术指标</h4>
+  <div id="indBody"><p style="color:var(--text3);text-align:center;padding:20px 0">等待数据加载...</p></div>
+</div>
+
+<script>
+// ==================== 配置 ====================
+const API = 'https://fapi.binance.com';
+const CORS = [
+  'https://139.rams.cc.cd/?url=',
+  'https://135.rams.cc.cd/?url=',
+  'https://corsproxy.io/?',
+  'https://api.allorigins.win/raw?url='
+];
+const WS_PROXIES = [
+  'wss://139.rams.cc.cd/?url=',
+  'wss://135.rams.cc.cd/?url=',
+  'wss://137.rams.cc.cd/?url='
+];
+
+let currentSymbol = 'BTCUSDT';
+let currentTF = '1h';
+let ws = null;
+let wsConnId = 0;
+let allKlines = []; // 所有历史K线原始数据
+
+// 指标显示状态
+const indState = { ma: true, ema: true, bb: true, vwap: true, vol: true, rsi: true, macd: true };
+
+// ==================== API ====================
+async function apiFetch(path) {
+  const url = API + path;
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (r.ok) return await r.json();
+  } catch (e) { console.warn('直连失败:', e.message); }
+  for (const proxy of CORS) {
+    try {
+      const r = await fetch(proxy + encodeURIComponent(url), { signal: AbortSignal.timeout(10000) });
+      if (r.ok) return await r.json();
+    } catch (e) { continue; }
+  }
+  throw new Error('API请求全部失败');
+}
+
+// ==================== TA技术指标库 ====================
+const TA = (() => {
+  const SMA = (d, p) => { if (d.length < p) return null; return d.slice(-p).reduce((a,b)=>a+b,0)/p; };
+  const EMA = (d, p) => {
+    if (d.length < p) return null;
+    const k = 2/(p+1); let e = SMA(d.slice(0,p), p);
+    for (let i=p; i<d.length; i++) e = d[i]*k + e*(1-k);
+    return e;
+  };
+  const EMA_ARRAY = (d, p) => {
+    if (d.length < p) return [];
+    const k = 2/(p+1); let e = SMA(d.slice(0,p), p);
+    const res = [{ value: e }];
+    for (let i=p; i<d.length; i++) { e = d[i]*k + e*(1-k); res.push({ value: e }); }
+    return res;
+  };
+  const SMA_ARRAY = (d, p) => {
+    const res = [];
+    for (let i=p-1; i<d.length; i++) {
+      res.push({ value: d.slice(i-p+1,i+1).reduce((a,b)=>a+b,0)/p });
+    }
+    return res;
+  };
+  const RSI = (d, p=14) => {
+    if (d.length < p+1) return null;
+    let g=0, l=0;
+    for (let i=d.length-p; i<d.length; i++) { const df=d[i]-d[i-1]; if(df>0)g+=df;else l-=df; }
+    const ag=g/p, al=l/p;
+    return al===0?100:100-(100/(1+ag/al));
+  };
+  const RSI_ARRAY = (d, p=14) => {
+    if (d.length < p+1) return [];
+    let ag=0, al=0;
+    for (let i=1; i<=p; i++) { const df=d[i]-d[i-1]; if(df>0)ag+=df;else al-=df; }
+    ag/=p; al/=p;
+    const res = [];
+    for (let i=p; i<d.length; i++) {
+      if (i > p) { const df=d[i]-d[i-1]; ag=(ag*(p-1)+(df>0?df:0))/p; al=(al*(p-1)+(df<0?-df:0))/p; }
+      res.push({ value: al===0?100:100-(100/(1+ag/al)) });
+    }
+    return res;
+  };
+  const MACD = (d, f=12, s=26, sig=9) => {
+    // 用正确的 EMA 方式逐点计算 DIF
+    const difs = [];
+    const start = Math.max(f, s) - 1; // difs 从这个 times 索引开始
+    for (let i = start; i < d.length; i++) {
+      const e12 = EMA(d.slice(0, i + 1), f);
+      const e26 = EMA(d.slice(0, i + 1), s);
+      if (e12 !== null && e26 !== null) difs.push(e12 - e26);
+    }
+    if (difs.length < sig) return null;
+    // Signal = EMA(dif, sig)，用标准 EMA 方式
+    const k = 2 / (sig + 1);
+    let signal = difs.slice(0, sig).reduce((a, b) => a + b, 0) / sig; // SMA 初始化
+    const sigArr = [signal];
+    for (let i = sig; i < difs.length; i++) {
+      signal = difs[i] * k + signal * (1 - k);
+      sigArr.push(signal);
+    }
+    // sigArr 比 difs 少 (sig-1) 个点，需要对齐
+    // difs[0..sig-2] 没有对应 signal，从 difs[sig-1] 开始才有 signal[0]
+    const sigOffset = sig - 1; // signal 在 difs 中的起始偏移
+    const histArr = sigArr.map((sv, i) => (difs[sigOffset + i] - sv) * 2);
+    return {
+      dif: difs,
+      signal: sigArr,
+      hist: histArr,
+      start,       // difs[0] 对应 times[start]
+      sigOffset,   // signal[0] 对应 times[start + sigOffset]
+    };
+  };
+  const BB = (d, p=20, m=2) => {
+    if (d.length < p) return null;
+    const mid = SMA(d,p);
+    const v = d.slice(-p).reduce((s,v)=>s+Math.pow(v-mid,2),0)/p;
+    const sd = Math.sqrt(v);
+    return { upper: mid+m*sd, mid, lower: mid-m*sd, w:(mid+m*sd-(mid-m*sd))/mid*100, pos:(d[d.length-1]-(mid-m*sd))/((mid+m*sd)-(mid-m*sd)+1e-10)*100 };
+  };
+  const BB_ARRAY = (d, p=20, m=2) => {
+    const res = [];
+    for (let i=p-1; i<d.length; i++) {
+      const slice = d.slice(i-p+1,i+1);
+      const mid = slice.reduce((a,b)=>a+b,0)/p;
+      const v = slice.reduce((s,val)=>s+Math.pow(val-mid,2),0)/p;
+      const sd = Math.sqrt(v);
+      res.push({ upper: mid+m*sd, mid, lower: mid-m*sd });
+    }
+    return res;
+  };
+  const VWAP_ARRAY = (klines) => {
+    const res = [];
+    let spv=0, sv=0;
+    for (const k of klines) {
+      const tp = (parseFloat(k[2])+parseFloat(k[3])+parseFloat(k[4]))/3;
+      const v = parseFloat(k[5]);
+      spv += tp*v; sv += v;
+      res.push({ value: sv > 0 ? spv/sv : tp });
+    }
+    return res;
+  };
+  const KDJ = (d, n=9) => {
+    if (d.length < n+1) return null;
+    let k=50, dd=50;
+    for (let i=n-1; i<d.length; i++) {
+      const sl = d.slice(i-n+1,i+1);
+      const h=Math.max(...sl), l=Math.min(...sl);
+      const rsv = h===l?50:(d[i]-l)/(h-l)*100;
+      k = 2/3*k + 1/3*rsv;
+      dd = 2/3*dd + 1/3*k;
+    }
+    return { k, d: dd, j: 3*k-2*dd };
+  };
+  const WR = (d, p=14) => {
+    if (d.length<p) return null;
+    const h=Math.max(...d.slice(-p)), l=Math.min(...d.slice(-p));
+    return (h-d[d.length-1])/(h-l+1e-10)*-100;
+  };
+  const CCI = (d, p=20) => {
+    if (d.length<p) return null;
+    const sma=SMA(d,p);
+    const mad=d.slice(-p).reduce((s,v)=>s+Math.abs(v-sma),0)/p;
+    return mad===0?0:(d[d.length-1]-sma)/(0.015*mad);
+  };
+  const StochRSI = (d, p=14) => {
+    const rsiArr = RSI_ARRAY(d, p);
+    if (rsiArr.length < p) return null;
+    const slice = rsiArr.slice(-p);
+    const last = slice[slice.length-1].value;
+    const min = Math.min(...slice.map(r=>r.value));
+    const max = Math.max(...slice.map(r=>r.value));
+    const k = max===min?50:(last-min)/(max-min)*100;
+    return { k, d: k, j: k };
+  };
+  const ATR = (h, l, c, p=14) => {
+    if (h.length < p+1) return null;
+    let s=0;
+    for (let i=1;i<=p;i++) s+=Math.max(h[i]-l[i],Math.abs(h[i]-c[i-1]),Math.abs(l[i]-c[i-1]));
+    let a=s/p;
+    for (let i=p+1;i<h.length;i++) { const t=Math.max(h[i]-l[i],Math.abs(h[i]-c[i-1]),Math.abs(l[i]-c[i-1])); a=(a*(p-1)+t)/p; }
+    return a;
+  };
+  const ADX = (h, l, c, p=14) => {
+    if (h.length < p*2+1) return null;
+    let t14=0,pd=0,md=0;
+    for (let i=1;i<=p;i++) { const hd=h[i]-h[i-1],ld=l[i-1]-l[i]; t14+=Math.max(h[i]-l[i],Math.abs(h[i]-c[i-1]),Math.abs(l[i]-c[i-1])); pd+=(hd>ld&&hd>0)?hd:0; md+=(ld>hd&&ld>0)?ld:0; }
+    let pdi=pd/t14*100,mdi=md/t14*100,dx=(pdi+mdi>0)?Math.abs(pdi-mdi)/(pdi+mdi)*100:0,adx=dx;
+    for (let i=p+1;i<h.length;i++) { const hd=h[i]-h[i-1],ld=l[i-1]-l[i]; const t=Math.max(h[i]-l[i],Math.abs(h[i]-c[i-1]),Math.abs(l[i]-c[i-1])); const pm=(hd>ld&&hd>0)?hd:0,mm=(ld>hd&&ld>0)?ld:0; t14=(t14*(p-1)+t)/p; pd=(pd*(p-1)+pm)/p; md=(md*(p-1)+mm)/p; pdi=pd/t14*100;mdi=md/t14*100;dx=(pdi+mdi>0)?Math.abs(pdi-mdi)/(pdi+mdi)*100:0;adx=(adx*(p-1)+dx)/p; }
+    return { adx, pdi, mdi };
+  };
+
+  return { sma:SMA, ema:EMA, smaArray:SMA_ARRAY, emaArray:EMA_ARRAY, rsi:RSI, rsiArray:RSI_ARRAY, macd:MACD, bb:BB, bbArray:BB_ARRAY, vwapArray:VWAP_ARRAY, kdj:KDJ, wr:WR, cci:CCI, stochRsi:StochRSI, atr:ATR, adx:ADX };
+})();
+
+// ==================== 时间工具 ====================
+// UTC时间戳(秒) → 北京时间字符串，用 UTC 方法 +8小时，不受本地时区干扰
+function fmtTimeBJ(ts) {
+  const ms = ts * 1000 + 8 * 3600000; // 手动偏移到东八区
+  const d = new Date(ms);
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+}
+function fmtDateBJ(ts) {
+  const ms = ts * 1000 + 8 * 3600000;
+  const d = new Date(ms);
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}`;
+}
+
+// 根据当前周期决定时间格式
+function makeTimeFormatter(tf) {
+  return (tf === '1d' || tf === '1w') ? fmtDateBJ : fmtTimeBJ;
+}
+
+// ==================== 图表实例 ====================
+let mainChart, rsiChart, macdChart;
+let candleSeries, volumeSeries;
+let maLines = {}, emaLines = {}, bbUpperLine, bbLowerLine, bbMidLine, vwapLine;
+let rsiLine, rsi70Line, rsi30Line;
+let macdDifLine, macdSignalLine, macdHistSeries;
+
+// ==================== 初始化图表 ====================
+function createCharts() {
+  const timeFmt = makeTimeFormatter(currentTF);
+  const mkCfg = (bg, showTime) => ({
+    layout: { background: { type: 'solid', color: bg }, textColor: '#64748b', fontSize: 11 },
+    grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
+    crosshair: { mode: 0 },
+    rightPriceScale: { borderColor: '#1e293b', scaleMargins: { top: 0.05, bottom: 0.05 } },
+    timeScale: {
+      borderColor: '#1e293b',
+      timeVisible: true,
+      secondsVisible: false,
+      visible: showTime !== false,
+      tickMarkFormatter: timeFmt,
+    },
+    localization: { timeFormatter: timeFmt },
+    handleScroll: true, handleScale: true,
+  });
+
+  // 主图（显示时间轴）
+  mainChart = LightweightCharts.createChart(document.getElementById('mainChart'), {
+    ...mkCfg('#0a0e17', true),
+    crosshair: { mode: 1 },
+  });
+  candleSeries = mainChart.addCandlestickSeries({
+    upColor: '#ef4444', downColor: '#22c55e',
+    borderUpColor: '#ef4444', borderDownColor: '#22c55e',
+    wickUpColor: '#ef444488', wickDownColor: '#22c55e88',
+  });
+  volumeSeries = mainChart.addHistogramSeries({
+    priceFormat: { type: 'volume' },
+    priceScaleId: 'vol',
+  });
+  mainChart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
+
+  // MA 线
+  const maColors = { ma5:'#facc15', ma10:'#f97316', ma20:'#ef4444', ma60:'#3b82f6', ma120:'#a78bfa' };
+  Object.entries(maColors).forEach(([k,c]) => {
+    maLines[k] = mainChart.addLineSeries({ color: c, lineWidth: 1, title: k.toUpperCase(), visible: indState.ma, crosshairMarkerVisible: false });
+  });
+  // EMA 线
+  const emaColors = { ema7:'#c084fc', ema21:'#fb923c', ema99:'#38bdf8' };
+  Object.entries(emaColors).forEach(([k,c]) => {
+    emaLines[k] = mainChart.addLineSeries({ color: c, lineWidth: 1, title: k.toUpperCase(), visible: indState.ema, lineStyle: 2, crosshairMarkerVisible: false });
+  });
+  // 布林带
+  bbUpperLine = mainChart.addLineSeries({ color: '#6366f1', lineWidth: 1, lineStyle: 2, visible: indState.bb, title: 'BB上', crosshairMarkerVisible: false });
+  bbLowerLine = mainChart.addLineSeries({ color: '#6366f1', lineWidth: 1, lineStyle: 2, visible: indState.bb, title: 'BB下', crosshairMarkerVisible: false });
+  bbMidLine = mainChart.addLineSeries({ color: '#4b5563', lineWidth: 1, lineStyle: 3, visible: indState.bb, title: 'BB中', crosshairMarkerVisible: false });
+  // VWAP
+  vwapLine = mainChart.addLineSeries({ color: '#facc15', lineWidth: 2, visible: indState.vwap, title: 'VWAP', crosshairMarkerVisible: false });
+
+  // RSI 子图（隐藏时间轴标签，与主图同步）
+  rsiChart = LightweightCharts.createChart(document.getElementById('rsiChart'), {
+    ...mkCfg('transparent', false),
+    rightPriceScale: { ...mkCfg('transparent', false).rightPriceScale, scaleMargins: { top: 0.05, bottom: 0.05 } },
+  });
+  rsiLine = rsiChart.addLineSeries({ color: '#f59e0b', lineWidth: 1.5, title: 'RSI' });
+  rsi70Line = rsiChart.addLineSeries({ color: '#ef444466', lineWidth: 1, lineStyle: 2, crosshairMarkerVisible: false });
+  rsi30Line = rsiChart.addLineSeries({ color: '#22c55e66', lineWidth: 1, lineStyle: 2, crosshairMarkerVisible: false });
+  mainChart.timeScale().subscribeVisibleLogicalRangeChange(range => {
+    if (range) rsiChart.timeScale().setVisibleLogicalRange(range);
+  });
+
+  // MACD 子图（隐藏时间轴标签，与主图同步）
+  macdChart = LightweightCharts.createChart(document.getElementById('macdChart'), {
+    ...mkCfg('transparent', false),
+    rightPriceScale: { ...mkCfg('transparent', false).rightPriceScale, scaleMargins: { top: 0.05, bottom: 0.05 } },
+  });
+  macdDifLine = macdChart.addLineSeries({ color: '#3b82f6', lineWidth: 1.5, title: 'DIF' });
+  macdSignalLine = macdChart.addLineSeries({ color: '#f97316', lineWidth: 1.5, title: 'Signal' });
+  macdHistSeries = macdChart.addHistogramSeries({ color: '#3b82f644', title: 'MACD' });
+  mainChart.timeScale().subscribeVisibleLogicalRangeChange(range => {
+    if (range) macdChart.timeScale().setVisibleLogicalRange(range);
+  });
+}
+
+// ==================== 加载K线数据 ====================
+async function loadChart() {
+  let sym = document.getElementById('coinInput').value.toUpperCase().trim();
+  if (!sym) return;
+  // 如果用户只输入了币种名（如 BTC），自动补全 USDT
+  if (!sym.includes('USDT') && !sym.includes('BUSD') && !sym.includes('USDC')) {
+    sym = sym + 'USDT';
+    document.getElementById('coinInput').value = sym;
+  }
+  currentSymbol = sym;
+  currentTF = document.querySelector('.tf-btn.active')?.dataset?.tf || '1h';
+
+  // 切换周期时更新时间格式（北京时间，日线/周线只显示日期）
+  const timeFmt = makeTimeFormatter(currentTF);
+  if (mainChart) {
+    const tsOpts = { timeVisible: true, secondsVisible: false, tickMarkFormatter: timeFmt };
+    mainChart.applyOptions({ localization: { timeFormatter: timeFmt }, timeScale: tsOpts });
+    rsiChart.applyOptions({ localization: { timeFormatter: timeFmt }, timeScale: { ...tsOpts, visible: false } });
+    macdChart.applyOptions({ localization: { timeFormatter: timeFmt }, timeScale: { ...tsOpts, visible: false } });
+  }
+
+  const limit = 500;
+  const interval = currentTF === '1w' ? '1w' : currentTF;
+  document.getElementById('lpSym').textContent = sym.replace('USDT','') + '/USDT';
+
+  try {
+    setProgress('加载K线数据...');
+    const klines = await apiFetch(`/fapi/v1/klines?symbol=${sym}&interval=${interval}&limit=${limit}`);
+    if (!klines || !klines.length) throw new Error('无数据');
+
+    allKlines = klines;
+    renderAll(klines);
+    setProgress('连接实时行情...');
+    connectWS(sym, interval);
+    setProgress('');
+  } catch (e) {
+    setProgress('❌ ' + e.message);
+  }
+}
+
+function setProgress(msg) {
+  document.getElementById('lpChg').textContent = msg;
+  document.getElementById('lpChg').style.background = msg.includes('❌') ? 'var(--upBg)' : 'transparent';
+  document.getElementById('lpChg').style.color = msg.includes('❌') ? 'var(--up)' : 'var(--text3)';
+}
+
+// ==================== 渲染所有图表 ====================
+function renderAll(klines) {
+  const times = klines.map(k => Math.floor(k[0]/1000));
+  const opens = klines.map(k => parseFloat(k[1]));
+  const highs = klines.map(k => parseFloat(k[2]));
+  const lows = klines.map(k => parseFloat(k[3]));
+  const closes = klines.map(k => parseFloat(k[4]));
+  const vols = klines.map(k => parseFloat(k[5]));
+
+  // 蜡烛图
+  const candleData = klines.map((k,i) => ({
+    time: times[i], open: opens[i], high: highs[i], low: lows[i], close: closes[i]
+  }));
+  candleSeries.setData(candleData);
+
+  // 成交量
+  const volData = klines.map((k,i) => ({
+    time: times[i], value: vols[i],
+    color: closes[i] >= opens[i] ? 'rgba(239,68,68,.25)' : 'rgba(34,197,94,.25)'
+  }));
+  volumeSeries.setData(volData);
+
+  // MA
+  [5,10,20,60,120].forEach(p => {
+    const arr = TA.smaArray(closes, p);
+    maLines['ma'+p].setData(arr.map((v,i) => ({ time: times[p-1+i], value: v.value })));
+  });
+
+  // EMA
+  [7,21,99].forEach(p => {
+    const arr = TA.emaArray(closes, p);
+    emaLines['ema'+p].setData(arr.map((v,i) => ({ time: times[p-1+i], value: v.value })));
+  });
+
+  // 布林带
+  const bbArr = TA.bbArray(closes, 20, 2);
+  bbUpperLine.setData(bbArr.map((v,i) => ({ time: times[19+i], value: v.upper })));
+  bbLowerLine.setData(bbArr.map((v,i) => ({ time: times[19+i], value: v.lower })));
+  bbMidLine.setData(bbArr.map((v,i) => ({ time: times[19+i], value: v.mid })));
+
+  // VWAP
+  const vwapArr = TA.vwapArray(klines);
+  vwapLine.setData(vwapArr.map((v,i) => ({ time: times[i], value: v.value })));
+
+  // RSI — rsiArr.length = closes.length - 14，从 times[14] 开始
+  const rsiArr = TA.rsiArray(closes, 14);
+  const rsiOffset = closes.length - rsiArr.length; // = 14
+  rsiLine.setData(rsiArr.map((v, i) => ({ time: times[rsiOffset + i], value: v.value })));
+  rsi70Line.setData(times.slice(rsiOffset).map(t => ({ time: t, value: 70 })));
+  rsi30Line.setData(times.slice(rsiOffset).map(t => ({ time: t, value: 30 })));
+
+  // MACD
+  const macd = TA.macd(closes, 12, 26, 9);
+  macdData = macd;
+  if (macd && macd.dif.length) {
+    const { dif, signal, hist, start, sigOffset } = macd;
+    // DIF 从 times[start] 开始
+    macdDifLine.setData(dif.map((v, i) => ({ time: times[start + i], value: v })));
+    // Signal/Hist 从 times[start + sigOffset] 开始
+    macdSignalLine.setData(signal.map((v, i) => ({ time: times[start + sigOffset + i], value: v })));
+    macdHistSeries.setData(hist.map((v, i) => ({
+      time: times[start + sigOffset + i], value: v,
+      color: v >= 0 ? 'rgba(239,68,68,.5)' : 'rgba(34,197,94,.5)'
+    })));
+    // 更新 MACD 子图标题
+    const lastDif = dif[dif.length - 1];
+    const lastSig = signal[signal.length - 1];
+    document.getElementById('macdVal').textContent = `DIF:${lastDif.toFixed(4)}  Sig:${lastSig.toFixed(4)}`;
+  }
+
+  // 更新实时价格
+  updateLivePrice(closes[closes.length-1], opens[opens.length-1]);
+
+  // 更新指标面板
+  updateIndicatorPanel(closes, highs, lows, vols);
+
+  // 同步时间轴
+  mainChart.timeScale().fitContent();
+}
+
+// ==================== 实时价格 ====================
+function updateLivePrice(price, openPrice) {
+  document.getElementById('lpPrice').textContent = '$' + formatPrice(price);
+  const chg = ((price - openPrice) / openPrice * 100);
+  const el = document.getElementById('lpChg');
+  el.textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
+  el.style.background = chg >= 0 ? 'var(--upBg)' : 'var(--downBg)';
+  el.style.color = chg >= 0 ? 'var(--up)' : 'var(--down)';
+  document.getElementById('lpPrice').style.color = chg >= 0 ? 'var(--up)' : 'var(--down)';
+}
+
+function formatPrice(p) {
+  return p >= 1000 ? p.toFixed(2) : p >= 1 ? p.toFixed(4) : p >= 0.01 ? p.toFixed(6) : p.toFixed(8);
+}
+
+// ==================== 指标面板 ====================
+function updateIndicatorPanel(closes, highs, lows, vols) {
+  const rsi = TA.rsi(closes, 14);
+  const kdj = TA.kdj(closes);
+  const wr = TA.wr(closes);
+  const cci = TA.cci(closes);
+  const stochRsi = TA.stochRsi(closes);
+  const atr = TA.atr(highs, lows, closes);
+  const adx = TA.adx(highs, lows, closes);
+  const bb = TA.bb(closes);
+  const lastPrice = closes[closes.length-1];
+
+  const rsiColor = rsi > 70 ? 'var(--up)' : rsi < 30 ? 'var(--down)' : 'var(--gold)';
+  const rsiSignal = rsi > 70 ? 'sell' : rsi < 30 ? 'buy' : 'neutral';
+  const kdjSignal = kdj && kdj.j > 100 ? 'sell' : kdj && kdj.j < 0 ? 'buy' : 'neutral';
+  const wrSignal = wr !== null && wr > -20 ? 'sell' : wr !== null && wr < -80 ? 'buy' : 'neutral';
+
+  let buyCount = 0, sellCount = 0;
+  if (rsiSignal === 'buy') buyCount++; else if (rsiSignal === 'sell') sellCount++;
+  if (kdjSignal === 'buy') buyCount++; else if (kdjSignal === 'sell') sellCount++;
+  if (wrSignal === 'buy') buyCount++; else if (wrSignal === 'sell') sellCount++;
+
+  const html = `
+    <div class="ind-row"><span class="lbl">RSI(14)</span><span class="val" style="color:${rsiColor}">${rsi?.toFixed(1) || '-'} <span class="signal-badge signal-${rsiSignal}">${rsi>70?'超买':rsi<30?'超卖':'中性'}</span></span></div>
+    <div class="ind-row"><span class="lbl">KDJ</span><span class="val">${kdj?`K:${kdj.k.toFixed(0)} D:${kdj.d.toFixed(0)} <span style="color:${kdj.j>100?'var(--up)':kdj.j<0?'var(--down)':'var(--text3)'}">J:${kdj.j.toFixed(0)}</span>`:'-'}</span></div>
+    <div class="ind-row"><span class="lbl">WR(14)</span><span class="val">${wr!==null?wr.toFixed(1):'-'}</span></div>
+    <div class="ind-row"><span class="lbl">CCI(20)</span><span class="val">${cci!==null?cci.toFixed(0):'-'}</span></div>
+    <div class="ind-row"><span class="lbl">StochRSI</span><span class="val">${stochRsi?`K:${stochRsi.k.toFixed(1)}`:'-'}</span></div>
+    <div class="ind-row"><span class="lbl">ATR(14)</span><span class="val">${atr?formatPrice(atr):'-'}</span></div>
+    ${adx?`<div class="ind-row"><span class="lbl">ADX</span><span class="val">${adx.adx.toFixed(1)} <span style="color:${adx.adx>25?'var(--up)':'var(--text3)'}">(${adx.adx>25?'强趋势':'弱趋势'})</span></span></div>
+    <div class="ind-row"><span class="lbl">+DI / -DI</span><span class="val" style="color:${adx.pdi>adx.mdi?'var(--up)':'var(--down)'}">${adx.pdi.toFixed(1)} / ${adx.mdi.toFixed(1)}</span></div>`:''}
+    ${bb?`<div class="ind-row"><span class="lbl">BOLL</span><span class="val">W:${bb.w.toFixed(1)}% Pos:${bb.pos.toFixed(0)}%</span></div>`:''}
+    <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="color:var(--text3);font-size:11px">综合信号</span>
+        <span class="signal-badge signal-${buyCount>sellCount?'buy':sellCount>buyCount?'sell':'neutral'}">${buyCount>sellCount?'▲ 偏多':sellCount>buyCount?'▼ 偏空':'⚖️ 中性'} (${buyCount}多/${sellCount}空)</span>
+      </div>
+    </div>
+  `;
+  document.getElementById('indBody').innerHTML = html;
+
+  // 更新子图 RSI 标签
+  document.getElementById('rsiVal').textContent = rsi?.toFixed(1) || '-';
+  document.getElementById('rsiVal').style.color = rsiColor;
+  // macdVal 在 renderAll/updateRealtimeIndicators 里单独更新
+}
+let macdData = null;
+
+// ==================== WebSocket 实时 ====================
+function connectWS(symbol, interval) {
+  if (ws) { wsConnId++; ws.close(); }
+  const myId = ++wsConnId;
+  const pair = symbol.toLowerCase();
+  const targetUrl = `wss://fstream.binance.com/ws/${pair}@kline_${interval}`;
+
+  // 尝试连接：先直连，再依次走代理
+  const endpoints = [`wss://fstream.binance.com/ws/${pair}@kline_${interval}`, ...WS_PROXIES.map(p => p + targetUrl)];
+
+  let tried = 0;
+  function tryConnect() {
+    if (myId !== wsConnId) return;
+    if (tried >= endpoints.length) {
+      setProgress('⚠️ WS全部失败，数据为静态');
+      console.error('所有 WebSocket 代理均失败');
+      return;
+    }
+    const url = endpoints[tried++];
+    console.log(`WS尝试[${tried}/${endpoints.length}]: ${url}`);
+    try {
+      const w = new WebSocket(url);
+      const connTimer = setTimeout(() => {
+        if (w.readyState === WebSocket.CONNECTING) {
+          w.close();
+          console.warn(`WS超时: ${url}`);
+        }
+      }, 8000);
+
+      w.onopen = () => {
+        clearTimeout(connTimer);
+        if (myId !== wsConnId) { w.close(); return; }
+        ws = w;
+        setProgress('');
+        console.log(`WS已连接: ${url}`);
+      };
+      w.onmessage = (e) => {
+        if (myId !== wsConnId) return;
+        handleWSMessage(e.data, symbol);
+      };
+      w.onclose = () => {
+        clearTimeout(connTimer);
+        if (myId !== wsConnId) return;
+        console.warn(`WS断开: ${url}`);
+        // 如果不是最后一个才尝试下一个
+        if (tried < endpoints.length) {
+          tryConnect();
+        } else {
+          ws = null;
+          // 5秒后重连
+          setTimeout(() => { if (myId === wsConnId) connectWS(symbol, interval); }, 5000);
+        }
+      };
+      w.onerror = () => { clearTimeout(connTimer); w.close(); };
+    } catch (e) {
+      console.warn(`WS创建异常: ${url}`, e);
+      if (tried < endpoints.length) tryConnect();
+    }
+  }
+  tryConnect();
+}
+
+function handleWSMessage(data, symbol) {
+  try {
+    const msg = JSON.parse(data);
+    if (msg.e !== 'kline') return;
+    const k = msg.k;
+    const time = Math.floor(k.t / 1000);
+    const open = parseFloat(k.o), high = parseFloat(k.h), low = parseFloat(k.l), close = parseFloat(k.c), vol = parseFloat(k.v);
+
+    // 更新蜡烛图
+    candleSeries.update({ time, open, high, low, close });
+    volumeSeries.update({ time, value: vol, color: close >= open ? 'rgba(239,68,68,.25)' : 'rgba(34,197,94,.25)' });
+
+    // 更新实时价格
+    updateLivePrice(close, open);
+
+    // 更新历史数据缓存
+    if (allKlines.length > 0) {
+      const lastK = allKlines[allKlines.length - 1];
+      if (lastK[0] === k.t) {
+        // 更新最后一根K线
+        allKlines[allKlines.length - 1] = [k.t, k.o, k.h, k.l, k.c, k.v];
+      } else if (k.t > lastK[0]) {
+        // 新K线
+        allKlines.push([k.t, k.o, k.h, k.l, k.c, k.v]);
+        if (allKlines.length > 600) allKlines.shift();
+      }
+    }
+
+    // 每5秒更新指标
+    if (!ws._lastIndUpdate || Date.now() - ws._lastIndUpdate > 5000) {
+      ws._lastIndUpdate = Date.now();
+      updateRealtimeIndicators();
+    }
+  } catch (err) { /* 忽略解析错误 */ }
+}
+
+function updateRealtimeIndicators() {
+  if (!allKlines.length) return;
+  const closes = allKlines.map(k => parseFloat(k[4]));
+  const highs = allKlines.map(k => parseFloat(k[2]));
+  const lows = allKlines.map(k => parseFloat(k[3]));
+  const vols = allKlines.map(k => parseFloat(k[5]));
+  const times = allKlines.map(k => Math.floor(k[0]/1000));
+  const lastTime = times[times.length - 1];
+
+  // 更新MA线最后一个点
+  [5,10,20,60,120].forEach(p => {
+    const v = TA.sma(closes, p);
+    if (v !== null) maLines['ma'+p].update({ time: lastTime, value: v });
+  });
+
+  // 更新EMA线最后一个点
+  [7,21,99].forEach(p => {
+    const v = TA.ema(closes, p);
+    if (v !== null) emaLines['ema'+p].update({ time: lastTime, value: v });
+  });
+
+  // 更新布林带
+  const bb = TA.bb(closes);
+  if (bb) {
+    bbUpperLine.update({ time: lastTime, value: bb.upper });
+    bbLowerLine.update({ time: lastTime, value: bb.lower });
+    bbMidLine.update({ time: lastTime, value: bb.mid });
+  }
+
+  // 更新VWAP
+  const vwapArr = TA.vwapArray(allKlines);
+  if (vwapArr.length) vwapLine.update({ time: lastTime, value: vwapArr[vwapArr.length-1].value });
+
+  // 更新RSI
+  const rsiVal = TA.rsi(closes, 14);
+  if (rsiVal !== null) {
+    rsiLine.update({ time: lastTime, value: rsiVal });
+    document.getElementById('rsiVal').textContent = rsiVal.toFixed(1);
+    document.getElementById('rsiVal').style.color = rsiVal > 70 ? 'var(--up)' : rsiVal < 30 ? 'var(--down)' : 'var(--gold)';
+  }
+
+  // 更新MACD
+  const macd = TA.macd(closes, 12, 26, 9);
+  macdData = macd;
+  if (macd && macd.dif.length && macd.signal.length) {
+    const { dif, signal, hist, start, sigOffset } = macd;
+    const i = signal.length - 1;
+    const t = times[start + sigOffset + i];
+    if (t) {
+      macdDifLine.update({ time: t, value: dif[sigOffset + i] });
+      macdSignalLine.update({ time: t, value: signal[i] });
+      macdHistSeries.update({ time: t, value: hist[i], color: hist[i] >= 0 ? 'rgba(239,68,68,.5)' : 'rgba(34,197,94,.5)' });
+      document.getElementById('macdVal').textContent = `DIF:${dif[dif.length-1].toFixed(4)}  Sig:${signal[i].toFixed(4)}`;
+    }
+  }
+
+  // 更新指标面板
+  updateIndicatorPanel(closes, highs, lows, vols);
+}
+
+// ==================== UI 交互 ====================
+// 时间周期切换
+document.getElementById('tfGroup').addEventListener('click', (e) => {
+  const btn = e.target.closest('.tf-btn');
+  if (!btn) return;
+  document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentTF = btn.dataset.tf;
+  loadChart();
+});
+
+// 指标开关
+document.getElementById('indGroup').addEventListener('click', (e) => {
+  const btn = e.target.closest('.ind-btn');
+  if (!btn) return;
+  const ind = btn.dataset.ind;
+  indState[ind] = !indState[ind];
+  btn.classList.toggle('on');
+
+  // 更新可见性
+  switch(ind) {
+    case 'ma':
+      Object.values(maLines).forEach(l => l.applyOptions({ visible: indState.ma }));
+      break;
+    case 'ema':
+      Object.values(emaLines).forEach(l => l.applyOptions({ visible: indState.ema }));
+      break;
+    case 'bb':
+      [bbUpperLine, bbLowerLine, bbMidLine].forEach(l => l.applyOptions({ visible: indState.bb }));
+      break;
+    case 'vwap':
+      vwapLine.applyOptions({ visible: indState.vwap });
+      break;
+    case 'vol':
+      volumeSeries.applyOptions({ visible: indState.vol });
+      break;
+    case 'rsi':
+      document.getElementById('rsiChart').style.display = indState.rsi ? '' : 'none';
+      document.querySelector('#rsiChart').previousElementSibling.style.display = indState.rsi ? '' : 'none';
+      break;
+    case 'macd':
+      document.getElementById('macdChart').style.display = indState.macd ? '' : 'none';
+      document.querySelector('#macdChart').previousElementSibling.style.display = indState.macd ? '' : 'none';
+      break;
+  }
+});
+
+// 回车加载
+document.getElementById('coinInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') loadChart();
+});
+
+// 窗口大小自适应
+window.addEventListener('resize', () => {
+  const mainEl = document.getElementById('mainChart');
+  const rsiEl = document.getElementById('rsiChart');
+  const macdEl = document.getElementById('macdChart');
+  if (mainChart) {
+    mainChart.applyOptions({ width: mainEl.clientWidth, height: mainEl.clientHeight });
+    rsiChart.applyOptions({ width: rsiEl.clientWidth, height: rsiEl.clientHeight });
+    macdChart.applyOptions({ width: macdEl.clientWidth, height: macdEl.clientHeight });
+  }
+});
+
+// ==================== 启动 ====================
+window.addEventListener('DOMContentLoaded', () => {
+  createCharts();
+  // 自适应尺寸
+  setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+  setTimeout(() => window.dispatchEvent(new Event('resize')), 500);
+  // 自动加载默认交易对
+  setTimeout(() => loadChart(), 300);
+});
+</script>
+</body>
+</html>
