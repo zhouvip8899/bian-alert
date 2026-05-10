@@ -136,6 +136,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
     <button class="ind-btn on" data-ind="vol" style="color:#94a3b8"><span class="dot" style="background:#94a3b8"></span>VOL</button>
     <button class="ind-btn on" data-ind="rsi" style="color:#f59e0b"><span class="dot" style="background:#f59e0b"></span>RSI</button>
     <button class="ind-btn on" data-ind="macd" style="color:#3b82f6"><span class="dot" style="background:#3b82f6"></span>MACD</button>
+    <button class="ind-btn on" data-ind="td9" style="color:#ff2d55"><span class="dot" style="background:#ff2d55"></span>TD9</button>
   </div>
 
   <div class="live-price" id="livePrice">
@@ -193,7 +194,7 @@ let wsConnId = 0;
 let allKlines = []; // 所有历史K线原始数据
 
 // 指标显示状态
-const indState = { ma: true, ema: true, bb: true, vwap: true, vol: true, rsi: true, macd: true };
+const indState = { ma: true, ema: true, bb: true, vwap: true, vol: true, rsi: true, macd: true, td9: true };
 
 // ==================== API ====================
 async function apiFetch(path) {
@@ -362,7 +363,37 @@ const TA = (() => {
     return { adx, pdi, mdi };
   };
 
-  return { sma:SMA, ema:EMA, smaArray:SMA_ARRAY, emaArray:EMA_ARRAY, rsi:RSI, rsiArray:RSI_ARRAY, macd:MACD, bb:BB, bbArray:BB_ARRAY, vwapArray:VWAP_ARRAY, kdj:KDJ, wr:WR, cci:CCI, stochRsi:StochRSI, atr:ATR, adx:ADX };
+  // TD Sequential 9 —— 返回每根K线的计数信息
+  // 规则：close > close[4根前] 为 sell-setup 计数；close < close[4根前] 为 buy-setup 计数
+  // 连续9根达到条件时触发信号；计数中断则从0重新开始
+  const TD9_ARRAY = (closes) => {
+    const result = [];
+    let buyCount = 0, sellCount = 0;
+    for (let i = 0; i < closes.length; i++) {
+      if (i < 4) {
+        result.push({ buy: 0, sell: 0 });
+        continue;
+      }
+      const c = closes[i], c4 = closes[i - 4];
+      if (c < c4) {
+        buyCount++;
+        sellCount = 0;
+      } else if (c > c4) {
+        sellCount++;
+        buyCount = 0;
+      } else {
+        buyCount = 0;
+        sellCount = 0;
+      }
+      result.push({
+        buy:  buyCount  > 0 ? Math.min(buyCount,  9) : 0,
+        sell: sellCount > 0 ? Math.min(sellCount, 9) : 0,
+      });
+    }
+    return result;
+  };
+
+  return { sma:SMA, ema:EMA, smaArray:SMA_ARRAY, emaArray:EMA_ARRAY, rsi:RSI, rsiArray:RSI_ARRAY, macd:MACD, bb:BB, bbArray:BB_ARRAY, vwapArray:VWAP_ARRAY, kdj:KDJ, wr:WR, cci:CCI, stochRsi:StochRSI, atr:ATR, adx:ADX, td9Array:TD9_ARRAY };
 })();
 
 // ==================== 时间工具 ====================
@@ -391,6 +422,7 @@ let candleSeries, volumeSeries;
 let maLines = {}, emaLines = {}, bbUpperLine, bbLowerLine, bbMidLine, vwapLine;
 let rsiLine, rsi70Line, rsi30Line;
 let macdDifLine, macdSignalLine, macdHistSeries;
+let td9BuySeries, td9SellSeries;
 
 // ==================== 初始化图表 ====================
 function createCharts() {
@@ -443,6 +475,11 @@ function createCharts() {
   bbMidLine = mainChart.addLineSeries({ color: '#4b5563', lineWidth: 1, lineStyle: 3, visible: indState.bb, title: 'BB中', crosshairMarkerVisible: false });
   // VWAP
   vwapLine = mainChart.addLineSeries({ color: '#facc15', lineWidth: 2, visible: indState.vwap, title: 'VWAP', crosshairMarkerVisible: false });
+
+  // TD9 标记（主图叠加，用 Marker 在蜡烛上显示数字）
+  // buy setup：1-9 显示在K线下方（绿色）；sell setup：1-9 显示在K线上方（红色）
+  td9BuySeries  = mainChart.addLineSeries({ color: 'transparent', lineWidth: 0, priceScaleId: 'right', visible: indState.td9, crosshairMarkerVisible: false, lastValueVisible: false, priceLineVisible: false });
+  td9SellSeries = mainChart.addLineSeries({ color: 'transparent', lineWidth: 0, priceScaleId: 'right', visible: indState.td9, crosshairMarkerVisible: false, lastValueVisible: false, priceLineVisible: false });
 
   // RSI 子图（隐藏时间轴标签，与主图同步）
   rsiChart = LightweightCharts.createChart(document.getElementById('rsiChart'), {
@@ -559,6 +596,9 @@ function renderAll(klines) {
   const vwapArr = TA.vwapArray(klines);
   vwapLine.setData(vwapArr.map((v,i) => ({ time: times[i], value: v.value })));
 
+  // TD9 —— 主图 Marker 标注买卖序列
+  renderTD9(times, highs, lows, closes);
+
   // RSI — rsiArr.length = closes.length - 14，从 times[14] 开始
   const rsiArr = TA.rsiArray(closes, 14);
   const rsiOffset = closes.length - rsiArr.length; // = 14
@@ -593,6 +633,39 @@ function renderAll(klines) {
 
   // 同步时间轴
   mainChart.timeScale().fitContent();
+}
+
+// ==================== TD9 渲染 ====================
+function renderTD9(times, highs, lows, closes) {
+  if (!indState.td9) {
+    candleSeries.setMarkers([]);
+    return;
+  }
+  const td9 = TA.td9Array(closes);
+  const markers = [];
+  for (let i = 0; i < td9.length; i++) {
+    const { buy, sell } = td9[i];
+    if (sell > 0) {
+      markers.push({
+        time:     times[i],
+        position: 'aboveBar',
+        color:    sell === 9 ? '#ff2d55' : '#ef4444cc',
+        shape:    'circle',
+        text:     String(sell),
+        size:     sell === 9 ? 1.5 : 0.8,
+      });
+    } else if (buy > 0) {
+      markers.push({
+        time:     times[i],
+        position: 'belowBar',
+        color:    buy === 9 ? '#00e676' : '#22c55ecc',
+        shape:    'circle',
+        text:     String(buy),
+        size:     buy === 9 ? 1.5 : 0.8,
+      });
+    }
+  }
+  candleSeries.setMarkers(markers);
 }
 
 // ==================== 实时价格 ====================
@@ -812,6 +885,11 @@ function updateRealtimeIndicators() {
     }
   }
 
+  // 更新TD9 markers（重绘完整序列确保准确）
+  const allHighs = allKlines.map(k => parseFloat(k[2]));
+  const allLows  = allKlines.map(k => parseFloat(k[3]));
+  renderTD9(times, allHighs, allLows, closes);
+
   // 更新指标面板
   updateIndicatorPanel(closes, highs, lows, vols);
 }
@@ -859,6 +937,16 @@ document.getElementById('indGroup').addEventListener('click', (e) => {
     case 'macd':
       document.getElementById('macdChart').style.display = indState.macd ? '' : 'none';
       document.querySelector('#macdChart').previousElementSibling.style.display = indState.macd ? '' : 'none';
+      break;
+    case 'td9':
+      // TD9 通过 setMarkers 控制，重新渲染一次即可
+      if (allKlines.length) {
+        const t9times  = allKlines.map(k => Math.floor(k[0]/1000));
+        const t9highs  = allKlines.map(k => parseFloat(k[2]));
+        const t9lows   = allKlines.map(k => parseFloat(k[3]));
+        const t9closes = allKlines.map(k => parseFloat(k[4]));
+        renderTD9(t9times, t9highs, t9lows, t9closes);
+      }
       break;
   }
 });
