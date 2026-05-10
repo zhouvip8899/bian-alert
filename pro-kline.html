@@ -394,7 +394,56 @@ const TA = (() => {
     return result;
   };
 
-  return { sma:SMA, ema:EMA, smaArray:SMA_ARRAY, emaArray:EMA_ARRAY, rsi:RSI, rsiArray:RSI_ARRAY, macd:MACD, bb:BB, bbArray:BB_ARRAY, vwapArray:VWAP_ARRAY, kdj:KDJ, wr:WR, cci:CCI, stochRsi:StochRSI, atr:ATR, adx:ADX, td9Array:TD9_ARRAY };
+  // 庄家抄底 & 逃顶信号 —— 成交量异常检测
+  const VOL_SIGNALS = (opens, closes, highs, lows, volumes, period = 20) => {
+    const len = closes.length;
+    const result = [];
+    if (len < period) {
+      for (let i = 0; i < len; i++) result.push({ chaoDi: false, taoDing: false });
+      return result;
+    }
+
+    const volMa = SMA_ARRAY(volumes, period);
+
+    for (let i = 0; i < len; i++) {
+      let chaoDi = false, taoDing = false;
+      if (i < period - 1) {
+        result.push({ chaoDi, taoDing });
+        continue;
+      }
+
+      const maIdx = i - period + 1;
+      const avgVol = volMa[maIdx].value;
+      const isHighVol = volumes[i] > avgVol * 1.8;
+      if (!isHighVol) {
+        result.push({ chaoDi, taoDing });
+        continue;
+      }
+
+      // 抄底：与 period 根前低位对比（近似低位判断）
+      const lowRef = lows[Math.max(0, i - period + 1)];
+      const isLow = lows[i] <= lowRef * 1.02;
+      const bullish = closes[i] > opens[i];
+      const lowerShadow = (Math.min(opens[i], closes[i]) - lows[i]) / (highs[i] - lows[i] + 0.0001);
+      const longLower = lowerShadow > 0.35;
+
+      // 逃顶：与 period 根前高位对比（近似高位判断）
+      const highRef = highs[Math.max(0, i - period + 1)];
+      const isHigh = highs[i] >= highRef * 0.98;
+      const bearish = closes[i] < opens[i];
+      const upperShadow = (highs[i] - Math.max(opens[i], closes[i])) / (highs[i] - lows[i] + 0.0001);
+      const longUpper = upperShadow > 0.35;
+
+      if (isLow && (bullish || longLower)) chaoDi = true;
+      if (isHigh && (bearish || longUpper)) taoDing = true;
+
+      result.push({ chaoDi, taoDing });
+    }
+
+    return result;
+  };
+
+  return { sma:SMA, ema:EMA, smaArray:SMA_ARRAY, emaArray:EMA_ARRAY, rsi:RSI, rsiArray:RSI_ARRAY, macd:MACD, bb:BB, bbArray:BB_ARRAY, vwapArray:VWAP_ARRAY, kdj:KDJ, wr:WR, cci:CCI, stochRsi:StochRSI, atr:ATR, adx:ADX, td9Array:TD9_ARRAY, volSignals:VOL_SIGNALS };
 })();
 
 // ==================== 时间工具 ====================
@@ -600,6 +649,9 @@ function renderAll(klines) {
   // TD9 —— 主图 Marker 标注买卖序列
   renderTD9(times, highs, lows, closes);
 
+  // VOL信号 —— 副图 Marker 标注抄底/逃顶
+  renderVolSignals(opens, closes, highs, lows, vols, times);
+
   // RSI — rsiArr.length = closes.length - 14，从 times[14] 开始
   const rsiArr = TA.rsiArray(closes, 14);
   const rsiOffset = closes.length - rsiArr.length; // = 14
@@ -671,6 +723,38 @@ function renderTD9(times, highs, lows, closes) {
     }
   }
   candleSeries.setMarkers(markers);
+}
+
+// ==================== VOL信号渲染 ====================
+// 庄家抄底(紫色▲) / 逃顶(琥珀色▼) 标记在VOL副图
+function renderVolSignals(opens, closes, highs, lows, vols, times) {
+  if (!indState.vol) { volumeSeries.setMarkers([]); return; }
+  const signals = TA.volSignals(opens, closes, highs, lows, vols);
+  const markers = [];
+  for (let i = 0; i < signals.length; i++) {
+    const { chaoDi, taoDing } = signals[i];
+    if (chaoDi) {
+      markers.push({
+        time:     times[i],
+        position: 'belowBar',
+        color:    '#a855f7',
+        shape:    'arrowUp',
+        text:     '底',
+        size:     1.2,
+      });
+    }
+    if (taoDing) {
+      markers.push({
+        time:     times[i],
+        position: 'aboveBar',
+        color:    '#f59e0b',
+        shape:    'arrowDown',
+        text:     '顶',
+        size:     1.2,
+      });
+    }
+  }
+  volumeSeries.setMarkers(markers);
 }
 
 // ==================== 实时价格 ====================
@@ -894,6 +978,9 @@ function updateRealtimeIndicators() {
   const allHighs = allKlines.map(k => parseFloat(k[2]));
   const allLows  = allKlines.map(k => parseFloat(k[3]));
   renderTD9(times, allHighs, allLows, closes);
+
+  // 更新VOL信号（重绘完整序列确保准确）
+  renderVolSignals(opens, closes, allHighs, allLows, vols, times);
 
   // 更新指标面板
   updateIndicatorPanel(closes, highs, lows, vols);
