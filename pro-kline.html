@@ -443,7 +443,26 @@ const TA = (() => {
     return result;
   };
 
-  return { sma:SMA, ema:EMA, smaArray:SMA_ARRAY, emaArray:EMA_ARRAY, rsi:RSI, rsiArray:RSI_ARRAY, macd:MACD, bb:BB, bbArray:BB_ARRAY, vwapArray:VWAP_ARRAY, kdj:KDJ, wr:WR, cci:CCI, stochRsi:StochRSI, atr:ATR, adx:ADX, td9Array:TD9_ARRAY, volSignals:VOL_SIGNALS };
+  // MACD 金叉/死叉检测
+  // crosses[i] 对应 times[start + sigOffset + i]，与 signal[i] 对齐
+  const MACD_CROSS = (dif, signal, start, sigOffset) => {
+    const crosses = [];
+    // 前 sigOffset 根K线没有 signal，无法判断交叉
+    for (let i = 0; i < sigOffset; i++) crosses.push({ golden: false, death: false });
+    // signal[0] 对应 dif[sigOffset]，交叉从 i=1 开始判断
+    for (let i = 1; i < signal.length; i++) {
+      const prevDif = dif[sigOffset + i - 1];
+      const prevSig = signal[i - 1];
+      const currDif = dif[sigOffset + i];
+      const currSig = signal[i];
+      const golden = prevDif <= prevSig && currDif > currSig;
+      const death  = prevDif >= prevSig && currDif < currSig;
+      crosses.push({ golden, death });
+    }
+    return crosses;
+  };
+
+  return { sma:SMA, ema:EMA, smaArray:SMA_ARRAY, emaArray:EMA_ARRAY, rsi:RSI, rsiArray:RSI_ARRAY, macd:MACD, bb:BB, bbArray:BB_ARRAY, vwapArray:VWAP_ARRAY, kdj:KDJ, wr:WR, cci:CCI, stochRsi:StochRSI, atr:ATR, adx:ADX, td9Array:TD9_ARRAY, volSignals:VOL_SIGNALS, macdCross:MACD_CROSS };
 })();
 
 // ==================== 时间工具 ====================
@@ -471,7 +490,7 @@ let mainChart, rsiChart, macdChart;
 let candleSeries, volumeSeries;
 let maLines = {}, emaLines = {}, bbUpperLine, bbLowerLine, bbMidLine, vwapLine;
 let rsiLine, rsi70Line, rsi30Line;
-let macdDifLine, macdSignalLine, macdHistSeries;
+let macdDifLine, macdSignalLine, macdHistSeries, macdMarkerSeries;
 let td9BuySeries, td9SellSeries;
 
 // ==================== 初始化图表 ====================
@@ -551,6 +570,8 @@ function createCharts() {
   macdDifLine = macdChart.addLineSeries({ color: '#3b82f6', lineWidth: 1.5, title: 'DIF' });
   macdSignalLine = macdChart.addLineSeries({ color: '#f97316', lineWidth: 1.5, title: 'Signal' });
   macdHistSeries = macdChart.addHistogramSeries({ color: '#3b82f644', title: 'MACD' });
+  // MACD 信号标记专用透明系列（金叉/死叉/共振）
+  macdMarkerSeries = macdChart.addLineSeries({ color: 'transparent', lineWidth: 0, crosshairMarkerVisible: false, lastValueVisible: false, priceLineVisible: false });
   mainChart.timeScale().subscribeVisibleLogicalRangeChange(range => {
     if (range) macdChart.timeScale().setVisibleLogicalRange(range);
   });
@@ -651,6 +672,9 @@ function renderAll(klines) {
 
   // VOL信号 —— 副图 Marker 标注抄底/逃顶
   renderVolSignals(opens, closes, highs, lows, vols, times);
+
+  // MACD信号 —— 金叉/死叉/共振
+  renderMacdSignals(times, closes, highs, lows);
 
   // RSI — rsiArr.length = closes.length - 14，从 times[14] 开始
   const rsiArr = TA.rsiArray(closes, 14);
@@ -755,6 +779,58 @@ function renderVolSignals(opens, closes, highs, lows, vols, times) {
     }
   }
   volumeSeries.setMarkers(markers);
+}
+
+// ==================== MACD信号渲染 ====================
+// 金叉(绿↑) / 死叉(红↓) / 多共振(亮绿●) / 空共振(亮红●)
+function renderMacdSignals(times, closes, highs, lows) {
+  if (!indState.macd) { macdMarkerSeries.setMarkers([]); return; }
+  const macd = TA.macd(closes, 12, 26, 9);
+  if (!macd) { macdMarkerSeries.setMarkers([]); return; }
+  const { dif, signal, start, sigOffset } = macd;
+  const markers = [];
+  // RSI 数组用于共振检测（RSI从 times[14] 开始）
+  const rsiArr = TA.rsiArray(closes, 14);
+  const rsiALen = rsiArr.length;
+  const rsiPad  = closes.length - rsiALen; // RSI数据在times中的起始偏移
+  // 检测金叉/死叉：i 对应 dif[i]，signal[i-sigOffset]
+  // 交叉需要前后两根，所以从 i = sigOffset+1 开始
+  for (let i = sigOffset + 1; i < dif.length; i++) {
+    const prevDif = dif[i - 1];
+    const currDif = dif[i];
+    const prevSig = signal[i - sigOffset - 1];
+    const currSig = signal[i - sigOffset];
+    const golden = prevDif <= prevSig && currDif > currSig;
+    const death  = prevDif >= prevSig && currDif < currSig;
+    if (!golden && !death) continue;
+    const t = times[start + i];
+    // 对应该K线时的RSI值
+    const rsiIdx = (start + i) - rsiPad;
+    const rsiVal = (rsiIdx >= 0 && rsiIdx < rsiALen) ? rsiArr[rsiIdx].value : null;
+    if (golden) {
+      const isRes = rsiVal !== null && rsiVal < 30;
+      markers.push({
+        time:     t,
+        position: 'aboveBar',
+        color:    isRes ? '#00e676' : '#22c55e',
+        shape:    isRes ? 'circle' : 'arrowUp',
+        text:     isRes ? '多共振' : '金叉',
+        size:     isRes ? 1.8 : 1.2,
+      });
+    }
+    if (death) {
+      const isRes = rsiVal !== null && rsiVal > 70;
+      markers.push({
+        time:     t,
+        position: 'belowBar',
+        color:    isRes ? '#ff2d55' : '#ef4444',
+        shape:    isRes ? 'circle' : 'arrowDown',
+        text:     isRes ? '空共振' : '死叉',
+        size:     isRes ? 1.8 : 1.2,
+      });
+    }
+  }
+  macdMarkerSeries.setMarkers(markers);
 }
 
 // ==================== 实时价格 ====================
@@ -981,6 +1057,9 @@ function updateRealtimeIndicators() {
 
   // 更新VOL信号（重绘完整序列确保准确）
   renderVolSignals(opens, closes, allHighs, allLows, vols, times);
+
+  // 更新MACD信号（金叉/死叉/共振）
+  renderMacdSignals(times, closes, allHighs, allLows);
 
   // 更新指标面板
   updateIndicatorPanel(closes, highs, lows, vols);
