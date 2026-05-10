@@ -137,6 +137,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
     <button class="ind-btn on" data-ind="rsi" style="color:#f59e0b"><span class="dot" style="background:#f59e0b"></span>RSI</button>
     <button class="ind-btn on" data-ind="macd" style="color:#3b82f6"><span class="dot" style="background:#3b82f6"></span>MACD</button>
     <button class="ind-btn on" data-ind="td9" style="color:#ff2d55"><span class="dot" style="background:#ff2d55"></span>TD9/13</button>
+    <button class="ind-btn on" data-ind="sr" style="color:#ef4444"><span class="dot" style="background:#ef4444"></span>S/R</button>
   </div>
 
   <div class="live-price" id="livePrice">
@@ -194,7 +195,7 @@ let wsConnId = 0;
 let allKlines = []; // 所有历史K线原始数据
 
 // 指标显示状态
-const indState = { ma: true, ema: true, bb: true, vwap: true, vol: true, rsi: true, macd: true, td9: true };
+const indState = { ma: true, ema: true, bb: true, vwap: true, vol: true, rsi: true, macd: true, td9: true, sr: true };
 
 // ==================== API ====================
 async function apiFetch(path) {
@@ -394,7 +395,60 @@ const TA = (() => {
     return result;
   };
 
-  // 庄家抄底 & 逃顶信号 —— 成交量异常检测
+  // ==================== 支撑/阻力位计算 ====================
+  // lookback: 回溯窗口；strength: 左右各比较多少根K线
+  // 返回 { resistances: [价格], supports: [价格] }
+  // 去重阈值 priceThreshold=0.003 (0.3%)
+  const SR_LEVELS = (highs, lows, closes, lookback=60, strength=5, priceThreshold=0.003) => {
+    const len = closes.length;
+    const resistances = [], supports = [];
+
+    // 1) 找局部 Swing High（阻力）
+    //    条件：highs[i] 是 [i-strength, i+strength] 窗口内的最大值
+    for (let i = strength; i < len - strength; i++) {
+      let isSwingHigh = true;
+      for (let j = i - strength; j <= i + strength; j++) {
+        if (j === i) continue;
+        if (highs[j] >= highs[i]) { isSwingHigh = false; break; }
+      }
+      if (isSwingHigh) {
+        // 去重：与已有阻力位比较，相近则合并
+        const exists = resistances.some(r => Math.abs(r - highs[i]) / r < priceThreshold);
+        if (!exists) resistances.push(highs[i]);
+      }
+    }
+
+    // 2) 找局部 Swing Low（支撑）
+    for (let i = strength; i < len - strength; i++) {
+      let isSwingLow = true;
+      for (let j = i - strength; j <= i + strength; j++) {
+        if (j === i) continue;
+        if (lows[j] <= lows[i]) { isSwingLow = false; break; }
+      }
+      if (isSwingLow) {
+        const exists = supports.some(s => Math.abs(s - lows[i]) / s < priceThreshold);
+        if (!exists) supports.push(lows[i]);
+      }
+    }
+
+    // 3) 按距离当前收盘价远近排序，取最近的 N 个
+    const lastClose = closes[closes.length - 1];
+    resistances.sort((a, b) => Math.abs(a - lastClose) - Math.abs(b - lastClose));
+    supports.sort((a, b) => Math.abs(a - lastClose) - Math.abs(b - lastClose));
+
+    // 4) 只保留当前价格上方的阻力和下方的支撑（各最多5个）
+    const validRes = resistances.filter(r => r > lastClose).slice(0, 5);
+    const validSup = supports.filter(s => s < lastClose).slice(0, 5);
+
+    // 5) 前期高低价（最近 lookback 根K线的最高/最低）
+    const startIdx = Math.max(0, len - lookback);
+    const prevHigh = Math.max(...highs.slice(startIdx));
+    const prevLow  = Math.min(...lows.slice(startIdx));
+
+    return { resistances: validRes, supports: validSup, prevHigh, prevLow };
+  };
+
+  // 庄家抄底 & 逃顶信号 —— 成交量异常检测（收紧条件 v3.59）
   const VOL_SIGNALS = (opens, closes, highs, lows, volumes, period = 20) => {
     const len = closes.length;
     const result = [];
@@ -414,28 +468,28 @@ const TA = (() => {
 
       const maIdx = i - period + 1;
       const avgVol = volMa[maIdx].value;
-      const isHighVol = volumes[i] > avgVol * 1.8;
+      const isHighVol = volumes[i] > avgVol * 2.5;  // ← 1.8 → 2.5 更严格
       if (!isHighVol) {
         result.push({ chaoDi, taoDing });
         continue;
       }
 
-      // 抄底：与 period 根前低位对比（近似低位判断）
+      // 抄底：价格在近低附近 + 看涨K线 + 长下影（三条件同时满足）
       const lowRef = lows[Math.max(0, i - period + 1)];
       const isLow = lows[i] <= lowRef * 1.02;
       const bullish = closes[i] > opens[i];
       const lowerShadow = (Math.min(opens[i], closes[i]) - lows[i]) / (highs[i] - lows[i] + 0.0001);
       const longLower = lowerShadow > 0.35;
 
-      // 逃顶：与 period 根前高位对比（近似高位判断）
+      // 逃顶：价格在近高附近 + 看跌K线 + 长上影（三条件同时满足）
       const highRef = highs[Math.max(0, i - period + 1)];
       const isHigh = highs[i] >= highRef * 0.98;
       const bearish = closes[i] < opens[i];
       const upperShadow = (highs[i] - Math.max(opens[i], closes[i])) / (highs[i] - lows[i] + 0.0001);
       const longUpper = upperShadow > 0.35;
 
-      if (isLow && (bullish || longLower)) chaoDi = true;
-      if (isHigh && (bearish || longUpper)) taoDing = true;
+      if (isLow && bullish && longLower) chaoDi = true;       // ← 三条件同时
+      if (isHigh && bearish && longUpper) taoDing = true;     // ← 三条件同时
 
       result.push({ chaoDi, taoDing });
     }
@@ -443,18 +497,17 @@ const TA = (() => {
     return result;
   };
 
-  // MACD 金叉/死叉检测
-  // crosses[i] 对应 times[start + sigOffset + i]，与 signal[i] 对齐
+  // MACD 金叉/死叉检测（重写，索引逻辑更清晰）
   const MACD_CROSS = (dif, signal, start, sigOffset) => {
     const crosses = [];
-    // 前 sigOffset 根K线没有 signal，无法判断交叉
+    // 前 sigOffset 根K线没有 signal
     for (let i = 0; i < sigOffset; i++) crosses.push({ golden: false, death: false });
-    // signal[0] 对应 dif[sigOffset]，交叉从 i=1 开始判断
-    for (let i = 1; i < signal.length; i++) {
-      const prevDif = dif[sigOffset + i - 1];
-      const prevSig = signal[i - 1];
-      const currDif = dif[sigOffset + i];
-      const currSig = signal[i];
+    // j 是 signal 的索引，从 1 开始（需要前一根做比较）
+    for (let j = 1; j < signal.length; j++) {
+      const prevDif = dif[sigOffset + j - 1];
+      const currDif = dif[sigOffset + j];
+      const prevSig = signal[j - 1];
+      const currSig = signal[j];
       const golden = prevDif <= prevSig && currDif > currSig;
       const death  = prevDif >= prevSig && currDif < currSig;
       crosses.push({ golden, death });
@@ -462,7 +515,7 @@ const TA = (() => {
     return crosses;
   };
 
-  return { sma:SMA, ema:EMA, smaArray:SMA_ARRAY, emaArray:EMA_ARRAY, rsi:RSI, rsiArray:RSI_ARRAY, macd:MACD, bb:BB, bbArray:BB_ARRAY, vwapArray:VWAP_ARRAY, kdj:KDJ, wr:WR, cci:CCI, stochRsi:StochRSI, atr:ATR, adx:ADX, td9Array:TD9_ARRAY, volSignals:VOL_SIGNALS, macdCross:MACD_CROSS };
+  return { sma:SMA, ema:EMA, smaArray:SMA_ARRAY, emaArray:EMA_ARRAY, rsi:RSI, rsiArray:RSI_ARRAY, macd:MACD, bb:BB, bbArray:BB_ARRAY, vwapArray:VWAP_ARRAY, kdj:KDJ, wr:WR, cci:CCI, stochRsi:StochRSI, atr:ATR, adx:ADX, td9Array:TD9_ARRAY, volSignals:VOL_SIGNALS, macdCross:MACD_CROSS, srLevels:SR_LEVELS };
 })();
 
 // ==================== 时间工具 ====================
@@ -490,8 +543,9 @@ let mainChart, rsiChart, macdChart;
 let candleSeries, volumeSeries;
 let maLines = {}, emaLines = {}, bbUpperLine, bbLowerLine, bbMidLine, vwapLine;
 let rsiLine, rsi70Line, rsi30Line;
-let macdDifLine, macdSignalLine, macdHistSeries, macdMarkerSeries;
+let macdDifLine, macdSignalLine, macdHistSeries, macdMarkerSeries, macdCandleForMarkers;
 let td9BuySeries, td9SellSeries;
+let srResistanceLines = [], srSupportLines = [], srPrevHighLine = null, srPrevLowLine = null;
 
 // ==================== 初始化图表 ====================
 function createCharts() {
@@ -570,8 +624,14 @@ function createCharts() {
   macdDifLine = macdChart.addLineSeries({ color: '#3b82f6', lineWidth: 1.5, title: 'DIF' });
   macdSignalLine = macdChart.addLineSeries({ color: '#f97316', lineWidth: 1.5, title: 'Signal' });
   macdHistSeries = macdChart.addHistogramSeries({ color: '#3b82f644', title: 'MACD' });
-  // MACD 信号标记专用透明系列（金叉/死叉/共振）
+  // MACD 信号标记 —— LineSeries 不支持 markers，改用透明蜡烛图系列
   macdMarkerSeries = macdChart.addLineSeries({ color: 'transparent', lineWidth: 0, crosshairMarkerVisible: false, lastValueVisible: false, priceLineVisible: false });
+  macdCandleForMarkers = macdChart.addCandlestickSeries({
+    upColor: '#0000', downColor: '#0000',
+    borderUpColor: '#0000', borderDownColor: '#0000',
+    wickUpColor: '#0000', wickDownColor: '#0000',
+    crosshairMarkerVisible: false, lastValueVisible: false, priceLineVisible: false
+  });
   mainChart.timeScale().subscribeVisibleLogicalRangeChange(range => {
     if (range) macdChart.timeScale().setVisibleLogicalRange(range);
   });
@@ -676,6 +736,9 @@ function renderAll(klines) {
   // MACD信号 —— 金叉/死叉/共振
   renderMacdSignals(times, closes, highs, lows);
 
+  // S/R 支撑阻力位
+  renderSR(times, highs, lows, closes);
+
   // RSI — rsiArr.length = closes.length - 14，从 times[14] 开始
   const rsiArr = TA.rsiArray(closes, 14);
   const rsiOffset = closes.length - rsiArr.length; // = 14
@@ -700,6 +763,13 @@ function renderAll(klines) {
     const lastDif = dif[dif.length - 1];
     const lastSig = signal[signal.length - 1];
     document.getElementById('macdVal').textContent = `DIF:${lastDif.toFixed(4)}  Sig:${lastSig.toFixed(4)}`;
+
+    // 设置透明蜡烛图数据（挂载MACD信号 markers 需要）
+    const dummyData = dif.map((v, i) => ({
+      time: times[start + i],
+      open: v, high: v, low: v, close: v,
+    }));
+    macdCandleForMarkers.setData(dummyData);
   }
 
   // 更新实时价格
@@ -784,9 +854,9 @@ function renderVolSignals(opens, closes, highs, lows, vols, times) {
 // ==================== MACD信号渲染 ====================
 // 金叉(绿↑) / 死叉(红↓) / 多共振(亮绿●) / 空共振(亮红●)
 function renderMacdSignals(times, closes, highs, lows) {
-  if (!indState.macd) { macdMarkerSeries.setMarkers([]); return; }
+  if (!indState.macd) { macdCandleForMarkers.setMarkers([]); return; }
   const macd = TA.macd(closes, 12, 26, 9);
-  if (!macd) { macdMarkerSeries.setMarkers([]); return; }
+  if (!macd) { macdCandleForMarkers.setMarkers([]); return; }
   const { dif, signal, start, sigOffset } = macd;
   const markers = [];
   // RSI 数组用于共振检测（RSI从 times[14] 开始）
@@ -830,7 +900,43 @@ function renderMacdSignals(times, closes, highs, lows) {
       });
     }
   }
-  macdMarkerSeries.setMarkers(markers);
+  macdCandleForMarkers.setMarkers(markers);
+}
+
+// ==================== S/R 支撑阻力位渲染 ====================
+function renderSR(times, highs, lows, closes) {
+  // 清除旧价格线
+  srResistanceLines.forEach(l => l.remove()); srResistanceLines = [];
+  srSupportLines.forEach(l => l.remove()); srSupportLines = [];
+  if (srPrevHighLine) { srPrevHighLine.remove(); srPrevHighLine = null; }
+  if (srPrevLowLine) { srPrevLowLine.remove(); srPrevLowLine = null; }
+  if (!indState.sr) return;
+
+  const { resistances, supports, prevHigh, prevLow } = TA.srLevels(highs, lows, closes);
+
+  resistances.forEach(price => {
+    srResistanceLines.push(candleSeries.createPriceLine({
+      price, color: '#ef4444', lineWidth: 1, lineStyle: 2,
+      axisLabelVisible: true, title: 'R',
+    }));
+  });
+
+  supports.forEach(price => {
+    srSupportLines.push(candleSeries.createPriceLine({
+      price, color: '#22c55e', lineWidth: 1, lineStyle: 2,
+      axisLabelVisible: true, title: 'S',
+    }));
+  });
+
+  srPrevHighLine = candleSeries.createPriceLine({
+    price: prevHigh, color: '#f59e0b', lineWidth: 2, lineStyle: 0,
+    axisLabelVisible: true, title: 'PH',
+  });
+
+  srPrevLowLine = candleSeries.createPriceLine({
+    price: prevLow, color: '#3b82f6', lineWidth: 2, lineStyle: 0,
+    axisLabelVisible: true, title: 'PL',
+  });
 }
 
 // ==================== 实时价格 ====================
