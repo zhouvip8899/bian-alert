@@ -136,7 +136,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
     <button class="ind-btn on" data-ind="vol" style="color:#94a3b8"><span class="dot" style="background:#94a3b8"></span>VOL</button>
     <button class="ind-btn on" data-ind="rsi" style="color:#f59e0b"><span class="dot" style="background:#f59e0b"></span>RSI</button>
     <button class="ind-btn on" data-ind="macd" style="color:#3b82f6"><span class="dot" style="background:#3b82f6"></span>MACD</button>
-    <button class="ind-btn on" data-ind="td9" style="color:#ff2d55"><span class="dot" style="background:#ff2d55"></span>TD9</button>
+    <button class="ind-btn on" data-ind="td9" style="color:#ff2d55"><span class="dot" style="background:#ff2d55"></span>TD9/13</button>
   </div>
 
   <div class="live-price" id="livePrice">
@@ -363,9 +363,10 @@ const TA = (() => {
     return { adx, pdi, mdi };
   };
 
-  // TD Sequential 9 —— 返回每根K线的计数信息
-  // 规则：close > close[4根前] 为 sell-setup 计数；close < close[4根前] 为 buy-setup 计数
-  // 连续9根达到条件时触发信号；计数中断则从0重新开始
+  // TD Sequential —— 返回每根K线的计数信息
+  // 规则：close < close[4根前] 为 buy-setup 计数；close > close[4根前] 为 sell-setup 计数
+  // 计数连续不中断，超过9后继续累加（可到13+），中断则归零重计
+  // 只在计数等于9或13时触发显示信号
   const TD9_ARRAY = (closes) => {
     const result = [];
     let buyCount = 0, sellCount = 0;
@@ -386,8 +387,8 @@ const TA = (() => {
         sellCount = 0;
       }
       result.push({
-        buy:  buyCount  > 0 ? Math.min(buyCount,  9) : 0,
-        sell: sellCount > 0 ? Math.min(sellCount, 9) : 0,
+        buy:  buyCount  > 0 ? buyCount  : 0,
+        sell: sellCount > 0 ? sellCount : 0,
       });
     }
     return result;
@@ -635,7 +636,8 @@ function renderAll(klines) {
   mainChart.timeScale().fitContent();
 }
 
-// ==================== TD9 渲染 ====================
+// ==================== TD9/TD13 渲染 ====================
+// 只在计数达到 9 或 13 时显示信号标记
 function renderTD9(times, highs, lows, closes) {
   if (!indState.td9) {
     candleSeries.setMarkers([]);
@@ -645,23 +647,26 @@ function renderTD9(times, highs, lows, closes) {
   const markers = [];
   for (let i = 0; i < td9.length; i++) {
     const { buy, sell } = td9[i];
-    if (sell > 0) {
+    // Sell Setup：只显示 9 和 13
+    if (sell === 9 || sell === 13) {
       markers.push({
         time:     times[i],
         position: 'aboveBar',
-        color:    sell === 9 ? '#ff2d55' : '#ef4444cc',
+        color:    sell === 13 ? '#ff9500' : '#ff2d55',   // 13=橙色, 9=亮红
         shape:    'circle',
         text:     String(sell),
-        size:     sell === 9 ? 1.5 : 0.8,
+        size:     sell === 13 ? 2.0 : 1.5,
       });
-    } else if (buy > 0) {
+    }
+    // Buy Setup：只显示 9 和 13
+    if (buy === 9 || buy === 13) {
       markers.push({
         time:     times[i],
         position: 'belowBar',
-        color:    buy === 9 ? '#00e676' : '#22c55ecc',
+        color:    buy === 13 ? '#00b4ff' : '#00e676',    // 13=蓝色, 9=亮绿
         shape:    'circle',
         text:     String(buy),
-        size:     buy === 9 ? 1.5 : 0.8,
+        size:     buy === 13 ? 2.0 : 1.5,
       });
     }
   }
