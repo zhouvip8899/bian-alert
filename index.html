@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>币安合约暴涨预警系统 v3.41</title>
+    <title>币安合约暴涨预警系统 v3.63</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box}
         body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;background:linear-gradient(135deg,#0f0f1a,#1a1a2e);min-height:100vh;color:#e0e0e0}
@@ -38,8 +38,8 @@
         .info{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;font-size:.78em}
         .row{display:flex;justify-content:space-between;padding:2px 0}
         .lbl{color:#888}
-        .up{color:#ef5350}
-        .down{color:#26c281}
+        .up{color:#26c281}
+        .down{color:#ef5350}
         .chain{background:rgba(255,255,255,.03);border-radius:5px;padding:6px;margin-top:6px;font-size:.75em}
         .chain-row{display:flex;justify-content:space-between;margin:2px 0}
         .tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.05)}
@@ -108,7 +108,6 @@
         <button class="btn btn-s" id="btnRSI">📉 RSI极值</button>
         <button class="btn btn-s" id="btnVolSpike">🔥 量能异动</button>
         <button class="btn btn-s" id="btnOIChange">📊 持仓变化</button>
-        <button class="btn btn-s" id="btnBigDeal">💰 大单扫描</button>
     </div>
     
     <div class="stats">
@@ -141,7 +140,6 @@
         <button class="tab" onclick="showTab('mtf')">🔄 多周期共振</button>
         <button class="tab" onclick="showTab('liqzone')">💀 清算密集</button>
         <button class="tab" onclick="showTab('oi-change')">📊 持仓量变化</button>
-        <button class="tab" onclick="showTab('bigdeal')">💰 大单扫描</button>
         <button class="tab" onclick="showTab('sigstats')">📊 信号统计</button>
     </div>
     
@@ -262,12 +260,6 @@
         <h3 style="margin:15px 0 10px;color:#00bcd4">📊 持仓量变化 Top20</h3>
         <p style="color:#666;font-size:.85em;margin-bottom:15px">筛选24H增仓且量比>1.3x的币种，增仓意味着多空分歧加剧方向选择</p>
         <div class="grid" id="oiChangeList"></div>
-    </div>
-
-    <div id="bigdeal" class="content">
-        <h3 style="margin:15px 0 10px;color:#ff9800">💰 大单扫描</h3>
-        <p style="color:#666;font-size:.85em;margin-bottom:15px">成交额>500万U + 量比>1.5x 的活跃币种，筛选大资金关注标的</p>
-        <div class="grid" id="bigDealList"></div>
     </div>
 
     <div id="sigstats" class="content">
@@ -532,13 +524,26 @@ const TA = {
         return e;
     },
     
-    // MACD
+    // MACD（标准算法：DIF = EMA12 - EMA26, DEA = EMA(DIF,9), Histogram = 2*(DIF-DEA)）
     macd: (c) => {
-        const e12 = TA.ema(c, 12), e26 = TA.ema(c, 26), e9 = TA.ema(c, 9);
-        if (!e12 || !e26) return null;
-        const dif = e12 - e26;
-        const dea = e9 || dif;
-        return { dif, macd: dif * 2, hist: dif - dea, signal: e9 };
+        if (c.length < 35) return null;
+        const k12 = 2/13, k26 = 2/27, k9 = 2/10;
+        // 计算EMA12和EMA26
+        let ema12 = c.slice(0,12).reduce((a,b)=>a+b)/12;
+        let ema26 = c.slice(0,26).reduce((a,b)=>a+b)/26;
+        const difs = [];
+        for (let i = 12; i < c.length; i++) {
+            if (i > 12) ema12 = c[i]*k12 + ema12*(1-k12);
+            if (i > 26) ema26 = c[i]*k26 + ema26*(1-k26);
+            if (i >= 26) difs.push(ema12 - ema26);
+        }
+        if (difs.length < 9) return null;
+        // DEA = EMA(DIF, 9)，SMA初始化
+        let dea = difs.slice(0,9).reduce((a,b)=>a+b)/9;
+        for (let i = 9; i < difs.length; i++) dea = difs[i]*k9 + dea*(1-k9);
+        const dif = difs[difs.length - 1];
+        const hist = (dif - dea) * 2;
+        return { dif, signal: dea, hist };
     },
     
     // 布林带
@@ -925,8 +930,8 @@ function score(d) {
         else { preScore += 2; }
         
         // MACD从负转正（零轴附近 = 更前瞻）
-        if (d.macd?.hist > 0 && d.macd?.hist < 0.3 && d.macd?.dif > -0.1) { preScore += 4; preSigs.push('💹MACD初现'); }
-        else if (d.macd?.hist > 0) { preScore += 2; }
+        if (d.macd?.hist > 0 && d.macd?.dif > -0.2 && d.macd?.dif < 0) { preScore += 4; preSigs.push('💹MACD初现'); }
+        else if (d.macd?.hist > 0 && d.macd?.dif <= 0) { preScore += 2; }
         
         // 量能异动（1.3x以上有意义）
         if (d.vr >= 1.5) { preScore += 3; preSigs.push(`📈量能${d.vr.toFixed(1)}x萌动`); }
@@ -977,18 +982,18 @@ function score(d) {
     else if (bbWidth < 3) { core.tech += 2; s += 18; sig.push('📊布林收口'); }
     else if (bbWidth < 5) { core.tech++; s += 10; }
     
-    // MACD：零轴金叉比高位金叉更有前瞻性
-    if (d.macd?.hist > 0.5) { core.tech += 2; s += 12; sig.push('💹MACD金叉'); }  // v3.24降低已涨加速权重
-    else if (d.macd?.hist > 0.1 && d.macd?.dif < 0.2) { core.tech += 2; s += 15; sig.push('💹MACD零轴金叉'); } // v3.24新增：零轴附近更有价值
-    else if (d.macd?.hist > 0.2) { core.tech++; s += 8; }
+    // MACD：零轴金叉比高位金叉更有前瞻性（hist=(DIF-DEA)*2标准值）
+    if (d.macd?.dif > 0 && d.macd?.hist > 0) { core.tech += 2; s += 12; sig.push('💹MACD金叉'); }
+    else if (d.macd?.dif < 0 && d.macd?.dif > -0.2 && d.macd?.hist > 0) { core.tech += 2; s += 15; sig.push('💹MACD零轴金叉'); }
+    else if (d.macd?.hist > 0 && d.macd?.dif < 0) { core.tech++; s += 8; }
     
-    // 量能：萌动比爆发更有前瞻性
-    if (d.vr >= 1.3 && d.vr < 2.0) { core.tech += 2; s += 18; sig.push(`📈量能${d.vr.toFixed(1)}x萌动`); }  // v3.24：萌动阶段提权
-    else if (d.vr >= 2.0 && d.vr < 4.0) { core.tech++; s += 10; sig.push(`🔥量能${d.vr.toFixed(1)}x`); }    // v3.24：已爆量降权（可能是高点）
-    else if (d.vr >= 4.0) { s += 5; sig.push(`🔥量能${d.vr.toFixed(1)}x`); }                                 // v3.24：极端爆量可能是顶部
+    // 量能：萌动比爆发更有前瞻性（v3.63 提高起步线）
+    if (d.vr >= 1.5 && d.vr < 2.0) { core.tech += 2; s += 18; sig.push(`📈量能${d.vr.toFixed(1)}x萌动`); }
+    else if (d.vr >= 2.0 && d.vr < 4.0) { core.tech++; s += 10; sig.push(`🔥量能${d.vr.toFixed(1)}x`); }
+    else if (d.vr >= 4.0) { s += 5; sig.push(`🔥量能${d.vr.toFixed(1)}x`); }
     
-    if (d.rsi >= 42 && d.rsi <= 58) { core.tech++; s += 8; }
-    if (d.mom > 4) { core.tech++; s += 6; }
+    if (d.rsi >= 45 && d.rsi <= 55) { core.tech++; s += 8; }
+    if (d.mom > 6) { core.tech++; s += 6; }
     
     // 💎 清算指标分析 (v3.23)
     const liqRisk = Math.abs(d.fr || 0) * Math.abs(d.chg4h || 0);
@@ -1008,12 +1013,12 @@ function score(d) {
     }
     
     // 资金面 & 大户面
-    if (taker >= 0.58) { 
-        core.fund += 2; core.whale += 2; s += 27; 
+    if (taker >= 0.60) {
+        core.fund += 2; core.whale += 2; s += 27;
         sig.push(`🟢Taker${(taker * 100).toFixed(0)}%`);
-    } else if (taker >= 0.55) { 
-        core.fund++; core.whale++; s += 14; 
-    } else if (taker >= 0.52) {
+    } else if (taker >= 0.56) {
+        core.fund++; core.whale++; s += 14;
+    } else if (taker >= 0.54) {
         core.whale++; s += 6;
     }
     if (d.fr < 0 && d.fr >= -0.015) { core.fund++; s += 5; }
@@ -1056,10 +1061,12 @@ function score(d) {
     // 限制范围
     s = Math.min(Math.max(s, 0), 130);
     
-    // ========== 5. 信号判定 (v3.24) ==========
+    // ========== 5. 信号判定 (v3.24 → v3.63终极精选版) ==========
     const resonanceScore = core.tech * 2 + core.fund + core.whale;
-    if (resonanceScore >= 5 && s >= 50) level = '🚀暴涨预警';
-    else if (resonanceScore >= 3 && s >= 40) level = '⚡积累中';
+    const dimCount = (core.tech > 0 ? 1 : 0) + (core.fund > 0 ? 1 : 0) + (core.whale > 0 ? 1 : 0);
+    // v3.63 终极精选：暴涨预警需3个维度全亮（技术+资金+大户共振）+ 高门槛
+    if (resonanceScore >= 10 && s >= 70 && dimCount >= 3) level = '🚀暴涨预警';
+    else if (resonanceScore >= 7 && s >= 55) level = '⚡积累中';
     else if (s >= 30) { level = '👀观察中'; isWatch = true; }
     
     return { s, sig: sig.slice(0, 8), level, isBottomRebound, isWatch, isCrash, crashSignals, core, resonanceScore, isPreBurst };
@@ -1084,54 +1091,101 @@ const _rt = {
         this.symbols = symbols;
         this.prices = {};
         this.active = true;
+        this._wsGotData = false;
 
-        // 构建合并流URL：每个币的ticker + 1m kline
+        // 直连币安WebSocket
         const streams = symbols.flatMap(s => {
             const sym = s.toLowerCase();
             return [`${sym}@ticker`, `${sym}@kline_1m`];
         });
-        const wsUrl = 'wss://139.rams.cc.cd/?url=wss://fstream.binance.com/stream?streams=' + streams.join('/');
+        const wsUrl = 'wss://fstream.binance.com/stream?streams=' + streams.join('/');
+        console.log('[主页WS] 直连:', wsUrl);
+
+        // 10秒无数据则启动HTTP轮询保底
+        this._fallbackTimer = setTimeout(() => {
+            if (this.active && !this._wsGotData) {
+                console.log('[主页WS] 10秒无数据，启动HTTP轮询保底');
+                this._startHttpPoll();
+            }
+        }, 10000);
 
         try { this.ws = new WebSocket(wsUrl); }
-        catch(e) { console.warn('WebSocket连接失败', e); return; }
+        catch(e) { console.warn('WebSocket连接失败', e); clearTimeout(this._fallbackTimer); this._startHttpPoll(); return; }
+
+        this.ws.onopen = () => {
+            console.log('[主页WS] 已连接，等待数据...');
+        };
 
         this.ws.onmessage = (evt) => {
+            if (!this._wsGotData) {
+                this._wsGotData = true;
+                clearTimeout(this._fallbackTimer);
+                this._stopHttpPoll();
+                console.log('[主页WS] 开始接收数据');
+            }
             try {
                 const msg = JSON.parse(evt.data);
-                const s = msg.stream;   // e.g. "btcusdt@ticker"
+                const s = msg.stream;
                 const d = msg.data;
 
                 if (s.endsWith('@ticker')) {
                     const sym = s.split('@')[0].toUpperCase() + 'USDT';
                     this.prices[sym] = {
                         price: parseFloat(d.c),
-                        chg:   parseFloat(d.p),         // 24h变动额
-                        c24h:  parseFloat(d.P),         // 24h变动%
+                        chg:   parseFloat(d.p),
+                        c24h:  parseFloat(d.P),
                         high:  parseFloat(d.h),
                         low:   parseFloat(d.l),
-                        vol:   parseFloat(d.q),         // 24h成交量(USDT)
+                        vol:   parseFloat(d.q),
                         open:  parseFloat(d.o),
                     };
                 }
-                // kline_1m 暂存，不在这里处理技术指标（太频繁）
             } catch(e) {}
         };
 
-        this.ws.onerror = () => { this.active = false; this.wsFailCount = (this.wsFailCount || 0) + 1; };
+        this.ws.onerror = () => {
+            this.wsFailCount = (this.wsFailCount || 0) + 1;
+        };
 
         this.ws.onclose = () => {
+            clearTimeout(this._fallbackTimer);
             if (!this.active) return;
-            if (this.wsFailCount >= 2) {
-                console.warn('WebSocket连续失败' + this.wsFailCount + '次，停止重连，请手动刷新');
-                return;
-            }
-            // 断线5秒后自动重连
+            console.log('[主页WS] 断开，HTTP保底+5秒重连');
+            if (!this._httpPollTimer) this._startHttpPoll();
             setTimeout(() => { if (_rt.active) _rt.connect(_rt.symbols); }, 5000);
         };
 
         // 每2秒批量刷新卡片
         if (this.renderTimer) clearInterval(this.renderTimer);
         this.renderTimer = setInterval(() => this._refreshUI(), 2000);
+    },
+
+    _startHttpPoll() {
+        this._stopHttpPoll();
+        console.log('[主页HTTP轮询] 启动，每5秒拉取ticker');
+        this._httpPollTimer = setInterval(async () => {
+            if (!this.symbols.length) return;
+            try {
+                for (const sym of this.symbols) {
+                    const data = await apiFetch(`/fapi/v1/ticker/24hr?symbol=${sym}USDT`);
+                    if (data) {
+                        this.prices[sym + 'USDT'] = {
+                            price: parseFloat(data.c),
+                            chg:   parseFloat(data.p),
+                            c24h:  parseFloat(data.P),
+                            high:  parseFloat(data.h),
+                            low:   parseFloat(data.l),
+                            vol:   parseFloat(data.q),
+                            open:  parseFloat(data.o),
+                        };
+                    }
+                }
+            } catch(e) {}
+        }, 5000);
+    },
+
+    _stopHttpPoll() {
+        if (this._httpPollTimer) { clearInterval(this._httpPollTimer); this._httpPollTimer = null; }
     },
 
     // 刷新所有卡片的实时价格
@@ -1155,8 +1209,8 @@ const _rt = {
                 priceEl.textContent = '$' + (live.price >= 1 ? live.price.toFixed(2) : live.price.toFixed(6));
                 // 价格变色闪烁
                 const prev = parseFloat(priceEl.dataset.prev || live.price);
-                if (live.price > prev) { priceEl.style.color = '#ef5350'; }
-                else if (live.price < prev) { priceEl.style.color = '#00e676'; }
+                if (live.price > prev) { priceEl.style.color = '#26c281'; }
+                else if (live.price < prev) { priceEl.style.color = '#ef5350'; }
                 setTimeout(() => { if(priceEl) priceEl.style.color = ''; }, 800);
                 priceEl.dataset.prev = live.price;
             }
@@ -1165,7 +1219,7 @@ const _rt = {
                 const c24 = live.c24h;
                 const sign = c24 >= 0 ? '+' : '';
                 chgEl.textContent = sign + c24.toFixed(2) + '%';
-                chgEl.style.color = c24 >= 0 ? '#ef5350' : '#00e676';
+                chgEl.style.color = c24 >= 0 ? '#26c281' : '#ef5350';
             }
 
             if (volEl) {
@@ -1175,7 +1229,7 @@ const _rt = {
             // 涨跌箭头
             if (arrowEl) {
                 arrowEl.textContent = live.c24h >= 0 ? '▲' : '▼';
-                arrowEl.style.color = live.c24h >= 0 ? '#ef5350' : '#00e676';
+                arrowEl.style.color = live.c24h >= 0 ? '#26c281' : '#ef5350';
             }
         });
 
@@ -1192,7 +1246,9 @@ const _rt = {
 
     close() {
         this.active = false;
+        clearTimeout(this._fallbackTimer);
         if (this.renderTimer) { clearInterval(this.renderTimer); this.renderTimer = null; }
+        this._stopHttpPoll();
         if (this.ws) { this.ws.onclose = null; this.ws.close(); this.ws = null; }
         this.prices = {};
     }
@@ -2335,61 +2391,6 @@ async function runOIChange() {
     busy = false;
 }
 
-// ========== 大单扫描 ==========
-async function runBigDeal() {
-    if (busy) return;
-    busy = true;
-    currentProxyIndex = 0;
-    $('status').textContent = '⏳ 正在扫描大单活跃币...';
-    try {
-        const tickers = await apiFetch('/fapi/v1/ticker/24hr');
-        const info = await apiFetch('/fapi/v1/exchangeInfo');
-        const activeSyms = new Set(info.symbols.filter(s => s.status === 'TRADING').map(s => s.symbol));
-
-        const results = tickers
-            .filter(t => t.symbol.endsWith('USDT') && activeSyms.has(t.symbol))
-            .map(t => ({
-                sym: t.symbol,
-                price: parseFloat(t.lastPrice),
-                change: parseFloat(t.priceChangePercent),
-                quoteVol: parseFloat(t.quoteVolume),
-                volRatio: parseFloat(t.quoteVolume) / parseFloat(t.lastPrice) / (parseFloat(t.quoteVolume) / parseFloat(t.lastPrice) * 0.7)
-            }))
-            .filter(t => t.quoteVol >= 5000000 && t.price > 0 && t.price < 100000)
-            .map(t => {
-                // 估算量比
-                t.volRatio = t.quoteVol / 5000000;
-                return t;
-            })
-            .sort((a, b) => b.quoteVol - a.quoteVol)
-            .slice(0, 20);
-
-        $('bigDealList').innerHTML = results.length ? results.map(c => {
-            const isUp = c.change >= 0;
-            const score = Math.min(Math.round(c.quoteVol / 5000000 * 10 + Math.abs(c.change)), 100);
-            const scoreCls = score >= 70 ? 's-h' : score >= 40 ? 's-w' : 's-c';
-            return `<div class="card">
-                <div class="card-hd">
-                    <span class="name">${c.sym.replace('USDT','')}</span>
-                    <span class="price">$${fp(c.price)}</span>
-                    <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:8px;color:#f44336;font-size:.8em;text-decoration:none">📊K线</a>
-                </div>
-                <div class="chain">
-                    <div class="chain-row"><span style="color:#888">成交额</span><span style="color:#ff9800">$${(c.quoteVol/1000000).toFixed(1)}M</span></div>
-                    <div class="chain-row"><span style="color:#888">量比</span><span style="color:#ff9800">${c.volRatio.toFixed(1)}x</span></div>
-                    <div class="chain-row"><span style="color:#888">涨跌</span><span style="color:${isUp?'#ef4444':'#22c55e'}">${c.change>=0?'+':''}${c.change.toFixed(1)}%</span></div>
-                    <div class="chain-row" style="text-align:center"><span class="score ${scoreCls}">${score}分</span></div>
-                </div>
-            </div>`;
-        }).join('') : '<p style="color:#666;text-align:center;padding:20px">暂无大单活跃信号</p>';
-
-        showTab('bigdeal');
-        $('status').textContent = `💰 大单扫描 | ${results.length}个大单标的 | ${new Date().toLocaleTimeString('zh-CN')}`;
-    } catch(e) { err('大单扫描失败: ' + e.message); }
-    busy = false;
-}
-
-
 async function runRank() {
     if (busy) return;
     busy = true;
@@ -2603,7 +2604,6 @@ function showTab(id) {
     if (id === 'mtf' && !$('mtfList').innerHTML) runMTF();
     if (id === 'liqzone' && !$('liqZoneList').innerHTML) runLiqZone();
     if (id === 'oi-change' && !$('oiChangeList').innerHTML) runOIChange();
-    if (id === 'bigdeal' && !$('bigDealList').innerHTML) runBigDeal();
     if (id === 'sigstats') sigTracker.render();
 }
 
@@ -2828,7 +2828,6 @@ window.onload = function() {
     $('btnRSI').onclick = runRSI;
     $('btnVolSpike').onclick = runVolSpike;
     $('btnOIChange').onclick = runOIChange;
-    $('btnBigDeal').onclick = runBigDeal;
     $('status').textContent = '✅ 准备就绪，点击按钮开始分析';
 };
 
