@@ -178,7 +178,7 @@ body{font-family:'PingFang SC','Microsoft YaHei',sans-serif;background:var(--bg)
 <div class="footer">数据来源：币安合约API · 每5分钟自动更新</div>
 
 <script>
-const PROXIES = [
+const CORS_PROXIES = [
   'https://139.rams.cc.cd/?url=',        // 自建代理1
   'https://135.rams.cc.cd/?url=',        // 自建代理2
   'https://136.rams.cc.cd/?url=',        // 自建代理3
@@ -192,18 +192,28 @@ let filterMode = 'all';
 let canvasCache = new Map();
 
 async function fetchJson(url) {
-  for (let i = 0; i < PROXIES.length; i++) {
-    const proxyUrl = PROXIES[(proxyIndex + i) % PROXIES.length] + encodeURIComponent(url);
+  // 第一步：尝试直连
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    if (r.ok) return await r.json();
+    console.warn('直连响应异常:', r.status);
+  } catch (e) {
+    console.warn('直连失败:', e.message);
+  }
+
+  // 第二步：使用CORS代理
+  for (let i = 0; i < CORS_PROXIES.length; i++) {
     try {
-      const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(20000) });
+      const proxyUrl = CORS_PROXIES[i] + encodeURIComponent(url);
+      const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(15000) });
       if (!res.ok) throw new Error('HTTP ' + res.status);
-      proxyIndex = (proxyIndex + i) % PROXIES.length;
+      proxyIndex = i;
       return await res.json();
     } catch (e) {
-      console.warn('Proxy failed:', PROXIES[(proxyIndex + i) % PROXIES.length], e.message);
+      console.warn('代理失败:', CORS_PROXIES[i], e.message);
     }
   }
-  throw new Error('All proxies failed');
+  throw new Error('所有请求均失败');
 }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 

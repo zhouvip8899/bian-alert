@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>📊 专业K线分析</title>
+<title>📊 专业K线分析 v3.60</title>
 <script src="lightweight-charts.standalone.production.js"></script>
 <script>
 if (typeof window.LightweightCharts === 'undefined') {
@@ -15,12 +15,12 @@ if (typeof window.LightweightCharts === 'undefined') {
 :root{
   --bg:#0a0e17;--panel:#111827;--border:#1e293b;--border2:#334155;
   --text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;
-  --up:#ef4444;--down:#22c55e;--upBg:rgba(239,68,68,.12);--downBg:rgba(34,197,94,.12);
+  --up:#22c55e;--down:#ef4444;--upBg:rgba(34,197,94,.12);--downBg:rgba(239,68,68,.12);
   --gold:#f59e0b;--purple:#a78bfa;--blue:#3b82f6;--cyan:#06b6d4;--pink:#ec4899;--orange:#f97316;
   --bb-upper:#6366f1;--bb-lower:#6366f1;--bb-mid:#4b5563;
   --vwap:#facc15;
 }
-html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif;display:flex;flex-direction:column}
 
 /* ===== 顶部工具栏 ===== */
 .toolbar{
@@ -70,8 +70,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 
 /* ===== 图表区域 ===== */
 .chart-area{
-  display:flex;flex-direction:column;height:calc(100vh - 48px);
-  padding:4px 8px 8px;
+  display:flex;flex-direction:column;flex:1;min-height:0;
+  padding:4px 8px 0;position:relative;
 }
 .chart-wrap{flex:1;position:relative;min-height:0;border-radius:6px;overflow:hidden}
 .sub-header{
@@ -80,16 +80,91 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 }
 .sub-label{font-size:11px;color:var(--text3);font-weight:600}
 .sub-val{font-size:11px;font-variant-numeric:tabular-nums}
-.sub-chart{height:120px;position:relative;min-height:80px}
+.sub-chart{height:120px;position:relative;min-height:80px;padding-right:70px}
 
-/* ===== 右侧指标面板 ===== */
-.indicator-panel{
-  position:fixed;right:12px;top:60px;width:220px;
-  background:var(--panel);border:1px solid var(--border);border-radius:8px;
-  padding:12px;font-size:12px;z-index:50;
-  box-shadow:0 4px 24px rgba(0,0,0,.4);
+/* ===== 底部指标说明栏 ===== */
+.indicator-legend{
+  flex-shrink:0;
+  background:var(--panel);
+  border-top:1px solid var(--border);
+  padding:8px 16px 6px;
+  overflow-x:auto;
+  white-space:nowrap;
+  scrollbar-width:thin;
+  scrollbar-color:var(--border2) transparent;
 }
-.indicator-panel h4{color:var(--text2);font-size:11px;margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:1px}
+.indicator-legend::-webkit-scrollbar{height:4px}
+.indicator-legend::-webkit-scrollbar-track{background:transparent}
+.indicator-legend::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.legend-title{
+  font-size:10px;color:var(--text3);font-weight:600;letter-spacing:.6px;
+  text-transform:uppercase;margin-bottom:6px;
+}
+.legend-items{
+  display:inline-flex;gap:6px;flex-wrap:nowrap;
+}
+.legend-item{
+  display:inline-flex;align-items:center;gap:6px;
+  background:rgba(255,255,255,.03);
+  border:1px solid var(--border);
+  border-radius:6px;
+  padding:4px 10px;
+  cursor:default;
+  transition:background .15s,border-color .15s;
+}
+.legend-item:hover{background:rgba(255,255,255,.07);border-color:var(--border2)}
+.legend-dot{
+  width:8px;height:8px;border-radius:50%;flex-shrink:0;
+}
+.legend-dot.line{border-radius:2px;height:3px;width:18px}
+.legend-name{font-size:11px;font-weight:600;color:var(--text);white-space:nowrap}
+.legend-desc{font-size:10px;color:var(--text3);white-space:nowrap;margin-left:2px}
+
+/* S/R 覆盖层标签 */
+.sr-label{
+  position:absolute;
+  padding:1px 6px;
+  border-radius:3px;
+  font-size:10px;
+  font-weight:600;
+  line-height:16px;
+  pointer-events:none;
+  white-space:nowrap;
+  transform:translateY(-50%);
+  z-index:10;
+}
+
+/* 全局十字线竖线（贯穿主图+副图） */
+#globalCrosshairLine{
+  position:absolute;
+  top:0;bottom:0;
+  width:1px;
+  background:rgba(148,163,184,.4);
+  pointer-events:none;
+  z-index:20;
+  display:none;
+  border-left:1px dashed rgba(148,163,184,.5);
+}
+/* 隐藏三图自带的十字线竖线，只保留水平线 */
+#mainChart .tv-lightweight-charts__crosshair-vertical,
+#rsiChart .tv-lightweight-charts__crosshair-vertical,
+#macdChart .tv-lightweight-charts__crosshair-vertical{
+  display:none!important;
+}
+
+/* ===== 右侧指标面板（可拖拽） ===== */
+.indicator-panel{
+  position:fixed;width:220px;
+  background:var(--panel);border:1px solid var(--border);border-radius:8px;
+  padding:12px;font-size:12px;z-index:50;cursor:default;
+  box-shadow:0 4px 24px rgba(0,0,0,.4);
+  user-select:none;
+}
+.indicator-panel h4{
+  cursor:move;color:var(--text2);font-size:11px;margin-bottom:8px;font-weight:600;
+  text-transform:uppercase;letter-spacing:1px;
+  border-bottom:1px solid var(--border);padding-bottom:8px;
+}
 .ind-row{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.03)}
 .ind-row .lbl{color:var(--text3)}
 .ind-row .val{font-weight:600;font-variant-numeric:tabular-nums}
@@ -144,11 +219,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
     <span class="sym" id="lpSym">-</span>
     <span class="price" id="lpPrice">-</span>
     <span class="chg" id="lpChg">-</span>
+    <span id="wsStatus" style="font-size:11px;color:var(--text3);margin-left:8px">⏳ 连接中...</span>
   </div>
 </div>
 
 <!-- 图表区域 -->
-<div class="chart-area">
+<div class="chart-area" id="chartArea">
+  <!-- 全局十字线竖线 -->
+  <div id="globalCrosshairLine"></div>
   <!-- 主图 -->
   <div class="chart-wrap" id="mainChart"></div>
 
@@ -173,19 +251,111 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
   <div id="indBody"><p style="color:var(--text3);text-align:center;padding:20px 0">等待数据加载...</p></div>
 </div>
 
+<!-- ===== 底部指标说明 ===== -->
+<div class="indicator-legend">
+  <div class="legend-title">📖 指标说明</div>
+  <div class="legend-items">
+
+    <!-- K线 -->
+    <div class="legend-item">
+      <span class="legend-dot" style="background:var(--up)"></span>
+      <span class="legend-name">K线</span>
+      <span class="legend-desc">红涨绿跌 · 开高低收四价合一</span>
+    </div>
+
+    <!-- MA -->
+    <div class="legend-item">
+      <span class="legend-dot line" style="background:#f97316"></span>
+      <span class="legend-name">MA5</span>
+      <span class="legend-desc">5周期简单均线 · 捕捉短线趋势</span>
+    </div>
+    <div class="legend-item">
+      <span class="legend-dot line" style="background:#3b82f6"></span>
+      <span class="legend-name">MA20</span>
+      <span class="legend-desc">20周期均线 · 中期趋势方向</span>
+    </div>
+    <div class="legend-item">
+      <span class="legend-dot line" style="background:#a78bfa"></span>
+      <span class="legend-name">MA60</span>
+      <span class="legend-desc">60周期均线 · 中长期支撑/压力</span>
+    </div>
+
+    <!-- VWAP -->
+    <div class="legend-item">
+      <span class="legend-dot line" style="background:#facc15"></span>
+      <span class="legend-name">VWAP</span>
+      <span class="legend-desc">成交量加权均价 · 机构成本参考线</span>
+    </div>
+
+    <!-- BOLL -->
+    <div class="legend-item">
+      <span class="legend-dot line" style="background:#6366f1"></span>
+      <span class="legend-name">BOLL(20,2)</span>
+      <span class="legend-desc">布林带 · 上下轨为2σ压力/支撑 · 收窄预示爆发</span>
+    </div>
+
+    <!-- RSI -->
+    <div class="legend-item">
+      <span class="legend-dot line" style="background:#f59e0b"></span>
+      <span class="legend-name">RSI(14)</span>
+      <span class="legend-desc">相对强弱 · &gt;70超买 · &lt;30超卖 · 50为多空分水岭</span>
+    </div>
+
+    <!-- MACD -->
+    <div class="legend-item">
+      <span class="legend-dot line" style="background:#3b82f6"></span>
+      <span class="legend-name">MACD(12,26,9)</span>
+      <span class="legend-desc">DIF上穿DEA金叉做多 · 下穿死叉做空 · 柱量能量蓄积</span>
+    </div>
+
+    <!-- TD9 -->
+    <div class="legend-item">
+      <span class="legend-dot" style="background:#22c55e"></span>
+      <span class="legend-name">TD序列</span>
+      <span class="legend-desc">连续9根同向K线计数 · 9/13出现时预示反转</span>
+    </div>
+
+    <!-- S/R -->
+    <div class="legend-item">
+      <span class="legend-dot line" style="background:#f59e0b;opacity:.7"></span>
+      <span class="legend-name">支撑/压力</span>
+      <span class="legend-desc">历史高低点+成交密集区自动识别 · 黄实支撑 · 橙虚压力</span>
+    </div>
+
+    <!-- 一刀之眼 -->
+    <div class="legend-item">
+      <span class="legend-dot" style="background:#ec4899"></span>
+      <span class="legend-name">一刀之眼V15</span>
+      <span class="legend-desc">多维度综合信号 · 粉点看多 · 绿点看空</span>
+    </div>
+
+    <!-- 雷达 -->
+    <div class="legend-item">
+      <span class="legend-dot" style="background:#06b6d4"></span>
+      <span class="legend-name">雷达核心指令</span>
+      <span class="legend-desc">量价共振信号 · 蓝色箭头提示关键入场机会</span>
+    </div>
+
+    <!-- 成交量 -->
+    <div class="legend-item">
+      <span class="legend-dot" style="background:var(--up)"></span>
+      <span class="legend-name">成交量</span>
+      <span class="legend-desc">红涨绿跌 · 放量突破可信度更高</span>
+    </div>
+
+  </div>
+</div>
+
 <script>
 // ==================== 配置 ====================
 const API = 'https://fapi.binance.com';
 const CORS = [
   'https://139.rams.cc.cd/?url=',
   'https://135.rams.cc.cd/?url=',
+  'https://136.rams.cc.cd/?url=',
+  'https://137.rams.cc.cd/?url=',
   'https://corsproxy.io/?',
   'https://api.allorigins.win/raw?url='
-];
-const WS_PROXIES = [
-  'wss://139.rams.cc.cd/?url=',
-  'wss://135.rams.cc.cd/?url=',
-  'wss://137.rams.cc.cd/?url='
 ];
 
 let currentSymbol = 'BTCUSDT';
@@ -497,7 +667,7 @@ const TA = (() => {
     return result;
   };
 
-  // MACD 金叉/死叉检测（重写，索引逻辑更清晰）
+  // MACD 金叉/死叉检测（含确认机制：交叉后下一根K线保持方向才算确认）
   const MACD_CROSS = (dif, signal, start, sigOffset) => {
     const crosses = [];
     // 前 sigOffset 根K线没有 signal
@@ -508,9 +678,26 @@ const TA = (() => {
       const currDif = dif[sigOffset + j];
       const prevSig = signal[j - 1];
       const currSig = signal[j];
-      const golden = prevDif <= prevSig && currDif > currSig;
-      const death  = prevDif >= prevSig && currDif < currSig;
-      crosses.push({ golden, death });
+      const golden = prevDif < prevSig && currDif > currSig; // 严格 < > 避免相等误判
+      const death  = prevDif > prevSig && currDif < currSig;
+      // 确认机制：交叉后下一根K线也保持方向才算确认
+      let confirmed = false;
+      if (golden && j + 1 < signal.length) {
+        const nextDif = dif[sigOffset + j + 1];
+        const nextSig = signal[j + 1];
+        if (nextDif > nextSig) confirmed = true;
+      } else if (golden && j + 1 >= signal.length) {
+        confirmed = true; // 最后一根无法确认，默认算确认
+      }
+      let deathConfirmed = false;
+      if (death && j + 1 < signal.length) {
+        const nextDif = dif[sigOffset + j + 1];
+        const nextSig = signal[j + 1];
+        if (nextDif < nextSig) deathConfirmed = true;
+      } else if (death && j + 1 >= signal.length) {
+        deathConfirmed = true;
+      }
+      crosses.push({ golden: golden && confirmed, death: death && deathConfirmed });
     }
     return crosses;
   };
@@ -545,25 +732,35 @@ let maLines = {}, emaLines = {}, bbUpperLine, bbLowerLine, bbMidLine, vwapLine;
 let rsiLine, rsi70Line, rsi30Line;
 let macdDifLine, macdSignalLine, macdHistSeries, macdMarkerSeries, macdCandleForMarkers;
 let td9BuySeries, td9SellSeries;
-let srResistanceLines = [], srSupportLines = [], srPrevHighLine = null, srPrevLowLine = null;
 
 // ==================== 初始化图表 ====================
 function createCharts() {
   const timeFmt = makeTimeFormatter(currentTF);
-  const mkCfg = (bg, showTime) => ({
-    layout: { background: { type: 'solid', color: bg }, textColor: '#64748b', fontSize: 11 },
+  // 主图右侧价格轴宽度，副图通过 padding-right 补偿此宽度以确保绘图区对齐
+  const PRICE_SCALE_W = 70; // px
+  const mkCfg = (bg, showTime, showPrice) => ({
+    layout: { background: { type: 'solid', color: bg }, textColor: '#94a3b8', fontSize: 11 },
     grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
     crosshair: { mode: 0 },
-    rightPriceScale: { borderColor: '#1e293b', scaleMargins: { top: 0.05, bottom: 0.05 } },
+    rightPriceScale: {
+      visible: showPrice !== false,
+      borderColor: '#1e293b',
+      width: PRICE_SCALE_W,
+      scaleMargins: { top: 0.08, bottom: 0.08 },
+    },
+    leftPriceScale: { visible: false },
     timeScale: {
       borderColor: '#1e293b',
       timeVisible: true,
       secondsVisible: false,
       visible: showTime !== false,
       tickMarkFormatter: timeFmt,
+      rightOffset: 4,
     },
     localization: { timeFormatter: timeFmt },
-    handleScroll: true, handleScale: true,
+    handleScroll: showPrice !== false,
+    handleScale: showPrice !== false,
+    barSpacing: 8,
   });
 
   // 主图（显示时间轴）
@@ -572,15 +769,15 @@ function createCharts() {
     crosshair: { mode: 1 },
   });
   candleSeries = mainChart.addCandlestickSeries({
-    upColor: '#ef4444', downColor: '#22c55e',
-    borderUpColor: '#ef4444', borderDownColor: '#22c55e',
-    wickUpColor: '#ef444488', wickDownColor: '#22c55e88',
+    upColor: '#22c55e', downColor: '#ef4444',
+    borderUpColor: '#22c55e', borderDownColor: '#ef4444',
+    wickUpColor: '#22c55e88', wickDownColor: '#ef444488',
   });
   volumeSeries = mainChart.addHistogramSeries({
     priceFormat: { type: 'volume' },
     priceScaleId: 'vol',
   });
-  mainChart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
+  mainChart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 }, visible: false });
 
   // MA 线
   const maColors = { ma5:'#facc15', ma10:'#f97316', ma20:'#ef4444', ma60:'#3b82f6', ma120:'#a78bfa' };
@@ -601,30 +798,24 @@ function createCharts() {
 
   // TD9 标记（主图叠加，用 Marker 在蜡烛上显示数字）
   // buy setup：1-9 显示在K线下方（绿色）；sell setup：1-9 显示在K线上方（红色）
-  td9BuySeries  = mainChart.addLineSeries({ color: 'transparent', lineWidth: 0, priceScaleId: 'right', visible: indState.td9, crosshairMarkerVisible: false, lastValueVisible: false, priceLineVisible: false });
-  td9SellSeries = mainChart.addLineSeries({ color: 'transparent', lineWidth: 0, priceScaleId: 'right', visible: indState.td9, crosshairMarkerVisible: false, lastValueVisible: false, priceLineVisible: false });
+  td9BuySeries  = mainChart.addLineSeries({ color: 'transparent', lineWidth: 0, priceScaleId: 'overlay', visible: indState.td9, crosshairMarkerVisible: false, lastValueVisible: false, priceLineVisible: false });
+  td9SellSeries = mainChart.addLineSeries({ color: 'transparent', lineWidth: 0, priceScaleId: 'overlay', visible: indState.td9, crosshairMarkerVisible: false, lastValueVisible: false, priceLineVisible: false });
 
-  // RSI 子图（隐藏时间轴标签，与主图同步）
+  // RSI 子图（隐藏价格轴，通过 CSS padding-right:70px 补偿宽度）
   rsiChart = LightweightCharts.createChart(document.getElementById('rsiChart'), {
-    ...mkCfg('transparent', false),
-    rightPriceScale: { ...mkCfg('transparent', false).rightPriceScale, scaleMargins: { top: 0.05, bottom: 0.05 } },
+    ...mkCfg('transparent', false, false),
   });
   rsiLine = rsiChart.addLineSeries({ color: '#f59e0b', lineWidth: 1.5, title: 'RSI' });
   rsi70Line = rsiChart.addLineSeries({ color: '#ef444466', lineWidth: 1, lineStyle: 2, crosshairMarkerVisible: false });
   rsi30Line = rsiChart.addLineSeries({ color: '#22c55e66', lineWidth: 1, lineStyle: 2, crosshairMarkerVisible: false });
-  mainChart.timeScale().subscribeVisibleLogicalRangeChange(range => {
-    if (range) rsiChart.timeScale().setVisibleLogicalRange(range);
-  });
 
-  // MACD 子图（隐藏时间轴标签，与主图同步）
+  // MACD 子图（隐藏价格轴，通过 CSS padding-right:70px 补偿宽度）
   macdChart = LightweightCharts.createChart(document.getElementById('macdChart'), {
-    ...mkCfg('transparent', false),
-    rightPriceScale: { ...mkCfg('transparent', false).rightPriceScale, scaleMargins: { top: 0.05, bottom: 0.05 } },
+    ...mkCfg('transparent', false, false),
   });
   macdDifLine = macdChart.addLineSeries({ color: '#3b82f6', lineWidth: 1.5, title: 'DIF' });
   macdSignalLine = macdChart.addLineSeries({ color: '#f97316', lineWidth: 1.5, title: 'Signal' });
   macdHistSeries = macdChart.addHistogramSeries({ color: '#3b82f644', title: 'MACD' });
-  // MACD 信号标记 —— LineSeries 不支持 markers，改用透明蜡烛图系列
   macdMarkerSeries = macdChart.addLineSeries({ color: 'transparent', lineWidth: 0, crosshairMarkerVisible: false, lastValueVisible: false, priceLineVisible: false });
   macdCandleForMarkers = macdChart.addCandlestickSeries({
     upColor: '#0000', downColor: '#0000',
@@ -632,9 +823,109 @@ function createCharts() {
     wickUpColor: '#0000', wickDownColor: '#0000',
     crosshairMarkerVisible: false, lastValueVisible: false, priceLineVisible: false
   });
-  mainChart.timeScale().subscribeVisibleLogicalRangeChange(range => {
-    if (range) macdChart.timeScale().setVisibleLogicalRange(range);
+
+  // ========== 主图→副图 时间轴联动（副图被动跟随） ==========
+  // 副图 handleScroll/handleScale=false，不会主动触发滚动/缩放
+  // 只需主图变化时同步副图即可
+  let syncing = false;
+
+  function syncSubCharts() {
+    if (syncing) return;
+    const lr = mainChart.timeScale().getVisibleLogicalRange();
+    if (!lr) return;
+    syncing = true;
+    requestAnimationFrame(() => {
+      try {
+        const fromIdx = Math.max(0, Math.floor(lr.from));
+        const toIdx = Math.min(allKlines.length - 1, Math.ceil(lr.to));
+        if (fromIdx <= toIdx && allKlines.length > 0) {
+          const t1 = allKlines[fromIdx][0] / 1000;
+          const t2 = allKlines[toIdx][0] / 1000;
+          try { rsiChart.timeScale().setVisibleTimeRange({ from: t1, to: t2 }); } catch(e){}
+          try { macdChart.timeScale().setVisibleTimeRange({ from: t1, to: t2 }); } catch(e){}
+        } else {
+          try { rsiChart.timeScale().setVisibleLogicalRange(lr); } catch(e){}
+          try { macdChart.timeScale().setVisibleLogicalRange(lr); } catch(e){}
+        }
+      } catch(e) {
+        try { rsiChart.timeScale().setVisibleLogicalRange(lr); } catch(e){}
+        try { macdChart.timeScale().setVisibleLogicalRange(lr); } catch(e){}
+      }
+      syncing = false;
+    });
+  }
+
+  mainChart.timeScale().subscribeVisibleLogicalRangeChange(() => {
+    syncSubCharts();
+    updateSRLabelPositions();
   });
+
+  // ========== 全局十字线竖线（贯穿主图+副图） ==========
+  const crosshairLine = document.getElementById('globalCrosshairLine');
+  let crosshairSyncing = false;
+
+  function hideCrosshairLine() {
+    crosshairLine.style.display = 'none';
+  }
+
+  // 鼠标离开图表区域时隐藏竖线
+  document.getElementById('chartArea').addEventListener('mouseleave', () => {
+    hideCrosshairLine();
+  });
+
+  // 监听主图十字线移动 → 移动全局竖线 + 同步副图
+  mainChart.subscribeCrosshairMove(param => {
+    if (crosshairSyncing) return;
+    if (!param || !param.point) {
+      hideCrosshairLine();
+      try { rsiChart.clearCrosshairPosition(); } catch(e){}
+      try { macdChart.clearCrosshairPosition(); } catch(e){}
+      return;
+    }
+    const mainBox = document.getElementById('mainChart').getBoundingClientRect();
+    const areaBox = document.getElementById('chartArea').getBoundingClientRect();
+    crosshairLine.style.left = (mainBox.left - areaBox.left + param.point.x) + 'px';
+    crosshairLine.style.display = 'block';
+    if (param.time) {
+      crosshairSyncing = true;
+      try { rsiChart.setCrosshairPosition(undefined, param.time, rsiLine); } catch(e){}
+      try { macdChart.setCrosshairPosition(undefined, param.time, macdDifLine); } catch(e){}
+      crosshairSyncing = false;
+    }
+  });
+
+  // 监听副图十字线 → 同步到主图 + 更新全局竖线
+  function syncSubCrosshair(subChart, subSeries, containerId) {
+    subChart.subscribeCrosshairMove(param => {
+      if (crosshairSyncing) return;
+      if (!param || !param.point) {
+        hideCrosshairLine();
+        try { mainChart.clearCrosshairPosition(); } catch(e){}
+        return;
+      }
+      const subBox = document.getElementById(containerId).getBoundingClientRect();
+      const areaBox = document.getElementById('chartArea').getBoundingClientRect();
+      crosshairLine.style.left = (subBox.left - areaBox.left + param.point.x) + 'px';
+      crosshairLine.style.display = 'block';
+      if (param.time) {
+        crosshairSyncing = true;
+        try { mainChart.setCrosshairPosition(undefined, param.time, candleSeries); } catch(e){}
+        crosshairSyncing = false;
+      }
+    });
+  }
+  syncSubCrosshair(rsiChart, rsiLine, 'rsiChart');
+  syncSubCrosshair(macdChart, macdDifLine, 'macdChart');
+
+  // 创建 S/R 覆盖层
+  const mainEl = document.getElementById('mainChart');
+  let srOv = document.getElementById('srOverlay');
+  if (!srOv) {
+    srOv = document.createElement('div');
+    srOv.id = 'srOverlay';
+    srOv.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:10;overflow:hidden;';
+    mainEl.appendChild(srOv);
+  }
 }
 
 // ==================== 加载K线数据 ====================
@@ -652,10 +943,12 @@ async function loadChart() {
   // 切换周期时更新时间格式（北京时间，日线/周线只显示日期）
   const timeFmt = makeTimeFormatter(currentTF);
   if (mainChart) {
-    const tsOpts = { timeVisible: true, secondsVisible: false, tickMarkFormatter: timeFmt };
-    mainChart.applyOptions({ localization: { timeFormatter: timeFmt }, timeScale: tsOpts });
-    rsiChart.applyOptions({ localization: { timeFormatter: timeFmt }, timeScale: { ...tsOpts, visible: false } });
-    macdChart.applyOptions({ localization: { timeFormatter: timeFmt }, timeScale: { ...tsOpts, visible: false } });
+    const tsBase = { timeVisible: true, secondsVisible: false, tickMarkFormatter: timeFmt, rightOffset: 4 };
+    const psMain = { visible: true, borderColor: '#1e293b', width: 70, scaleMargins: { top: 0.08, bottom: 0.08 } };
+    const psSub = { visible: false, width: 70 };
+    mainChart.applyOptions({ localization: { timeFormatter: timeFmt }, timeScale: { ...tsBase }, barSpacing: 8, rightPriceScale: psMain });
+    rsiChart.applyOptions({ localization: { timeFormatter: timeFmt }, timeScale: { ...tsBase, visible: false }, barSpacing: 8, rightPriceScale: psSub });
+    macdChart.applyOptions({ localization: { timeFormatter: timeFmt }, timeScale: { ...tsBase, visible: false }, barSpacing: 8, rightPriceScale: psSub });
   }
 
   const limit = 500;
@@ -701,7 +994,7 @@ function renderAll(klines) {
   // 成交量
   const volData = klines.map((k,i) => ({
     time: times[i], value: vols[i],
-    color: closes[i] >= opens[i] ? 'rgba(239,68,68,.25)' : 'rgba(34,197,94,.25)'
+    color: closes[i] >= opens[i] ? 'rgba(34,197,94,.25)' : 'rgba(239,68,68,.25)'
   }));
   volumeSeries.setData(volData);
 
@@ -757,7 +1050,7 @@ function renderAll(klines) {
     macdSignalLine.setData(signal.map((v, i) => ({ time: times[start + sigOffset + i], value: v })));
     macdHistSeries.setData(hist.map((v, i) => ({
       time: times[start + sigOffset + i], value: v,
-      color: v >= 0 ? 'rgba(239,68,68,.5)' : 'rgba(34,197,94,.5)'
+      color: v >= 0 ? 'rgba(34,197,94,.5)' : 'rgba(239,68,68,.5)'
     })));
     // 更新 MACD 子图标题
     const lastDif = dif[dif.length - 1];
@@ -780,6 +1073,7 @@ function renderAll(klines) {
 
   // 同步时间轴
   mainChart.timeScale().fitContent();
+  requestAnimationFrame(() => { syncSubCharts(); });
 }
 
 // ==================== TD9/TD13 渲染 ====================
@@ -852,7 +1146,7 @@ function renderVolSignals(opens, closes, highs, lows, vols, times) {
 }
 
 // ==================== MACD信号渲染 ====================
-// 金叉(绿↑) / 死叉(红↓) / 多共振(亮绿●) / 空共振(亮红●)
+// 金叉(绿↑) / 死叉(红↓) / 多共振(亮绿●) / 空共振(亮红●) — 含确认机制
 function renderMacdSignals(times, closes, highs, lows) {
   if (!indState.macd) { macdCandleForMarkers.setMarkers([]); return; }
   const macd = TA.macd(closes, 12, 26, 9);
@@ -863,6 +1157,8 @@ function renderMacdSignals(times, closes, highs, lows) {
   const rsiArr = TA.rsiArray(closes, 14);
   const rsiALen = rsiArr.length;
   const rsiPad  = closes.length - rsiALen; // RSI数据在times中的起始偏移
+  // EMA25 用于主趋势判断
+  const ema25Arr = TA.emaArray(closes, 25);
   // 检测金叉/死叉：i 对应 dif[i]，signal[i-sigOffset]
   // 交叉需要前后两根，所以从 i = sigOffset+1 开始
   for (let i = sigOffset + 1; i < dif.length; i++) {
@@ -870,9 +1166,24 @@ function renderMacdSignals(times, closes, highs, lows) {
     const currDif = dif[i];
     const prevSig = signal[i - sigOffset - 1];
     const currSig = signal[i - sigOffset];
-    const golden = prevDif <= prevSig && currDif > currSig;
-    const death  = prevDif >= prevSig && currDif < currSig;
+    const golden = prevDif < prevSig && currDif > currSig; // 严格交叉
+    const death  = prevDif > prevSig && currDif < currSig;
     if (!golden && !death) continue;
+    // 确认机制：下一根K线保持方向
+    if (i + 1 < dif.length) {
+      const nextDif = dif[i + 1];
+      const nextSig = signal[(i + 1) - sigOffset];
+      if (nextSig !== undefined) {
+        if (golden && nextDif <= nextSig) continue; // 未确认，跳过
+        if (death && nextDif >= nextSig) continue;  // 未确认，跳过
+      }
+    }
+    // 趋势过滤：逆主趋势的交叉信号降低显示
+    const ema25 = ema25Arr && ema25Arr.length > i ? ema25Arr[i].value : null;
+    const price = closes[start + i] || 0;
+    const isUptrend = ema25 !== null && price > ema25;
+    if (golden && !isUptrend && ema25 !== null) continue; // 下跌趋势中的金叉跳过
+    if (death && isUptrend) continue; // 上涨趋势中的死叉跳过
     const t = times[start + i];
     // 对应该K线时的RSI值
     const rsiIdx = (start + i) - rsiPad;
@@ -904,38 +1215,93 @@ function renderMacdSignals(times, closes, highs, lows) {
 }
 
 // ==================== S/R 支撑阻力位渲染 ====================
+// 用 createPriceLine 在主图左侧价格轴显示标签
+// 开关通过 indState.sr 控制，切换时由 switch case 'sr' 调用
+let _srPriceLines = [];
+let _srDOMElements = []; // { price, lineEl, labelEl }
+
+function updateSRLabelPositions() {
+  if (!indState.sr || !mainChart || !candleSeries) return;
+  try {
+    _srDOMElements.forEach(item => {
+      const y = mainChart.priceToCoordinate(item.price, candleSeries);
+      if (y === null) return;
+      item.lineEl.style.top = y + 'px';
+      item.labelEl.style.top = y + 'px';
+    });
+  } catch(e) {}
+}
+
 function renderSR(times, highs, lows, closes) {
   // 清除旧价格线
-  srResistanceLines.forEach(l => l.remove()); srResistanceLines = [];
-  srSupportLines.forEach(l => l.remove()); srSupportLines = [];
-  if (srPrevHighLine) { srPrevHighLine.remove(); srPrevHighLine = null; }
-  if (srPrevLowLine) { srPrevLowLine.remove(); srPrevLowLine = null; }
+  _srPriceLines.forEach(pl => { try { candleSeries.removePriceLine(pl); } catch(e){} });
+  _srPriceLines = [];
+  _srDOMElements = [];
+
+  // 清除旧覆盖层内容
+  const overlay = document.getElementById('srOverlay');
+  if (overlay) overlay.innerHTML = '';
+
   if (!indState.sr) return;
 
   const { resistances, supports, prevHigh, prevLow } = TA.srLevels(highs, lows, closes);
+  if (!resistances.length && !supports.length && prevHigh <= 0 && prevLow <= 0) return;
 
-  resistances.forEach(price => {
-    srResistanceLines.push(candleSeries.createPriceLine({
-      price, color: '#ef4444', lineWidth: 1, lineStyle: 2,
-      axisLabelVisible: true, title: 'R',
+  // 收集所有价格线数据
+  const allLines = [];
+  resistances.forEach(price => allLines.push({ price, color: '#ef4444', lineWidth: 1, lineStyle: 2, label: 'R' }));
+  supports.forEach(price => allLines.push({ price, color: '#22c55e', lineWidth: 1, lineStyle: 2, label: 'S' }));
+  if (prevHigh > 0) allLines.push({ price: prevHigh, color: '#f59e0b', lineWidth: 2, lineStyle: 0, label: 'PH' });
+  if (prevLow > 0) allLines.push({ price: prevLow, color: '#3b82f6', lineWidth: 2, lineStyle: 0, label: 'PL' });
+
+  // 按价格排序后合并相邻标签（差距<0.1%）
+  allLines.sort((a, b) => a.price - b.price);
+  const merged = [];
+  allLines.forEach(line => {
+    const last = merged[merged.length - 1];
+    if (last && Math.abs(last.price - line.price) / last.price < 0.001) {
+      last.label += ' ' + line.label;
+    } else {
+      merged.push({ ...line });
+    }
+  });
+
+  if (!overlay || !mainChart || !candleSeries) return;
+
+  // 创建价格线（隐藏轴标签）+ 覆盖层标签
+  merged.forEach(item => {
+    _srPriceLines.push(candleSeries.createPriceLine({
+      price: item.price,
+      color: item.color,
+      lineWidth: item.lineWidth,
+      lineStyle: item.lineStyle,
+      axisLabelVisible: false,
+      title: '',
     }));
-  });
 
-  supports.forEach(price => {
-    srSupportLines.push(candleSeries.createPriceLine({
-      price, color: '#22c55e', lineWidth: 1, lineStyle: 2,
-      axisLabelVisible: true, title: 'S',
-    }));
-  });
+    // 用 priceToCoordinate 获取 Y 坐标，在覆盖层绘制标签
+    try {
+      const y = mainChart.priceToCoordinate(item.price, candleSeries);
+      if (y !== null) {
+        // 水平线视觉效果
+        const lineEl = document.createElement('div');
+        lineEl.style.cssText = `position:absolute;top:${y}px;left:40px;right:10px;height:0;pointer-events:none;transform:translateY(-50%);`;
+        lineEl.style.borderTop = item.lineStyle === 2 ? `1px dashed ${item.color}` : `1px solid ${item.color}`;
+        overlay.appendChild(lineEl);
 
-  srPrevHighLine = candleSeries.createPriceLine({
-    price: prevHigh, color: '#f59e0b', lineWidth: 2, lineStyle: 0,
-    axisLabelVisible: true, title: 'PH',
-  });
+        // 标签
+        const labelEl = document.createElement('div');
+        labelEl.className = 'sr-label';
+        labelEl.dataset.price = item.price;
+        labelEl.style.cssText = `top:${y}px;left:10px;background:${item.color};color:#fff;`;
+        labelEl.textContent = `${item.label} ${item.price.toFixed(2)}`;
+        overlay.appendChild(labelEl);
 
-  srPrevLowLine = candleSeries.createPriceLine({
-    price: prevLow, color: '#3b82f6', lineWidth: 2, lineStyle: 0,
-    axisLabelVisible: true, title: 'PL',
+        _srDOMElements.push({ price: item.price, lineEl, labelEl });
+      }
+    } catch(e) {
+      // priceToCoordinate 不可用则静默跳过标签
+    }
   });
 }
 
@@ -1002,66 +1368,116 @@ function updateIndicatorPanel(closes, highs, lows, vols) {
 }
 let macdData = null;
 
-// ==================== WebSocket 实时 ====================
+// ==================== WebSocket 实时（直连 + HTTP轮询保底） ====================
+let wsHeartbeatTimer = null;
+let httpPollTimer = null;
+let wsGotData = false; // WS是否真的收到了数据
+
+function startHttpPoll(symbol, interval) {
+  stopHttpPoll();
+  console.log('HTTP轮询启动，每3秒拉取最新K线');
+  httpPollTimer = setInterval(async () => {
+    try {
+      const klines = await apiFetch(`/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=2`);
+      if (!klines || !klines.length) return;
+      const k = klines[klines.length - 1];
+      const time = Math.floor(k[0] / 1000);
+      const open = parseFloat(k[1]), high = parseFloat(k[2]), low = parseFloat(k[3]), close = parseFloat(k[4]), vol = parseFloat(k[5]);
+
+      // 检查是否是新的K线
+      const lastCached = allKlines.length > 0 ? allKlines[allKlines.length - 1][0] : 0;
+      if (allKlines.length > 0 && allKlines[allKlines.length - 1][0] === k[0]) {
+        allKlines[allKlines.length - 1] = k;
+      } else if (k[0] > lastCached) {
+        allKlines.push(k);
+        if (allKlines.length > 600) allKlines.shift();
+      }
+
+      candleSeries.update({ time, open, high, low, close });
+      volumeSeries.update({ time, value: vol, color: close >= open ? 'rgba(34,197,94,.25)' : 'rgba(239,68,68,.25)' });
+      updateLivePrice(close, open);
+      updateRealtimeIndicators();
+    } catch (e) { /* 静默 */ }
+  }, 3000);
+}
+
+function stopHttpPoll() {
+  if (httpPollTimer) { clearInterval(httpPollTimer); httpPollTimer = null; }
+}
+
 function connectWS(symbol, interval) {
-  if (ws) { wsConnId++; ws.close(); }
+  if (ws) { wsConnId++; try { ws.close(); } catch(e){} }
+  if (wsHeartbeatTimer) clearTimeout(wsHeartbeatTimer);
+  stopHttpPoll();
+  wsGotData = false;
   const myId = ++wsConnId;
   const pair = symbol.toLowerCase();
-  const targetUrl = `wss://fstream.binance.com/ws/${pair}@kline_${interval}`;
+  const url = `wss://fstream.binance.com/ws/${pair}@kline_${interval}`;
 
-  // 尝试连接：先直连，再依次走代理
-  const endpoints = [`wss://fstream.binance.com/ws/${pair}@kline_${interval}`, ...WS_PROXIES.map(p => p + targetUrl)];
+  updateWSStatus('⏳ 连接中...', 'var(--text3)');
+  console.log('WS直连:', url);
 
-  let tried = 0;
-  function tryConnect() {
-    if (myId !== wsConnId) return;
-    if (tried >= endpoints.length) {
-      setProgress('⚠️ WS全部失败，数据为静态');
-      console.error('所有 WebSocket 代理均失败');
-      return;
+  // 10秒内没收到数据就启动HTTP轮询保底
+  const fallbackTimer = setTimeout(() => {
+    if (myId === wsConnId && !wsGotData) {
+      console.log('WS 10秒无数据，启动HTTP轮询保底');
+      updateWSStatus('📡 HTTP轮询中', 'var(--gold)');
+      startHttpPoll(symbol, interval);
     }
-    const url = endpoints[tried++];
-    console.log(`WS尝试[${tried}/${endpoints.length}]: ${url}`);
-    try {
-      const w = new WebSocket(url);
-      const connTimer = setTimeout(() => {
-        if (w.readyState === WebSocket.CONNECTING) {
-          w.close();
-          console.warn(`WS超时: ${url}`);
-        }
-      }, 8000);
+  }, 10000);
 
-      w.onopen = () => {
-        clearTimeout(connTimer);
-        if (myId !== wsConnId) { w.close(); return; }
-        ws = w;
-        setProgress('');
-        console.log(`WS已连接: ${url}`);
-      };
-      w.onmessage = (e) => {
-        if (myId !== wsConnId) return;
-        handleWSMessage(e.data, symbol);
-      };
-      w.onclose = () => {
-        clearTimeout(connTimer);
-        if (myId !== wsConnId) return;
-        console.warn(`WS断开: ${url}`);
-        // 如果不是最后一个才尝试下一个
-        if (tried < endpoints.length) {
-          tryConnect();
-        } else {
-          ws = null;
-          // 5秒后重连
-          setTimeout(() => { if (myId === wsConnId) connectWS(symbol, interval); }, 5000);
-        }
-      };
-      w.onerror = () => { clearTimeout(connTimer); w.close(); };
-    } catch (e) {
-      console.warn(`WS创建异常: ${url}`, e);
-      if (tried < endpoints.length) tryConnect();
-    }
+  try {
+    const w = new WebSocket(url);
+    const connTimer = setTimeout(() => {
+      if (w.readyState === WebSocket.CONNECTING) w.close();
+    }, 10000);
+
+    w.onopen = () => {
+      clearTimeout(connTimer);
+      if (myId !== wsConnId) { w.close(); return; }
+      ws = w;
+      updateWSStatus('⏳ 等待数据...', 'var(--text3)');
+      console.log('WS已连接，等待数据...');
+    };
+
+    w.onmessage = (e) => {
+      if (myId !== wsConnId) return;
+      if (!wsGotData) {
+        wsGotData = true;
+        clearTimeout(fallbackTimer);
+        stopHttpPoll(); // WS有数据了，停掉HTTP轮询
+        updateWSStatus('🟢 实时在线(WS)', '#22c55e');
+        console.log('WS开始接收数据，停HTTP轮询');
+      }
+      handleWSMessage(e.data, symbol);
+    };
+
+    w.onclose = () => {
+      clearTimeout(connTimer);
+      clearTimeout(fallbackTimer);
+      if (wsHeartbeatTimer) clearTimeout(wsHeartbeatTimer);
+      if (myId !== wsConnId) return;
+      ws = null;
+      // WS断开后启动HTTP轮询保底，同时5秒后尝试重连WS
+      if (!httpPollTimer) startHttpPoll(symbol, interval);
+      updateWSStatus('📡 HTTP保底，WS重连中...', 'var(--gold)');
+      console.log('WS断开，HTTP保底运行中，5秒后重连WS...');
+      setTimeout(() => { if (myId === wsConnId) connectWS(symbol, interval); }, 5000);
+    };
+
+    w.onerror = () => {
+      clearTimeout(connTimer);
+      w.close();
+    };
+  } catch (e) {
+    clearTimeout(fallbackTimer);
+    startHttpPoll(symbol, interval);
   }
-  tryConnect();
+}
+
+function updateWSStatus(text, color) {
+  const el = document.getElementById('wsStatus');
+  if (el) { el.textContent = text; el.style.color = color; }
 }
 
 function handleWSMessage(data, symbol) {
@@ -1071,6 +1487,7 @@ function handleWSMessage(data, symbol) {
     const k = msg.k;
     const time = Math.floor(k.t / 1000);
     const open = parseFloat(k.o), high = parseFloat(k.h), low = parseFloat(k.l), close = parseFloat(k.c), vol = parseFloat(k.v);
+    console.log('WS kline:', new Date(k.t).toISOString(), 'close=' + close, 'x=' + k.x);
 
     // 更新蜡烛图
     candleSeries.update({ time, open, high, low, close });
@@ -1083,25 +1500,27 @@ function handleWSMessage(data, symbol) {
     if (allKlines.length > 0) {
       const lastK = allKlines[allKlines.length - 1];
       if (lastK[0] === k.t) {
-        // 更新最后一根K线
+        // 同一根K线，更新
         allKlines[allKlines.length - 1] = [k.t, k.o, k.h, k.l, k.c, k.v];
       } else if (k.t > lastK[0]) {
-        // 新K线
+        // 新K线（旧K线已收盘）
         allKlines.push([k.t, k.o, k.h, k.l, k.c, k.v]);
         if (allKlines.length > 600) allKlines.shift();
+        console.log('WS 新K线:', new Date(k.t).toISOString());
       }
     }
 
     // 每5秒更新指标
-    if (!ws._lastIndUpdate || Date.now() - ws._lastIndUpdate > 5000) {
+    if (!ws || !ws._lastIndUpdate || Date.now() - ws._lastIndUpdate > 5000) {
       ws._lastIndUpdate = Date.now();
       updateRealtimeIndicators();
     }
-  } catch (err) { /* 忽略解析错误 */ }
+  } catch (err) { console.warn('WS消息解析错误:', err); }
 }
 
 function updateRealtimeIndicators() {
   if (!allKlines.length) return;
+  const opens = allKlines.map(k => parseFloat(k[1]));
   const closes = allKlines.map(k => parseFloat(k[4]));
   const highs = allKlines.map(k => parseFloat(k[2]));
   const lows = allKlines.map(k => parseFloat(k[3]));
@@ -1225,6 +1644,16 @@ document.getElementById('indGroup').addEventListener('click', (e) => {
         renderTD9(t9times, t9highs, t9lows, t9closes);
       }
       break;
+    case 'sr':
+      // S/R 通过 createPriceLine 控制，重新渲染
+      if (allKlines.length) {
+        const srTimes  = allKlines.map(k => Math.floor(k[0]/1000));
+        const srHighs  = allKlines.map(k => parseFloat(k[2]));
+        const srLows   = allKlines.map(k => parseFloat(k[3]));
+        const srCloses = allKlines.map(k => parseFloat(k[4]));
+        renderSR(srTimes, srHighs, srLows, srCloses);
+      }
+      break;
   }
 });
 
@@ -1244,6 +1673,83 @@ window.addEventListener('resize', () => {
     macdChart.applyOptions({ width: macdEl.clientWidth, height: macdEl.clientHeight });
   }
 });
+
+
+// ==================== 指标面板拖拽 ====================
+(function(){
+  const panel = document.getElementById('indPanel');
+  const header = panel.querySelector('h4');
+  let dragging = false, startX, startY, origLeft, origTop;
+
+  function setPos(x, y) {
+    const W = window.innerWidth, H = window.innerHeight;
+    const pw = panel.offsetWidth, ph = panel.offsetHeight;
+    x = Math.max(0, Math.min(W - pw, x));
+    y = Math.max(0, Math.min(H - ph, y));
+    panel.style.left = x + 'px';
+    panel.style.top  = y + 'px';
+  }
+
+  function initPos() {
+    panel.style.right = 'auto';
+    setPos(12, 60);
+  }
+
+  header.addEventListener('mousedown', e => {
+    e.preventDefault();
+    dragging = true;
+    startX  = e.clientX;
+    startY  = e.clientY;
+    origLeft = parseInt(panel.style.left) || 0;
+    origTop  = parseInt(panel.style.top)  || 0;
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup',   onUp);
+  });
+
+  function onMove(e) {
+    if (!dragging) return;
+    setPos(origLeft + e.clientX - startX, origTop + e.clientY - startY);
+  }
+  function onUp() {
+    dragging = false;
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup',   onUp);
+  }
+
+  header.addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    dragging = true;
+    startX  = t.clientX;
+    startY  = t.clientY;
+    origLeft = parseInt(panel.style.left) || 0;
+    origTop  = parseInt(panel.style.top)  || 0;
+    document.addEventListener('touchmove', onTouchMove, {passive:false});
+    document.addEventListener('touchend',  onTouchEnd);
+  }, {passive:false});
+
+  function onTouchMove(e) {
+    e.preventDefault();
+    if (!dragging) return;
+    const t = e.touches[0];
+    setPos(origLeft + t.clientX - startX, origTop + t.clientY - startY);
+  }
+  function onTouchEnd() {
+    dragging = false;
+    document.removeEventListener('touchmove', onTouchMove);
+    document.removeEventListener('touchend',  onTouchEnd);
+  }
+
+  window.addEventListener('resize', () => {
+    setPos(parseInt(panel.style.left)||0, parseInt(panel.style.top)||0);
+  });
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initPos);
+  } else {
+    initPos();
+  }
+})();
+
 
 // ==================== 启动 ====================
 window.addEventListener('DOMContentLoaded', () => {
