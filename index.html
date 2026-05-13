@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>币安合约暴涨预警系统 v3.64</title>
+    <title>币安合约暴涨预警系统 v3.65</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box}
         body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;background:linear-gradient(135deg,#0f0f1a,#1a1a2e);min-height:100vh;color:#e0e0e0}
@@ -859,110 +859,111 @@ function score(d) {
     const whale = d.whaleLongShortRatio || 1;
     const maxChg = Math.max(d.chg4h, d.chg1h, d.chg24h / 4);
     
-    // ========== 1. 暴跌检测 (精简) ==========
-    const crashChg = d.chg4h <= -10 ? d.chg4h : (d.chg24h <= -18 ? d.chg24h : 0);
-    if (crashChg <= -10) crashSignals += 5;
-    else if (d.chg4h <= -6 || d.chg24h <= -12) crashSignals += 3;
+    // ========== 1. 暴跌检测 (v3.65 精准版) ==========
+    // 4小时跌幅≥8% 或 24小时跌幅≥15% 才进入暴跌检测
+    const crashChg = d.chg4h <= -8 ? d.chg4h : (d.chg24h <= -15 ? d.chg24h : 0);
+    if (d.chg4h <= -8) crashSignals += 5;
+    else if (d.chg4h <= -5 && d.chg24h <= -10) crashSignals += 3; // 双重确认才计
     
     if (crashSignals >= 3) {
-        if (d.rsi > 70) crashSignals += 2;
-        if (d.kdj?.j > 85) crashSignals += 2;
+        if (d.rsi > 72) crashSignals += 2;   // RSI高位门槛提高
+        if (d.kdj?.j > 88) crashSignals += 2;
         if (d.macd?.hist < 0) crashSignals++;
-        if (crashSignals >= 2 && d.mom < -5) crashSignals++;
-        if (d.fr < -0.01) crashSignals++;
-        if (crashSignals >= 4 && d.vr < 0.8) crashSignals--; // 无量过滤
-        if (crashSignals >= 5) {
+        if (d.mom < -6) crashSignals++;       // MOM门槛提高
+        if (d.fr < -0.012) crashSignals++;    // 费率门槛提高
+        if (d.vr < 0.8) crashSignals -= 2;   // 无量惩罚加重
+        if (crashSignals >= 6) {              // 触发门槛从5→6
             sig.push(`💥暴跌${Math.abs(crashChg).toFixed(1)}%`);
-            if (d.rsi > 70) sig.push('⚠️RSI高位');
-            if (d.kdj?.j > 85) sig.push('⚠️KDJ超买');
-            // 暴跌预警也计算三维评分
+            if (d.rsi > 72) sig.push('⚠️RSI高位');
+            if (d.kdj?.j > 88) sig.push('⚠️KDJ超买');
             core.tech = Math.min(Math.floor(crashSignals / 2), 4);
-            if (taker < 0.5) core.whale = Math.floor((0.5 - taker) * 10);
+            if (taker < 0.48) core.whale = Math.floor((0.5 - taker) * 10);
             if (d.fr < 0) core.fund = 1;
             const crashResonance = core.tech * 2 + core.fund + core.whale;
             return { s: 70 + crashSignals * 2, sig: sig.slice(0, 5), level: '💎暴跌预警', isBottomRebound, isWatch, isCrash: true, crashSignals, core, resonanceScore: crashResonance, isPreBurst };
         }
     }
     
-    // ========== 2. 底部反弹 (v3.63 精选版) ==========
-    if (fromLow > 2 && fromLow < 20) {
+    // ========== 2. 底部反弹 (v3.65 精选版) ==========
+    // 必要前提：4h跌幅≥3% 或从低点反弹2-18%，且RSI<35（确认超卖）
+    if (fromLow > 2 && fromLow < 18 && d.rsi < 35) {
         let reboundScore = 0;
-        // 超卖指标合并（收紧门槛）
-        if (d.rsi < 30) { reboundScore += 3; sig.push('📊RSI超卖'); }
-        else if (d.rsi < 35) reboundScore++;
-        if (d.kdj?.j < 15) reboundScore += 2;
-        else if (d.kdj?.j < 25) reboundScore++;
-        if ((d.bb?.pos || 50) < 10) reboundScore += 2;
-        else if ((d.bb?.pos || 50) < 20) reboundScore++;
-        if ((d.wr !== null && d.wr < -90) || (d.cci < -150)) reboundScore += 2;
-        // 反弹确认（必须有MACD转多，量能要求提高）
-        if (d.macd?.hist > 0) { reboundScore += 2; sig.push('💹MACD转多'); }
-        if (d.vr >= 1.5) reboundScore++;
-        if (d.chg1h > 0.5) reboundScore++;
-        // 底背离共振（强力加分）
-        if (d.divergence === 'bottom') { reboundScore += 3; sig.push('📈底背离确认'); }
-        if (d.mtf?.aligned && d.mtf?.direction === 'up') reboundScore += 2;
-        if (d.wrDiv === 'bottom' || d.obvDiv === 'bottom') reboundScore += 2;
+        // 超卖深度（门槛全线收紧）
+        if (d.rsi < 25) { reboundScore += 4; sig.push('📊RSI极度超卖'); }
+        else if (d.rsi < 30) { reboundScore += 2; sig.push('📊RSI超卖'); }
+        else { reboundScore += 1; }
+        if (d.kdj?.j < 10) { reboundScore += 3; }
+        else if (d.kdj?.j < 20) { reboundScore += 1; }
+        if ((d.bb?.pos || 50) < 8) { reboundScore += 2; }
+        else if ((d.bb?.pos || 50) < 15) { reboundScore += 1; }
+        if (d.cci < -180) { reboundScore += 2; }
+        // 反弹确认（MACD转多为必要条件）
+        if (d.macd?.hist > 0) { reboundScore += 3; sig.push('💹MACD转多'); }
+        if (d.vr >= 1.5 && d.vr < 3.0) { reboundScore += 2; }  // 量能适度（不要爆量）
+        if (d.chg1h > 0.8) { reboundScore += 1; }
+        // 强力共振加分
+        if (d.divergence === 'bottom') { reboundScore += 4; sig.push('📈底背离确认'); }
+        if (d.mtf?.aligned && d.mtf?.direction === 'up') { reboundScore += 2; sig.push('🔄多周期向上'); }
+        if (d.wrDiv === 'bottom' || d.obvDiv === 'bottom') { reboundScore += 2; }
+        // 资金确认
+        if (taker > 0.55) { reboundScore += 2; sig.push(`🟢Taker${(taker*100).toFixed(0)}%`); }
         
-        // 底部反弹三维评分
+        // 三维评分
         core.tech = Math.min(Math.floor(reboundScore / 3), 4);
-        if (taker > 0.52) core.whale = Math.floor((taker - 0.5) * 10);
-        if (d.fr > 0) core.fund = 1;
+        if (taker > 0.55) core.whale = 1;
+        if ((d.fr || 0) < -0.001) core.fund = 1;
         const reboundResonance = core.tech * 2 + core.fund + core.whale;
         
-        // v3.63：门槛从≥5提升至≥7，且必须有MACD转多（sig中包含）
+        // v3.65：门槛≥8 + MACD转多必须 + RSI前提已在入口保证
         const hasMacdConfirm = sig.some(s => s.includes('MACD转多'));
-        if (reboundScore >= 7 && hasMacdConfirm) return { s: 20 + reboundScore * 2, sig: sig.slice(0, 6), level: '🔼底部反弹', isBottomRebound: true, isWatch, isCrash, crashSignals, core, resonanceScore: reboundResonance, isPreBurst };
+        if (reboundScore >= 8 && hasMacdConfirm) return { s: 20 + reboundScore * 2, sig: sig.slice(0, 6), level: '🔼底部反弹', isBottomRebound: true, isWatch, isCrash, crashSignals, core, resonanceScore: reboundResonance, isPreBurst };
     }
     
-    // ========== 3. 预涨蓄力检测 (v3.27 精准版) ==========
-    // 核心理念：找未涨但能量在积聚的币种
-    // v3.27修复：v3.26门槛≥13分+信号≥3导致0结果 → 调整分值体系+适度放宽
+    // ========== 3. 预涨蓄力检测 (v3.65 精准版) ==========
     let preScore = 0;
     const preSigs = [];
-    const isQuiet = Math.abs(d.chg4h) < 3 && Math.abs(d.chg1h) < 2 && Math.abs(d.chg24h) < 8;
+    // 价格平静门槛收紧（4h<2%, 1h<1.5%, 24h<6%）
+    const isQuiet = Math.abs(d.chg4h) < 2 && Math.abs(d.chg1h) < 1.5 && Math.abs(d.chg24h) < 6;
     const bbWidth = d.bb?.w || 999;
     
-    // 布林收口(<3%)+价格平静，进入预涨检测
-    if (isQuiet && bbWidth < 3) {
+    // 布林收口<2.5% + 价格平静，进入预涨检测
+    if (isQuiet && bbWidth < 2.5) {
         // 布林带极度收口（核心信号）
-        if (bbWidth < 1.5) { preScore += 5; preSigs.push('🔮布林极收口'); }
-        else if (bbWidth < 2) { preScore += 3; preSigs.push('📊布林收口'); }
+        if (bbWidth < 1.2) { preScore += 6; preSigs.push('🔮布林极收口'); }
+        else if (bbWidth < 1.8) { preScore += 4; preSigs.push('📊布林强收口'); }
         else { preScore += 2; }
         
         // MACD从负转正（零轴附近 = 更前瞻）
-        if (d.macd?.hist > 0 && d.macd?.dif > -0.2 && d.macd?.dif < 0) { preScore += 4; preSigs.push('💹MACD初现'); }
-        else if (d.macd?.hist > 0 && d.macd?.dif <= 0) { preScore += 2; }
+        if (d.macd?.hist > 0 && d.macd?.dif > -0.15 && d.macd?.dif < 0) { preScore += 4; preSigs.push('💹MACD零轴初现'); }
+        else if (d.macd?.hist > 0 && d.macd?.dif > 0) { preScore += 2; }
         
-        // 量能异动（1.3x以上有意义）
-        if (d.vr >= 1.5) { preScore += 3; preSigs.push(`📈量能${d.vr.toFixed(1)}x萌动`); }
-        else if (d.vr >= 1.3) { preScore += 2; }
+        // 量能异动（要求1.5x以上）
+        if (d.vr >= 1.8) { preScore += 4; preSigs.push(`📈量能${d.vr.toFixed(1)}x萌动`); }
+        else if (d.vr >= 1.5) { preScore += 2; preSigs.push(`📈量能${d.vr.toFixed(1)}x`); }
         
-        // Taker买入偏多（关键资金信号）
-        if (taker >= 0.58) { preScore += 5; preSigs.push(`🟢Taker${(taker*100).toFixed(0)}%吸筹`); }
-        else if (taker >= 0.55) { preScore += 3; preSigs.push(`🟢Taker${(taker*100).toFixed(0)}%暗进`); }
-        else if (taker >= 0.52) { preScore += 1; }
+        // Taker买入偏多（门槛提高）
+        if (taker >= 0.60) { preScore += 5; preSigs.push(`🟢Taker${(taker*100).toFixed(0)}%吸筹`); }
+        else if (taker >= 0.57) { preScore += 3; preSigs.push(`🟢Taker${(taker*100).toFixed(0)}%暗进`); }
         
         // 均线多头排列
         if (d.ma7 && d.ma25 && d.ma99 && d.ma7 > d.ma25 && d.ma25 > d.ma99) { preScore += 2; preSigs.push('📈均线蓄势'); }
         
         // 多周期共振向上
-        if (d.mtf?.aligned && d.mtf.direction === 'up') { preScore += 3; preSigs.push('🔄多周期同向'); }
+        if (d.mtf?.aligned && d.mtf.direction === 'up') { preScore += 4; preSigs.push('🔄多周期同向'); }
         
         // 底背离
         if (d.divergence === 'bottom') { preScore += 3; preSigs.push('📊底背离'); }
-        if (d.obvDiv === 'bottom') { preScore += 2; preSigs.push('📊OBV背离'); }
         
-        // 低费率
-        if ((d.fr || 0) < -0.003) { preScore += 3; preSigs.push('💚费率利多'); }
-        else if ((d.fr || 0) < -0.001) { preScore += 1; }
+        // 低费率（空头偏多）
+        if ((d.fr || 0) < -0.005) { preScore += 4; preSigs.push('💚费率极利多'); }
+        else if ((d.fr || 0) < -0.002) { preScore += 2; preSigs.push('💚费率利多'); }
     }
     
-    // v3.27精准版：≥10分 + ≥2个信号（确保精准，不贪多）
-    if (preScore >= 12 && isQuiet && preSigs.length >= 2) {
+    // v3.65：≥14分 + ≥3个信号（比v3.27的≥12+≥2更严）
+    if (preScore >= 14 && isQuiet && preSigs.length >= 3) {
         core.tech = Math.min(Math.floor(preScore / 3), 4);
-        if (taker > 0.52) core.whale = Math.floor((taker - 0.5) * 8);
-        if ((d.fr || 0) < -0.001) core.fund = 1;
+        if (taker > 0.55) core.whale = Math.floor((taker - 0.5) * 8);
+        if ((d.fr || 0) < -0.002) core.fund = 1;
         const preResonance = core.tech * 2 + core.fund + core.whale;
         return {
             s: 30 + preScore * 3, sig: preSigs.slice(0, 6), level: '🔮预涨蓄力',
@@ -971,104 +972,97 @@ function score(d) {
         };
     }
     
-    // ========== 4. 暴涨信号 (三维共振 v3.24 - 前瞻优化版) ==========
-    // v3.24 关键改动：
-    // - 布林收口权重大幅提升（预涨核心信号）
-    // - 量能初动权重提升，量能已爆权重降低
-    // - 高涨幅信号降低或惩罚（减少马后炮）
-    // - 趋势加速/多周期共振权重提升
+    // ========== 4. 暴涨信号 (v3.65 三维共振精选版) ==========
+    // 技术面核心 (权重2x)
+    if (bbWidth < 1.5) { core.tech += 3; s += 25; sig.push('🔮布林极收口'); }
+    else if (bbWidth < 2.5) { core.tech += 2; s += 18; sig.push('📊布林收口'); }
+    else if (bbWidth < 4) { core.tech++; s += 8; }
     
-    // 技术面核心 (权重2x) - 前瞻优化
-    if (bbWidth < 2) { core.tech += 3; s += 25; sig.push('🔮布林极收口'); }        // v3.24提升
-    else if (bbWidth < 3) { core.tech += 2; s += 18; sig.push('📊布林收口'); }
-    else if (bbWidth < 5) { core.tech++; s += 10; }
-    
-    // MACD：零轴金叉比高位金叉更有前瞻性（hist=(DIF-DEA)*2标准值）
+    // MACD：零轴金叉前瞻性最强
     if (d.macd?.dif > 0 && d.macd?.hist > 0) { core.tech += 2; s += 12; sig.push('💹MACD金叉'); }
-    else if (d.macd?.dif < 0 && d.macd?.dif > -0.2 && d.macd?.hist > 0) { core.tech += 2; s += 15; sig.push('💹MACD零轴金叉'); }
-    else if (d.macd?.hist > 0 && d.macd?.dif < 0) { core.tech++; s += 8; }
+    else if (d.macd?.dif < 0 && d.macd?.dif > -0.15 && d.macd?.hist > 0) { core.tech += 2; s += 16; sig.push('💹MACD零轴金叉'); }
+    else if (d.macd?.hist > 0 && d.macd?.dif < 0) { core.tech++; s += 6; }
     
-    // 量能：萌动比爆发更有前瞻性（v3.63 提高起步线）
+    // 量能：萌动阶段最有效
     if (d.vr >= 1.5 && d.vr < 2.0) { core.tech += 2; s += 18; sig.push(`📈量能${d.vr.toFixed(1)}x萌动`); }
-    else if (d.vr >= 2.0 && d.vr < 4.0) { core.tech++; s += 10; sig.push(`🔥量能${d.vr.toFixed(1)}x`); }
-    else if (d.vr >= 4.0) { s += 5; sig.push(`🔥量能${d.vr.toFixed(1)}x`); }
+    else if (d.vr >= 2.0 && d.vr < 3.5) { core.tech++; s += 10; sig.push(`🔥量能${d.vr.toFixed(1)}x`); }
+    else if (d.vr >= 3.5) { s += 3; sig.push(`🔥量能${d.vr.toFixed(1)}x`); }  // 极端爆量降权
     
-    if (d.rsi >= 45 && d.rsi <= 55) { core.tech++; s += 8; }
-    if (d.mom > 6) { core.tech++; s += 6; }
+    // RSI健康区间（缩窄到48-56）
+    if (d.rsi >= 48 && d.rsi <= 56) { core.tech++; s += 8; }
+    // MOM门槛提高
+    if (d.mom > 7) { core.tech++; s += 6; }
     
-    // 💎 清算指标分析 (v3.23)
+    // 💎 清算指标（空头偏负费率+上涨=空杀信号最强）
     const liqRisk = Math.abs(d.fr || 0) * Math.abs(d.chg4h || 0);
-    
-    if ((d.fr || 0) < -0.001 && (d.chg4h || 0) > 0) {
-        core.fund += 2; s += 10; sig.push(`💎空杀${((d.fr || 0) * 100).toFixed(2)}%`);
-    } else if ((d.fr || 0) < -0.003) {
+    if ((d.fr || 0) < -0.002 && (d.chg4h || 0) > 1) {
+        core.fund += 2; s += 12; sig.push(`💎空杀${((d.fr || 0) * 100).toFixed(2)}%`);
+    } else if ((d.fr || 0) < -0.004) {
         core.fund += 1; s += 5;
     }
-    if ((d.fr || 0) > 0.001 && (d.chg4h || 0) < 0) {
-        s -= 8; sig.push(`💎多杀${((d.fr || 0) * 100).toFixed(2)}%`);
-    } else if ((d.fr || 0) > 0.003) {
-        s -= 5;
+    if ((d.fr || 0) > 0.002 && (d.chg4h || 0) < -1) {
+        s -= 10; sig.push(`💎多杀${((d.fr || 0) * 100).toFixed(2)}%`);
+    } else if ((d.fr || 0) > 0.004) {
+        s -= 6;
     }
-    if (liqRisk > 3) {
-        core.tech++; s += 6; sig.push(`⚡清算${liqRisk.toFixed(1)}`);
-    }
+    if (liqRisk > 4) { core.tech++; s += 6; sig.push(`⚡清算${liqRisk.toFixed(1)}`); }
     
-    // 资金面 & 大户面
-    if (taker >= 0.60) {
-        core.fund += 2; core.whale += 2; s += 27;
+    // 资金面 & 大户面（门槛全线提高）
+    if (taker >= 0.62) {
+        core.fund += 2; core.whale += 2; s += 28;
         sig.push(`🟢Taker${(taker * 100).toFixed(0)}%`);
-    } else if (taker >= 0.56) {
-        core.fund++; core.whale++; s += 14;
-    } else if (taker >= 0.54) {
-        core.whale++; s += 6;
+    } else if (taker >= 0.58) {
+        core.fund++; core.whale++; s += 15;
+    } else if (taker >= 0.55) {
+        core.whale++; s += 7;
     }
-    if (d.fr < 0 && d.fr >= -0.015) { core.fund++; s += 5; }
+    if (d.fr < -0.002 && d.fr >= -0.015) { core.fund++; s += 5; }
     
-    // 趋势确认 (v3.24：已涨幅大幅降权)
-    if (maxChg >= 10) { s += 3; sig.push(`📈${maxChg.toFixed(1)}%`); }             // v3.24 大幅降低：从8→3
-    else if (maxChg >= 6) s += 2;                                                     // v3.24降低：从5→2
-    else if (maxChg >= 3) s += 2;
+    // 趋势确认（仅轻微加分，防止追高）
+    if (maxChg >= 8 && maxChg < 12) { s += 3; sig.push(`📈${maxChg.toFixed(1)}%`); }
+    else if (maxChg >= 4 && maxChg < 8) s += 2;
     if (d.ma7 && d.ma25 && d.ma99 && d.ma7 > d.ma25 && d.ma25 > d.ma99) { s += 6; sig.push('📈均线多头'); }
     
-    // 高涨幅惩罚 (v3.24 新增：防止追高)
-    if (maxChg >= 15) { s -= 15; sig.push('⚠️高位追高'); }    // 涨幅过大扣分
-    else if (maxChg >= 10) { s -= 8; }                          // 中度惩罚
-    else if (maxChg >= 7) { s -= 3; }                           // 轻度惩罚
+    // 高涨幅惩罚（加重）
+    if (maxChg >= 15) { s -= 20; sig.push('⚠️高位追高'); }
+    else if (maxChg >= 10) { s -= 12; }
+    else if (maxChg >= 7) { s -= 5; }
     
-    // 高级信号 (权重调整)
-    if (d.divergence === 'top') { s -= 12; sig.push('⚠️顶背离'); }
+    // 高级信号
+    if (d.divergence === 'top') { s -= 15; sig.push('⚠️顶背离'); }
     else if (d.divergence === 'bottom') { s += 10; sig.push('📊底背离'); }
-    if (d.mtf?.aligned && d.mtf.direction === 'up') { core.tech += 2; s += 18; sig.push('🔄多周期'); }  // v3.24提升：18（原15）
-    else if (d.mtf?.aligned && d.mtf.direction === 'down') { s -= 10; }
+    if (d.mtf?.aligned && d.mtf.direction === 'up') { core.tech += 2; s += 18; sig.push('🔄多周期'); }
+    else if (d.mtf?.aligned && d.mtf.direction === 'down') { s -= 12; }
     if (d.trendAccel?.strongTrend && d.trendAccel.bullish) { core.tech++; s += 12; sig.push('💥主升浪'); }
     if (d.volBreakout?.breakout && d.volBreakout.volConfirmed) { core.tech += 2; s += 15; sig.push(`📊波率${d.volBreakout.atrRatio.toFixed(1)}x`); }
-    else if (d.volBreakout?.breakout) { s += 8; }
-    if (d.maCross?.goldenCross) { core.tech += 2; s += 18; sig.push('🌟均线金叉'); }  // v3.24提升：18（原15）
-    if (d.macdAccel?.accelerating) { core.tech++; s += 12; }
-    if (d.obvDiv === 'top') s -= 10;
-    else if (d.obv?.rising) s += 5;
+    else if (d.volBreakout?.breakout) { s += 6; }
+    if (d.maCross?.goldenCross) { core.tech += 2; s += 18; sig.push('🌟均线金叉'); }
+    if (d.macdAccel?.accelerating) { core.tech++; s += 10; }
+    if (d.obvDiv === 'top') s -= 12;
+    else if (d.obv?.rising) s += 4;
     if (d.sentiment) {
-        if (d.sentiment.sentiment > 75) { core.tech++; s += 10; sig.push('😊情绪高涨'); }
-        else if (d.sentiment.sentiment < 25) { s -= 10; }
+        if (d.sentiment.sentiment > 78) { core.tech++; s += 8; sig.push('😊情绪高涨'); }
+        else if (d.sentiment.sentiment < 22) { s -= 10; }
     }
     
-    // 风险过滤
-    if (maxChg > 8 && d.vr < 1.3) { s -= 12; sig.push('⚠️虚涨'); }
-    if (maxChg > 6 && d.vr >= 1.8) s += 6;
-    if (d.fr > 0.02) { s -= 10; sig.push('⚠️高费率'); }
-    if (d.rsi > 68) s -= 6;
-    if (whale < 0.75) { s -= 12; sig.push('🦈大户偏空'); }
+    // 风险过滤（加重惩罚）
+    if (maxChg > 7 && d.vr < 1.4) { s -= 15; sig.push('⚠️虚涨'); }
+    if (d.fr > 0.025) { s -= 15; sig.push('⚠️高费率'); }
+    if (d.rsi > 70) s -= 10;
+    else if (d.rsi > 65) s -= 5;
+    if (whale < 0.8) { s -= 15; sig.push('🦈大户偏空'); }
     
     // 限制范围
     s = Math.min(Math.max(s, 0), 130);
     
-    // ========== 5. 信号判定 (v3.24 → v3.63终极精选版) ==========
+    // ========== 5. 信号判定 (v3.65 终极精选版) ==========
     const resonanceScore = core.tech * 2 + core.fund + core.whale;
     const dimCount = (core.tech > 0 ? 1 : 0) + (core.fund > 0 ? 1 : 0) + (core.whale > 0 ? 1 : 0);
-    // v3.63 终极精选：暴涨预警需3个维度全亮（技术+资金+大户共振）+ 高门槛
-    if (resonanceScore >= 10 && s >= 70 && dimCount >= 3) level = '🚀暴涨预警';
-    else if (resonanceScore >= 7 && s >= 55) level = '⚡积累中';
-    else if (s >= 30) { level = '👀观察中'; isWatch = true; }
+    // v3.65：暴涨预警 = 3维全亮 + 共振≥11 + 总分≥72
+    if (resonanceScore >= 11 && s >= 72 && dimCount >= 3) level = '🚀暴涨预警';
+    // 积累中 = 共振≥8 + 总分≥58
+    else if (resonanceScore >= 8 && s >= 58) level = '⚡积累中';
+    else if (s >= 35) { level = '👀观察中'; isWatch = true; }
     
     return { s, sig: sig.slice(0, 8), level, isBottomRebound, isWatch, isCrash, crashSignals, core, resonanceScore, isPreBurst };
 }
