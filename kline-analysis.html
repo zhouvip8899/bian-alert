@@ -45,19 +45,31 @@ window.TA = (function() {
     return ema;
   };
   const MACD = (data, f=12,s=26,sig=9) => {
-    const emaF = (d,p) => {if(d.length<p)return null;let e=SMA(d.slice(0,p),p);for(let i=p;i<d.length;i++)e=d[i]*2/(p+1)+e*(1-2/(p+1));return e;};
-    const ema12=emaF(data,f), ema26=emaF(data,s);
-    if(!ema12||!ema26)return null;
-    const dif=ema12-ema26;
-    const macdLine=[dif];
-    for(let i=s;i<data.length;i++){
-      const e12=emaF(data.slice(0,i+1),f), e26=emaF(data.slice(0,i+1),s);
-      if(e12&&e26) macdLine.push(e12-e26);
+    if (data.length < s + sig) return null;
+    const kF = 2/(f+1), kS = 2/(s+1), kSig = 2/(sig+1);
+    let eF = data.slice(0,f).reduce((a,b)=>a+b)/f;
+    let eS = data.slice(0,s).reduce((a,b)=>a+b)/s;
+    const difArr = new Array(data.length).fill(null);
+    for (let i = f; i < data.length; i++) {
+      if (i > f) eF = data[i]*kF + eF*(1-kF);
+      if (i > s) eS = data[i]*kS + eS*(1-kS);
+      if (i >= s) difArr[i] = eF - eS;
     }
-    if(macdLine.length<sig)return{dif,signal:null,hist:null};
-    let sma=macdLine.slice(0,sig).reduce((a,b)=>a+b,0)/sig;
-    for(let i=sig;i<macdLine.length;i++) sma=macdLine[i]*2/(sig+1)+sma*(1-2/(sig+1));
-    return{dif,signal:sma,hist:(dif-sma)*2};
+    const deaArr = new Array(data.length).fill(null);
+    let dea = null, dc = 0;
+    for (let i = 0; i < data.length; i++) {
+      if (difArr[i] === null) continue;
+      dc++;
+      if (dc <= sig) { dea = dea === null ? difArr[i] : dea + difArr[i]; }
+      else {
+        if (dc === sig + 1) dea = dea / sig;
+        dea = difArr[i]*kSig + dea*(1-kSig);
+      }
+      if (dc > sig) deaArr[i] = dea;
+    }
+    const histArr = data.map((_, i) => difArr[i]!==null && deaArr[i]!==null ? (difArr[i]-deaArr[i])*2 : null);
+    const last = data.length - 1;
+    return { dif: difArr[last], signal: deaArr[last], hist: histArr[last], difArr, deaArr, histArr };
   };
   const BollingerBands = (data, period=20, stdDev=2) => {
     if(data.length<period)return null;
@@ -1316,32 +1328,33 @@ function getSignal(type, value, threshold) {
   if (isInvalid) return { label: '--', cls: 'sig-neutral', strength: 0 };
   switch(type) {
     case 'rsi':
-      if (value < 30) return { label: '超卖 🟢', cls: 'sig-buy', strength: 80 };
+      if (value < 28) return { label: '超卖 🟢', cls: 'sig-buy', strength: 80 };
       if (value < 40) return { label: '偏弱', cls: 'sig-buy', strength: 50 };
-      if (value > 70) return { label: '超买 🔴', cls: 'sig-sell', strength: 80 };
+      if (value > 72) return { label: '超买 🔴', cls: 'sig-sell', strength: 80 };
       if (value > 60) return { label: '偏强', cls: 'sig-sell', strength: 50 };
       if (value >= 42 && value <= 58) return { label: '中性区域 📊', cls: 'sig-neutral', strength: 30 };
       return { label: '中性', cls: 'sig-neutral', strength: 20 };
     case 'kdj':
-      if (value.j < 20) return { label: '超卖 🟢', cls: 'sig-buy', strength: 80 };
+      if (value.j < 18) return { label: '超卖 🟢', cls: 'sig-buy', strength: 80 };
       if (value.j < 30) return { label: '偏弱', cls: 'sig-buy', strength: 50 };
-      if (value.j > 80) return { label: '超买 🔴', cls: 'sig-sell', strength: 80 };
+      if (value.j > 82) return { label: '超买 🔴', cls: 'sig-sell', strength: 80 };
       if (value.j > 70) return { label: '偏强', cls: 'sig-sell', strength: 50 };
-      if (value.k > value.d && value.d < 30) return { label: '金叉酝酿 🟢', cls: 'sig-buy', strength: 60 };
+      if (value.k > value.d && value.d < 28) return { label: '金叉酝酿 🟢', cls: 'sig-buy', strength: 60 };
       return { label: '中性', cls: 'sig-neutral', strength: 20 };
     case 'wr':
-      if (value < -90) return { label: '严重超卖 🟢', cls: 'sig-buy', strength: 90 };
-      if (value < -80) return { label: '超卖 🟢', cls: 'sig-buy', strength: 80 };
+      if (value < -92) return { label: '严重超卖 🟢', cls: 'sig-buy', strength: 90 };
+      if (value < -82) return { label: '超卖 🟢', cls: 'sig-buy', strength: 80 };
       if (value < -50) return { label: '偏弱', cls: 'sig-buy', strength: 50 };
-      if (value > -10) return { label: '超买 🔴', cls: 'sig-sell', strength: 80 };
-      if (value > -20) return { label: '偏强', cls: 'sig-sell', strength: 50 };
+      if (value > -8) return { label: '超买 🔴', cls: 'sig-sell', strength: 80 };
+      if (value > -18) return { label: '偏强', cls: 'sig-sell', strength: 50 };
       return { label: '中性', cls: 'sig-neutral', strength: 20 };
     case 'macd':
-      if (value.hist > 0.5) return { label: '强势金叉 🟢', cls: 'sig-buy', strength: 85 };
-      if (value.hist > 0.1) return { label: '金叉 🟢', cls: 'sig-buy', strength: 70 };
-      if (value.hist > 0) return { label: '转多 🟢', cls: 'sig-buy', strength: 50 };
-      if (value.hist < -0.5) return { label: '强势死叉 🔴', cls: 'sig-sell', strength: 85 };
-      if (value.hist < -0.1) return { label: '死叉 🔴', cls: 'sig-sell', strength: 70 };
+      if (value.hist > 0 && value.dif > 0) return { label: '金叉 🟢', cls: 'sig-buy', strength: 70 }; // 零轴上方金叉
+      if (value.hist > 0 && value.dif <= 0 && value.dif > -0.2) return { label: '零轴金叉 🟢', cls: 'sig-buy', strength: 85 }; // 零轴附近
+      if (value.hist > 0 && value.dif <= -0.2) return { label: '弱势金叉', cls: 'sig-buy', strength: 50 }; // 深水下金叉
+      if (value.hist < 0 && value.dif < 0) return { label: '死叉 🔴', cls: 'sig-sell', strength: 70 }; // 零轴下方死叉
+      if (value.hist < 0 && value.dif >= 0 && value.dif < 0.2) return { label: '零轴死叉 🔴', cls: 'sig-sell', strength: 85 }; // 零轴附近
+      if (value.hist < 0 && value.dif >= 0.2) return { label: '弱势死叉', cls: 'sig-sell', strength: 50 }; // 高位死叉
       return { label: '中性', cls: 'sig-neutral', strength: 20 };
     case 'cci':
       if (value > 200) return { label: '严重超买 🔴', cls: 'sig-sell', strength: 90 };
@@ -1352,10 +1365,10 @@ function getSignal(type, value, threshold) {
       if (value < -50) return { label: '偏弱', cls: 'sig-buy', strength: 50 };
       return { label: '中性', cls: 'sig-neutral', strength: 20 };
     case 'stoch':
-      if (value.k < 20) return { label: '超卖 🟢', cls: 'sig-buy', strength: 80 };
-      if (value.k > 80) return { label: '超买 🔴', cls: 'sig-sell', strength: 80 };
-      if (value.k > value.d && value.d < 30) return { label: '金叉 🟢', cls: 'sig-buy', strength: 60 };
-      if (value.k < value.d && value.d > 70) return { label: '死叉 🔴', cls: 'sig-sell', strength: 60 };
+      if (value.k < 18) return { label: '超卖 🟢', cls: 'sig-buy', strength: 80 };
+      if (value.k > 82) return { label: '超买 🔴', cls: 'sig-sell', strength: 80 };
+      if (value.k > value.d && value.d < 28) return { label: '金叉 🟢', cls: 'sig-buy', strength: 60 };
+      if (value.k < value.d && value.d > 72) return { label: '死叉 🔴', cls: 'sig-sell', strength: 60 };
       return { label: '中性', cls: 'sig-neutral', strength: 20 };
     case 'adx':
       if (value.adx > 25) return { label: '趋势强 📈', cls: 'sig-buy', strength: 70 };
@@ -1390,16 +1403,17 @@ function calcScore(ind) {
   let techScore = 0;
   
   // RSI
-  if (rsi < 30) { techScore += 2; sig.push('RSI超卖'); }
+  if (rsi < 28) { techScore += 2; sig.push('RSI超卖'); }
   else if (rsi < 40) { techScore += 1; }
-  
+
   // KDJ
-  if (kdj?.j < 20) { techScore += 2; sig.push('KDJ超卖'); }
+  if (kdj?.j < 18) { techScore += 2; sig.push('KDJ超卖'); }
   else if (kdj?.k > kdj?.d && kdj?.d < 40) { techScore += 1; }
-  
-  // MACD
-  if (macd?.hist > 0.5) { techScore += 3; sig.push('MACD强势金叉'); }
-  else if (macd?.hist > 0) { techScore += 2; sig.push('MACD金叉'); }
+
+  // MACD（用dif位置区分信号强度）
+  if (macd?.hist > 0 && macd?.dif <= 0 && macd?.dif > -0.2) { techScore += 3; sig.push('MACD零轴金叉'); }
+  else if (macd?.hist > 0 && macd?.dif > 0) { techScore += 2; sig.push('MACD金叉'); }
+  else if (macd?.hist > 0 && macd?.dif <= -0.2) { techScore += 1; sig.push('MACD弱势金叉'); }
   
   // 布林带
   if (bbInd?.w < 2) { techScore += 3; sig.push('布林收口'); }
@@ -2778,6 +2792,64 @@ async function init() {
 let wsReconnecting = false;  // 防止重复重连
 let wsConnId = 0;             // 连接ID，防止旧回调覆盖
 let wsReconnectDelay = 5000;   // 重连延迟（指数退避，ms）
+let httpPollTimer = null;      // HTTP轮询定时器
+let wsGotData = false;         // WS是否真正收到过数据
+
+// ==================== HTTP轮询保底 ====================
+function startHttpPoll(symbol, interval) {
+  stopHttpPoll();
+  const tfMap = { '1m': '1m', '5m': '5m', '15m': '15m', '1h': '1h', '4h': '4h', '1d': '1d' };
+  const tf = tfMap[interval] || interval;
+  console.log('[HTTP轮询] 启动，每3秒拉取最新K线');
+  httpPollTimer = setInterval(async () => {
+    try {
+      const klines = await apiFetch(`/fapi/v1/klines?symbol=${symbol}&interval=${tf}&limit=2`);
+      if (!klines || !klines.length) return;
+      const k = klines[klines.length - 1];
+      const time = Math.floor(k[0] / 1000);
+      const open = parseFloat(k[1]), high = parseFloat(k[2]), low = parseFloat(k[3]), close = parseFloat(k[4]), vol = parseFloat(k[5]);
+
+      // 更新lastKlines缓存
+      if (lastKlines.length > 0 && lastKlines[lastKlines.length - 1][0] === k[0]) {
+        lastKlines[lastKlines.length - 1] = k;
+      } else if (k[0] > (lastKlines.length > 0 ? lastKlines[lastKlines.length - 1][0] : 0)) {
+        lastKlines.push(k);
+        if (lastKlines.length > 600) lastKlines.shift();
+      }
+
+      // 更新图表
+      if (candleSeries && volumeSeries) {
+        candleSeries.update({ time, open, high, low, close });
+        volumeSeries.update({ time, value: vol, color: close >= open ? '#3fb95066' : '#f8514966' });
+      }
+
+      // 更新实时价格
+      const price = close;
+      const chgEl = $('dispChange');
+      if (chgEl) {
+        const chgVal = globalTicker24h ? parseFloat(globalTicker24h.priceChangePercent) : chg24h;
+        const priceEl = $('dispPrice');
+        if (priceEl) priceEl.textContent = price > 10 ? price.toFixed(2) : price.toFixed(6);
+        chgEl.textContent = `${chgVal >= 0 ? '+' : ''}${chgVal.toFixed(2)}%`;
+        chgEl.className = `change ${chgVal >= 0 ? 'up' : 'down'}`;
+      }
+
+      // 更新MA线
+      if (showMA && lastKlines.length) updateMARealTime(close, time);
+
+      // 更新指标
+      const now = Date.now();
+      if (now - lastUpdateTime > 5000) {
+        lastUpdateTime = now;
+        updateIndicatorsRealtime(close);
+      }
+    } catch (e) { /* 静默 */ }
+  }, 3000);
+}
+
+function stopHttpPoll() {
+  if (httpPollTimer) { clearInterval(httpPollTimer); httpPollTimer = null; }
+}
 
 function connectWebSocket(symbol, forceReconnect) {
   console.log('[WS] connectWebSocket 入口:', symbol, 'force=', forceReconnect);
@@ -2799,30 +2871,47 @@ function connectWebSocket(symbol, forceReconnect) {
     ws.close();
     ws = null;
   }
+  stopHttpPoll();
+  wsGotData = false;
 
   const pair = symbol.replace('USDT', '').toLowerCase() + 'usdt';
   const tfMap = { '1m': '1m', '5m': '5m', '15m': '15m', '1h': '1h', '4h': '4h', '1d': '1d' };
   const interval = tfMap[currentTf] || '1h';
 
-  // 币安合约WebSocket（多 streams 合并）
-  const streams = `${pair}@kline_${interval}`;
-  const wsUrl = `wss://139.rams.cc.cd/?url=wss://fstream.binance.com/ws/${streams}`;
+  // 直连币安WebSocket
+  const wsUrl = `wss://fstream.binance.com/ws/${pair}@kline_${interval}`;
+  console.log('[WS] 直连:', wsUrl);
+  updateWsStatus(false, '⏳ 连接中...', 'var(--text3)');
+
+  // 10秒内没收到数据就启动HTTP轮询保底
+  const fallbackTimer = setTimeout(() => {
+    if (myConnId === wsConnId && !wsGotData) {
+      console.log('[WS] 10秒无数据，启动HTTP轮询保底');
+      updateWsStatus(false, '📡 HTTP轮询中', 'var(--gold)');
+      startHttpPoll(symbol, currentTf);
+    }
+  }, 10000);
 
   try {
     ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
-      // 忽略过期连接的回调
       if (myConnId !== wsConnId) return;
       wsConnected = true;
       wsReconnecting = false;
-      updateWsStatus(true);
-      console.log('WebSocket已连接:', symbol, interval);
+      updateWsStatus(false, '⏳ 等待数据...', 'var(--text3)');
+      console.log('[WS] 已连接，等待数据...');
     };
 
     ws.onmessage = (evt) => {
-      // 忽略过期连接的消息
       if (myConnId !== wsConnId) return;
+      if (!wsGotData) {
+        wsGotData = true;
+        clearTimeout(fallbackTimer);
+        stopHttpPoll();
+        updateWsStatus(true, '🟢 实时在线(WS)', '#22c55e');
+        console.log('[WS] 开始接收数据，停HTTP轮询');
+      }
       try {
         const msg = JSON.parse(evt.data);
         if (!msg.k) return;
@@ -2834,45 +2923,37 @@ function connectWebSocket(symbol, forceReconnect) {
         const close = parseFloat(k.c);
         const volume = parseFloat(k.v);
         const time = Math.floor(k.t / 1000);
-        const isClosed = k.x; // 是否收盘（完整K线）
 
         // 更新K线图
         if (candleSeries && volumeSeries) {
-          const candleData = { time, open, high, low, close };
-          const volData = {
-            time,
-            value: volume,
-            color: close >= open ? '#3fb95066' : '#f8514966'
-          };
+          candleSeries.update({ time, open, high, low, close });
+          volumeSeries.update({ time, value: volume, color: close >= open ? '#3fb95066' : '#f8514966' });
 
-          if (isClosed) {
-            // 完整K线，用 update
-            candleSeries.update(candleData);
-            volumeSeries.update(volData);
-          } else {
-            // 正在形成的K线，用 update 实时刷新
-            candleSeries.update(candleData);
-            volumeSeries.update(volData);
-          }
-
-          // 实时更新MA线
+          // 更新MA线
           if (showMA && lastKlines.length) {
             updateMARealTime(close, time);
           }
         }
 
-        // 实时更新价格显示（优先使用24H涨跌幅）
+        // 更新lastKlines缓存
+        if (lastKlines.length > 0 && lastKlines[lastKlines.length - 1][0] === k.t) {
+          lastKlines[lastKlines.length - 1] = [k.t, k.o, k.h, k.l, k.c, k.v];
+        } else if (k.t > (lastKlines.length > 0 ? lastKlines[lastKlines.length - 1][0] : 0)) {
+          lastKlines.push([k.t, k.o, k.h, k.l, k.c, k.v]);
+          if (lastKlines.length > 600) lastKlines.shift();
+        }
+
+        // 实时更新价格显示
         const price = close;
         const chgEl = $('dispChange');
         if (chgEl) {
-          // 优先使用ticker24h的24H涨跌幅
           const chgVal = globalTicker24h ? parseFloat(globalTicker24h.priceChangePercent) : chg24h;
           $('dispPrice').textContent = price > 10 ? price.toFixed(2) : price.toFixed(6);
           chgEl.textContent = `${chgVal >= 0 ? '+' : ''}${chgVal.toFixed(2)}%`;
           chgEl.className = `change ${chgVal >= 0 ? 'up' : 'down'}`;
         }
 
-        // 存储当前K线用于计算涨跌幅
+        // 存储实时K线
         if (!realtimeCandle || realtimeCandle.time !== time) {
           realtimeCandle = { time, open, high, low, close, volume };
         } else {
@@ -2882,7 +2963,7 @@ function connectWebSocket(symbol, forceReconnect) {
           realtimeCandle.volume = volume;
         }
 
-        // 每5秒刷新一次指标（避免过于频繁）
+        // 每5秒刷新指标
         const now = Date.now();
         if (now - lastUpdateTime > 5000) {
           lastUpdateTime = now;
@@ -2895,57 +2976,41 @@ function connectWebSocket(symbol, forceReconnect) {
 
     ws.onerror = (e) => {
       if (myConnId !== wsConnId) return;
-      console.warn('WebSocket错误', e);
-      wsConnected = false;
-      updateWsStatus(false);
+      console.warn('[WS] 错误', e);
+      ws.close();
     };
 
     ws.onclose = (e) => {
+      clearTimeout(fallbackTimer);
       if (myConnId !== wsConnId) return;
       wsConnected = false;
-      console.warn(`WebSocket关闭 code=${e.code} reason=${e.reason || '(无)'}`);
+      console.log(`[WS] 断开 code=${e.code}`);
 
-      // 防止重复触发重连
+      // HTTP轮询立即接管保底
+      if (!httpPollTimer) startHttpPoll(symbol, currentTf);
+      updateWsStatus(false, '📡 HTTP保底，WS重连中...', 'var(--gold)');
+
+      // 5秒后重连WS
       if (wsReconnecting) return;
-
-      // 指数退避：延迟翻倍，最大30秒
-      const delay = wsReconnectDelay;
-      wsReconnectDelay = Math.min(wsReconnectDelay * 2, 30000);
-      console.log(`WebSocket断开，${delay/1000}秒后重连`);
-
       wsReconnecting = true;
       setTimeout(() => {
         wsReconnecting = false;
-        if (myConnId !== wsConnId) return; // 忽略过期timer
+        if (myConnId !== wsConnId) return;
         if (currentSymbol) connectWebSocket(currentSymbol, true);
-      }, delay);
+      }, 5000);
     };
   } catch(e) {
-    console.error('WebSocket连接失败:', e);
-    if (myConnId !== wsConnId) return;
-    wsConnected = false;
-    // 构造失败也走指数退避重连
-    if (wsReconnecting) return;
-    wsReconnecting = true;
-    const delay = wsReconnectDelay;
-    wsReconnectDelay = Math.min(wsReconnectDelay * 2, 30000);
-    setTimeout(() => {
-      wsReconnecting = false;
-      if (myConnId !== wsConnId) return;
-      if (currentSymbol) connectWebSocket(currentSymbol, true);
-    }, delay);
+    clearTimeout(fallbackTimer);
+    console.error('[WS] 连接失败:', e);
+    startHttpPoll(symbol, currentTf);
   }
 }
 
-function updateWsStatus(connected, msg) {
+function updateWsStatus(connected, msg, color) {
   const existing = document.getElementById('wsIndicator');
   if (existing) {
-    if (msg) {
-      existing.textContent = msg;
-    } else {
-      existing.textContent = connected ? '🔴 实时同步中' : '⚪ 已断开';
-    }
-    existing.style.color = connected ? 'var(--green)' : 'var(--text2)';
+    existing.textContent = msg || (connected ? '🔴 实时同步中' : '⚪ 已断开');
+    existing.style.color = color || (connected ? 'var(--green)' : 'var(--text2)');
   }
 }
 
@@ -3220,7 +3285,7 @@ function detailCloseKlineWs() { if (detailKlineWs) { detailKlineWs.close(); deta
 
 function detailConnectWebSocket(symbol) {
   detailSetWsStatus('', '连接中...');
-  var wsUrl = 'wss://139.rams.cc.cd/?url=wss://fstream.binance.com:9443/ws/' + symbol.toLowerCase() + '@ticker';
+  var wsUrl = 'wss://fstream.binance.com/ws/' + symbol.toLowerCase() + '@ticker';
   try {
     detailWs = new WebSocket(wsUrl);
     detailWs.onopen = function() { detailWsRetry = 0; detailSetWsStatus('online', '实时在线'); };
@@ -3232,7 +3297,7 @@ function detailConnectWebSocket(symbol) {
 
 function detailConnectKlineWs(symbol, tf) {
   var si = ({"15m":"15m","1h":"1h","4h":"4h","1d":"1d"})[tf] || '1h';
-  var wsUrl = 'wss://139.rams.cc.cd/?url=wss://fstream.binance.com:9443/ws/' + symbol.toLowerCase() + '@kline_' + si;
+  var wsUrl = 'wss://fstream.binance.com/ws/' + symbol.toLowerCase() + '@kline_' + si;
   try {
     detailKlineWs = new WebSocket(wsUrl);
     detailKlineWs.onmessage = function(ev) {
@@ -3523,14 +3588,37 @@ function radarCalcRSI(closes, period = 14) {
   return result;
 }
 function radarCalcMACD(closes, fast = 12, slow = 26, signal = 9) {
-  const emaFast = radarCalcEMA(closes, fast), emaSlow = radarCalcEMA(closes, slow);
-  if (!emaFast || !emaSlow) return null;
-  const macdLine = closes.map((_, i) => emaFast[i] !== null && emaSlow[i] !== null ? emaFast[i] - emaSlow[i] : null);
-  const validMacd = macdLine.filter(v => v !== null);
-  if (validMacd.length < signal) return null;
-  const signalLine = radarCalcEMA(validMacd, signal);
-  const hist = closes.map((_, i) => macdLine[i] !== null && signalLine[i] !== null ? macdLine[i] - signalLine[i] : null);
-  return { macd: macdLine, signal: signalLine, hist };
+  if (closes.length < slow + signal) return null;
+  const kF = 2 / (fast + 1), kS = 2 / (slow + 1), kSig = 2 / (signal + 1);
+  // 逐步计算EMA12、EMA26、DIF（保持与closes等长）
+  let eF = closes.slice(0, fast).reduce((a, b) => a + b) / fast;
+  let eS = closes.slice(0, slow).reduce((a, b) => a + b) / slow;
+  const difArr = new Array(closes.length).fill(null);
+  for (let i = fast; i < closes.length; i++) {
+    if (i > fast) eF = closes[i] * kF + eF * (1 - kF);
+    if (i > slow) eS = closes[i] * kS + eS * (1 - kS);
+    if (i >= slow) difArr[i] = eF - eS;
+  }
+  // DEA = EMA(DIF, signal)，收集有效DIF后做EMA
+  const deaArr = new Array(closes.length).fill(null);
+  let dea = null;
+  let deaCount = 0;
+  for (let i = 0; i < closes.length; i++) {
+    if (difArr[i] === null) continue;
+    deaCount++;
+    if (deaCount <= signal) {
+      dea = dea === null ? difArr[i] : dea + difArr[i]; // 累加做SMA初始化
+    } else {
+      if (deaCount === signal + 1) { dea = dea / signal; } // SMA初始化完成
+      dea = difArr[i] * kSig + dea * (1 - kSig);
+    }
+    if (deaCount > signal) deaArr[i] = dea;
+  }
+  // Histogram
+  const histArr = closes.map((_, i) =>
+    difArr[i] !== null && deaArr[i] !== null ? (difArr[i] - deaArr[i]) * 2 : null
+  );
+  return { macd: difArr, signal: deaArr, hist: histArr };
 }
 function radarCalcBB(closes, period = 20, mult = 2) {
   if (closes.length < period) return null;
@@ -3628,16 +3716,29 @@ function radarDetectRadarSignals(klines) {
   const closes = klines.map(k => parseFloat(k[4]));
   const highs = klines.map(k => parseFloat(k[2])), lows = klines.map(k => parseFloat(k[3])), vols = klines.map(k => parseFloat(k[5]));
   const rsi = radarCalcRSI(closes), macd = radarCalcMACD(closes);
-  const ema7 = radarCalcEMA(closes, 7), ema25 = radarCalcEMA(closes, 25), bb = radarCalcBB(closes);
+  const ema7 = radarCalcEMA(closes, 7), ema25 = radarCalcEMA(closes, 25), ema99 = radarCalcEMA(closes, 99), bb = radarCalcBB(closes);
   const signals = [];
   const i = closes.length - 1, prev = i - 1;
+  // 主趋势判断（EMA25 vs EMA99）
+  const mainTrend = (ema25 && ema99 && ema25[i] !== null && ema99[i] !== null)
+    ? (ema25[i] > ema99[i] ? 'up' : 'down') : 'neutral';
   if (rsi && rsi[prev] !== null && rsi[i] !== null) {
-    if (rsi[prev] < 30 && rsi[i] >= 30) signals.push({ type: 'buy', text: 'RSI 超卖回升', strength: 3 });
-    if (rsi[prev] > 70 && rsi[i] <= 70) signals.push({ type: 'sell', text: 'RSI 超买回落', strength: 3 });
+    if (rsi[prev] < 28 && rsi[i] >= 28) signals.push({ type: 'buy', text: 'RSI 超卖回升', strength: 3 }); // 28收紧
+    if (rsi[prev] > 72 && rsi[i] <= 72) signals.push({ type: 'sell', text: 'RSI 超买回落', strength: 3 }); // 72收紧
   }
-  if (macd && macd.macd[prev] !== null && macd.macd[i] !== null) {
-    if (macd.macd[prev] < macd.signal[prev] && macd.macd[i] > macd.signal[i]) signals.push({ type: 'buy', text: 'MACD 金叉', strength: 3 });
-    if (macd.macd[prev] > macd.signal[prev] && macd.macd[i] < macd.signal[i]) signals.push({ type: 'sell', text: 'MACD 死叉', strength: 3 });
+  if (macd && macd.macd[prev] !== null && macd.macd[i] !== null && macd.signal[prev] !== null && macd.signal[i] !== null) {
+    const isGolden = macd.macd[prev] < macd.signal[prev] && macd.macd[i] > macd.signal[i]; // 严格<
+    const isDeath  = macd.macd[prev] > macd.signal[prev] && macd.macd[i] < macd.signal[i]; // 严格>
+    // 确认机制：交叉K线DIF必须大于/小于DEA（排除影线假叉）
+    if (isGolden && macd.macd[i] > macd.signal[i]) {
+      // 趋势过滤：下跌趋势中金叉降级
+      const str = mainTrend === 'down' ? 2 : 3;
+      signals.push({ type: 'buy', text: 'MACD 金叉', strength: str });
+    }
+    if (isDeath && macd.macd[i] < macd.signal[i]) {
+      const str = mainTrend === 'up' ? 2 : 3;
+      signals.push({ type: 'sell', text: 'MACD 死叉', strength: str });
+    }
     if (macd.macd[prev] < 0 && macd.macd[i] >= 0) signals.push({ type: 'buy', text: 'MACD 零轴上穿', strength: 4 });
     if (macd.macd[prev] > 0 && macd.macd[i] <= 0) signals.push({ type: 'sell', text: 'MACD 零轴下穿', strength: 4 });
   }
@@ -4336,16 +4437,53 @@ function getUnifiedSignal(klines, scoreLevel) {
 function radarConnectWebSocket(symbol) {
   if (radarWs && radarWs.readyState === WebSocket.OPEN) return;
   if (radarWs) { radarWs.onclose=null; radarWs.onerror=null; radarWs.close(); radarWs=null; }
+  stopRadarHttpPoll();
   const pair=symbol.replace('USDT','').toLowerCase(), interval=radarTf||'1h';
-  const wsUrl=`wss://139.rams.cc.cd/?url=wss://fstream.binance.com:9443/ws/${pair}@kline_${interval}`;
+  const wsUrl=`wss://fstream.binance.com/ws/${pair}@kline_${interval}`;
   const myId=++radarWsConnId; radarWsReconnectDelay=5000; radarSetWsStatus(false,true);
+
+  // 10秒无数据则启动HTTP轮询保底
+  const radarFallbackTimer = setTimeout(() => {
+    if (myId === radarWsConnId && !radarWs._gotData) {
+      console.log('[雷达WS] 10秒无数据，启动HTTP轮询保底');
+      radarSetWsStatus(false, true);
+      startRadarHttpPoll(symbol, interval);
+    }
+  }, 10000);
+
   try {
     radarWs=new WebSocket(wsUrl);
-    radarWs.onopen=()=>{if(myId===radarWsConnId){radarWsReconnecting=false;radarSetWsStatus(true);}};
-    radarWs.onerror=(err)=>{if(myId!==radarWsConnId)return;radarWsRetryCount++;radarSetWsStatus(false,false,true);};
-    radarWs.onclose=(e)=>{if(myId!==radarWsConnId)return;radarSetWsStatus(false);if(radarWsReconnecting)return;radarWsReconnecting=true;const d=radarWsReconnectDelay;radarWsReconnectDelay=Math.min(d*2,30000);setTimeout(()=>{radarWsReconnecting=false;if(myId!==radarWsConnId)return;if(radarSymbol)radarConnectWebSocket(radarSymbol);},d);};
+    radarWs._gotData = false;
+    radarWs.onopen=()=>{
+      if(myId===radarWsConnId){radarWsReconnecting=false;radarSetWsStatus(false,true);console.log('[雷达WS] 已连接，等待数据...');}
+    };
+    radarWs.onerror=(err)=>{
+      if(myId!==radarWsConnId)return;
+      radarWsRetryCount++;radarSetWsStatus(false,false,true);
+    };
+    radarWs.onclose=(e)=>{
+      clearTimeout(radarFallbackTimer);
+      if(myId!==radarWsConnId)return;
+      // HTTP轮询立即接管
+      if (!radarHttpPollTimer) startRadarHttpPoll(symbol, interval);
+      radarSetWsStatus(false);
+      if(radarWsReconnecting)return;
+      radarWsReconnecting=true;
+      setTimeout(()=>{
+        radarWsReconnecting=false;
+        if(myId!==radarWsConnId)return;
+        if(radarSymbol)radarConnectWebSocket(radarSymbol);
+      }, 5000);
+    };
     radarWs.onmessage=(e)=>{
       if(myId!==radarWsConnId)return;
+      if (!radarWs._gotData) {
+        radarWs._gotData = true;
+        clearTimeout(radarFallbackTimer);
+        stopRadarHttpPoll();
+        radarSetWsStatus(true);
+        console.log('[雷达WS] 开始接收数据');
+      }
       try{
         const d=JSON.parse(e.data); if(!d.k)return;
         const k=d.k,t=Math.floor(k.t/1000),price=parseFloat(k.c),chg=parseFloat(d.P||0);
@@ -4358,7 +4496,34 @@ function radarConnectWebSocket(symbol) {
         radarDetectAndRenderRadar(radarLastKlines); radarDetectAndRenderWhale(radarLastKlines);
       }catch(err){}
     };
-  }catch(e){radarWsRetryCount++;radarSetWsStatus(false,false,true);}
+  }catch(e){clearTimeout(radarFallbackTimer);radarWsRetryCount++;radarSetWsStatus(false,false,true);startRadarHttpPoll(symbol,interval);}
+}
+
+let radarHttpPollTimer = null;
+function startRadarHttpPoll(symbol, interval) {
+  stopRadarHttpPoll();
+  const pair = symbol.replace('USDT','').toLowerCase();
+  const tfMap = {'1m':'1m','5m':'5m','15m':'15m','1h':'1h','4h':'4h','1d':'1d'};
+  const tf = tfMap[interval] || interval;
+  console.log('[雷达HTTP轮询] 启动');
+  radarHttpPollTimer = setInterval(async () => {
+    try {
+      const klines = await apiFetch(`/fapi/v1/klines?symbol=${symbol}&interval=${tf}&limit=2`);
+      if (!klines || !klines.length) return;
+      const k = klines[klines.length-1];
+      const t = Math.floor(k[0]/1000), price = parseFloat(k[4]);
+      if(radarCandleSeries)radarCandleSeries.update({time:t,open:parseFloat(k[1]),high:parseFloat(k[2]),low:parseFloat(k[3]),close:price});
+      if(radarVolSeries)radarVolSeries.update({time:t,value:parseFloat(k[5]),color:price>=parseFloat(k[1])?'#3fb95066':'#f8514966'});
+      radarUpdatePriceDisplay(price,0);
+      if(radarLastKlines.length>0){const lt=radarLastKlines[radarLastKlines.length-1][0];if(k[0]===lt)radarLastKlines[radarLastKlines.length-1]=k;else if(k[0]>lt){radarLastKlines.push(k);if(radarLastKlines.length>300)radarLastKlines.shift();}}
+      if(radarShowVWAP){const v=radarCalcIntradayVWAP(radarLastKlines);if(v&&radarVwapLine)radarVwapLine.setData(radarLastKlines.map(k2=>({time:k2[0]/1000,value:v})));}
+      radarUpdateChartMarkers(radarLastKlines); radarUpdateTrendPanel(radarLastKlines); radarUpdateChartInfoBox(radarLastKlines); radarRenderVolumeAnalysis(radarLastKlines);
+      radarDetectAndRenderRadar(radarLastKlines); radarDetectAndRenderWhale(radarLastKlines);
+    } catch(e){}
+  }, 3000);
+}
+function stopRadarHttpPoll() {
+  if (radarHttpPollTimer) { clearInterval(radarHttpPollTimer); radarHttpPollTimer = null; }
 }
 function radarSetWsStatus(online, connecting=false, error=false) {
   const dot=document.getElementById('radarWsDot'), text=document.getElementById('radarWsText'), btn=document.getElementById('radarReconnectBtn');
