@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>币安合约暴涨预警系统 v3.67</title>
+    <title>币安合约暴涨预警系统 v3.68</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box}
         body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;background:linear-gradient(135deg,#0f0f1a,#1a1a2e);min-height:100vh;color:#e0e0e0}
@@ -859,23 +859,24 @@ function score(d) {
     const whale = d.whaleLongShortRatio || 1;
     const maxChg = Math.max(d.chg4h, d.chg1h, d.chg24h / 4);
     
-    // ========== 1. 暴跌检测 (v3.66 平衡版) ==========
-    // 4小时跌幅≥6% 或 24小时跌幅≥12% 进入暴跌检测
-    const crashChg = d.chg4h <= -6 ? d.chg4h : (d.chg24h <= -12 ? d.chg24h : 0);
-    if (d.chg4h <= -6) crashSignals += 5;
-    else if (d.chg4h <= -4 && d.chg24h <= -8) crashSignals += 3; // 双重确认
+    // ========== 1. 暴跌检测 (v3.68 灵敏版) ==========
+    // 4小时跌幅≥4% 或 24小时跌幅≥8% 进入暴跌检测
+    const crashChg = d.chg4h <= -4 ? d.chg4h : (d.chg24h <= -8 ? d.chg24h : 0);
+    if (d.chg4h <= -4) crashSignals += 4;  // 单4h确认即可+4
+    if (d.chg24h <= -8) crashSignals += 2; // 24h辅助累积
+    if (d.chg4h <= -3 && d.chg24h <= -6) crashSignals += 2; // 双重共振加分
     
     if (crashSignals >= 3) {
-        if (d.rsi > 70) crashSignals += 2;   // RSI高位
-        if (d.kdj?.j > 85) crashSignals += 2;
+        if (d.rsi > 65) crashSignals += 2;   // RSI高位（放宽）
+        if (d.kdj?.j > 80) crashSignals += 2; // KDJ超买（放宽）
         if (d.macd?.hist < 0) crashSignals++;
-        if (d.mom < -5) crashSignals++;       // MOM
-        if (d.fr < -0.008) crashSignals++;    // 费率
-        if (d.vr < 0.8) crashSignals -= 2;   // 无量惩罚
-        if (crashSignals >= 5) {              // 触发门槛≥5
+        if (d.mom < -3) crashSignals++;      // MOM（放宽-5→-3）
+        if (d.fr < -0.005) crashSignals++;   // 费率（放宽-0.008→-0.005）
+        if (d.vr < 0.8) crashSignals -= 2;  // 无量惩罚
+        if (crashSignals >= 4) {             // 触发门槛≥4（放宽5→4）
             sig.push(`💥暴跌${Math.abs(crashChg).toFixed(1)}%`);
-            if (d.rsi > 72) sig.push('⚠️RSI高位');
-            if (d.kdj?.j > 88) sig.push('⚠️KDJ超买');
+            if (d.rsi > 68) sig.push('⚠️RSI高位');
+            if (d.kdj?.j > 85) sig.push('⚠️KDJ超买');
             core.tech = Math.min(Math.floor(crashSignals / 2), 4);
             if (taker < 0.48) core.whale = Math.floor((0.5 - taker) * 10);
             if (d.fr < 0) core.fund = 1;
