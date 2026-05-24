@@ -62,7 +62,7 @@ tr:hover td{background:rgba(255,255,255,.03)}
   <h2>➕ 新增授权码</h2>
   <div class="row">
     <div>
-      <label>授权码（明文，用户输入这个）</label>
+      <label>授权码（明文，发给用户）</label>
       <input type="text" id="newKey" placeholder="例如 BIANVIP-2026-A001">
     </div>
     <div>
@@ -74,7 +74,7 @@ tr:hover td{background:rgba(255,255,255,.03)}
       <select id="newExpire">
         <option value="0">永久有效</option>
         <option value="7">7天</option>
-        <option value="30">30天</option>
+        <option value="30" selected>30天</option>
         <option value="90">90天</option>
         <option value="180">180天</option>
         <option value="365">365天</option>
@@ -89,7 +89,7 @@ tr:hover td{background:rgba(255,255,255,.03)}
       <button class="btn btn-gold" onclick="addKey()">生成并添加</button>
     </div>
   </div>
-  <p class="tip">💡 授权码只显示一次（明文不存储），请立刻复制给用户。哈希值写入配置文件。</p>
+ <p class="tip">💡 授权码只显示一次（明文不存储），请立刻复制给用户。哈希值写入配置。</p>
 </div>
 
 <!-- 授权码列表 -->
@@ -99,7 +99,7 @@ tr:hover td{background:rgba(255,255,255,.03)}
     <thead><tr><th>备注</th><th>哈希（前16位）</th><th>到期时间</th><th>操作</th></tr></thead>
     <tbody id="keyBody"></tbody>
   </table>
-  <p class="tip" style="margin-top:8px" id="emptyTip">暂无授权码，请先生成</p>
+ <p class="tip" style="margin-top:8px" id="emptyTip">暂无授权码，请先生成</p>
 </div>
 
 <!-- 导出配置 -->
@@ -131,9 +131,8 @@ tr:hover td{background:rgba(255,255,255,.03)}
 
 <script>
 // ==================== 管理员密码 ====================
-// 默认管理员密码：admin888（可自行修改下面的SHA-256哈希）
-// 生成方式：在浏览器控制台运行 crypto.subtle.digest('SHA-256', new TextEncoder().encode('你的密码')).then(b=>console.log([...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')))
-const ADMIN_PWD_HASH = '5492d0491a55f87bcc0de2ef1ec544d089585c050fd23643d2968c75d35f1319'; // zhou101122692
+// 默认管理员密码：zhou101122692
+const ADMIN_PWD_HASH = '5492d0491a55f87bcc0de2ef1ec544d089585c050fd23643d2968c75d35f1319';
 
 async function sha256(str) {
     const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
@@ -150,7 +149,7 @@ async function checkAdmin() {
         loadKeys();
     } else {
         document.getElementById('gateErr').textContent = '❌ 密码错误';
-        setTimeout(() => { document.getElementById('gateErr').textContent = ''; }, 2000);
+        setTimeout(function() { document.getElementById('gateErr').textContent = ''; }, 2000);
     }
 }
 
@@ -162,7 +161,7 @@ function loadKeys() {
 }
 
 function getKeys() {
-    try { return JSON.parse(localStorage.getItem(STORE_KEY) || '[]'); } catch { return []; }
+    try { return JSON.parse(localStorage.getItem(STORE_KEY) || '[]'); } catch(e) { return []; }
 }
 
 function saveKeys(arr) {
@@ -170,7 +169,7 @@ function saveKeys(arr) {
 }
 
 document.getElementById('newExpire').addEventListener('change', function() {
-    document.getElementById('customDayBox').style.display = this.value === 'custom' ? '' : 'none';
+    document.getElementById('customDayBox').style.display = this.value === 'custom' ? 'inline-block' : 'none';
 });
 
 async function addKey() {
@@ -178,17 +177,21 @@ async function addKey() {
     const label = document.getElementById('newLabel').value.trim() || '未命名';
     if (!raw) { alert('请输入授权码'); return; }
     const expSel = document.getElementById('newExpire').value;
-    let days = expSel === 'custom' ? parseInt(document.getElementById('customDay').value) : parseInt(expSel);
+    var days;
+    if (expSel === 'custom') {
+        days = parseInt(document.getElementById('customDay').value) || 30;
+    } else {
+        days = parseInt(expSel);
+    }
     const expire = days === 0 ? 0 : Date.now() + days * 86400000;
     const hash = await sha256(raw.toUpperCase());
     const keys = getKeys();
-    if (keys.find(k => k.hash === hash)) { alert('该授权码已存在'); return; }
-    keys.push({ hash, expire, label, created: Date.now() });
+    if (keys.find(function(k) { return k.hash === hash; })) { alert('该授权码已存在'); return; }
+    keys.push({ hash: hash, expire: expire, label: label, created: Date.now() });
     saveKeys(keys);
     renderTable();
-    // 显示明文
     const expStr = expire === 0 ? '永久' : new Date(expire).toLocaleDateString();
-    alert(`✅ 已添加！\n\n请立刻复制明文发给用户：\n\n${raw}\n\n到期：${expStr}`);
+    alert('✅ 已添加！\n\n请立刻复制明文发给用户：\n' + raw + '\n\n到期：' + expStr);
     document.getElementById('newKey').value = '';
     document.getElementById('newLabel').value = '';
 }
@@ -200,19 +203,22 @@ function renderTable() {
     document.getElementById('emptyTip').style.display = keys.length ? 'none' : '';
     tbody.innerHTML = '';
     const now = Date.now();
-    keys.forEach((k, i) => {
+    keys.forEach(function(k, i) {
         const expired = k.expire > 0 && k.expire < now;
-        const expStr = k.expire === 0
-            ? '<span class="expire-inf">永久</span>'
-            : expired
-                ? `<span class="expire-no">已过期 ${new Date(k.expire).toLocaleDateString()}</span>`
-                : `<span class="expire-ok">${new Date(k.expire).toLocaleDateString()}</span>`;
-        tbody.innerHTML += `<tr>
-            <td>${k.label}</td>
-            <td class="hash">${k.hash.slice(0,16)}…</td>
-            <td>${expStr}</td>
-            <td><button class="btn btn-red" onclick="removeKey(${i})">删除</button></td>
-        </tr>`;
+        var expStr;
+        if (k.expire === 0) {
+            expStr = '<span class="expire-inf">永久</span>';
+        } else if (expired) {
+            expStr = '<span class="expire-no">已过期 ' + new Date(k.expire).toLocaleDateString() + '</span>';
+        } else {
+            expStr = '<span class="expire-ok">' + new Date(k.expire).toLocaleDateString() + '</span>';
+        }
+        tbody.innerHTML += '<tr>'
+            + '<td>' + (k.label || '') + '</td>'
+            + '<td class="hash">' + k.hash.slice(0,16) + '…</td>'
+            + '<td>' + expStr + '</td>'
+            + '<td><button class="btn btn-red" onclick="removeKey(' + i + ')">删除</button></td>'
+            + '</tr>';
     });
 }
 
@@ -233,30 +239,30 @@ function clearAll() {
 
 function genConfig() {
     const keys = getKeys();
-    const entries = keys.map(k =>
-        `        { hash: "${k.hash}", expire: ${k.expire}, label: "${k.label.replace(/"/g,'')}" }`
-    ).join(',\n');
-    const config = `/**
- * 会员授权配置 auth-config.js
- * 由 admin.html 自动生成 · ${new Date().toLocaleString()}
- * ⚠️ 请勿手动修改，通过 admin.html 管理
- */
-window.AUTH_CONFIG = {
-    version: 1,
-    keys: [
-${entries}
-    ]
-};`;
+    var entries = keys.map(function(k) {
+        return '        { hash: "' + k.hash + '", expire: ' + k.expire + ', label: "' + (k.label||'').replace(/"/g,'') + '" }';
+    }).join(',\n');
+    const config = '/*\n * 会员授权配置 auth-config.js\n * 由 admin.html 自动生成 · ' + new Date().toLocaleString() + '\n * ⚠️ 请勿手动修改，通过 admin.html 管理\n */\nwindow.AUTH_CONFIG = {\n    version: 1,\n    keys: [\n' + entries + '\n    ]\n};';
     document.getElementById('configPre').textContent = config;
     document.getElementById('copyBox').style.display = '';
 }
 
 async function copyConfig() {
     const text = document.getElementById('configPre').textContent;
-    await navigator.clipboard.writeText(text);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+    } else {
+        // 降级方案
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+    }
     const tip = document.getElementById('copiedTip');
     tip.style.display = '';
-    setTimeout(() => { tip.style.display = 'none'; }, 2500);
+    setTimeout(function() { tip.style.display = 'none'; }, 2500);
 }
 </script>
 </body>
