@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>🔑 会员管理后台 - bian-alert</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;background:linear-gradient(135deg,#0f0f1a,#1a1a2e);min-height:100vh;color:#e0e0e0;padding:24px}
+h1{font-size:1.6em;background:linear-gradient(90deg,#f0b90b,#fcd535);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:4px}
+.sub{color:#666;font-size:.85em;margin-bottom:24px}
+.card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:20px;margin-bottom:20px}
+.card h2{font-size:1em;color:#f0b90b;margin-bottom:14px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}
+label{font-size:.8em;color:#888;display:block;margin-bottom:4px}
+input,select{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:#e0e0e0;border-radius:6px;padding:7px 11px;font-size:.9em;outline:none}
+input:focus,select:focus{border-color:#f0b90b}
+input[type=text]{min-width:180px}
+.btn{padding:8px 18px;font-size:.85rem;font-weight:600;border:none;border-radius:7px;cursor:pointer;transition:all .2s}
+.btn-gold{background:linear-gradient(135deg,#f0b90b,#fcd535);color:#000}
+.btn-gold:hover{filter:brightness(1.1)}
+.btn-red{background:rgba(239,83,80,.2);color:#ef5350;border:1px solid rgba(239,83,80,.3)}
+.btn-red:hover{background:rgba(239,83,80,.35)}
+.btn-gray{background:rgba(255,255,255,.1);color:#ccc;border:1px solid rgba(255,255,255,.15)}
+table{width:100%;border-collapse:collapse;font-size:.85em}
+th,td{padding:9px 10px;text-align:left;border-bottom:1px solid rgba(255,255,255,.06)}
+th{color:#888;font-weight:500}
+tr:hover td{background:rgba(255,255,255,.03)}
+.hash{font-family:monospace;color:#7c93ff;font-size:.78em;word-break:break-all}
+.expire-ok{color:#00e676}
+.expire-no{color:#ef5350}
+.expire-inf{color:#888}
+#copyBox{background:#0d0f1a;border:1px solid rgba(240,185,11,.3);border-radius:8px;padding:14px;margin-top:14px;display:none}
+#copyBox pre{white-space:pre-wrap;word-break:break-all;font-size:.78em;color:#b0bec5;margin-bottom:10px;max-height:260px;overflow-y:auto}
+.tip{color:#666;font-size:.78em;margin-top:6px}
+#adminGate{position:fixed;inset:0;background:#0f0f1a;display:flex;align-items:center;justify-content:center;z-index:999}
+.gate-box{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:32px 28px;min-width:300px;text-align:center}
+.gate-box h2{color:#f0b90b;margin-bottom:16px}
+.gate-box input{width:100%;margin-bottom:12px;padding:10px 14px;font-size:1em;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:#e0e0e0;border-radius:7px;outline:none}
+.gate-box button{width:100%;padding:10px;font-size:1em;font-weight:700;background:linear-gradient(135deg,#f0b90b,#fcd535);border:none;border-radius:7px;cursor:pointer;color:#000}
+.gate-err{color:#ef5350;font-size:.82em;margin-top:8px;min-height:18px}
+</style>
+</head>
+<body>
+
+<!-- 管理员登录门 -->
+<div id="adminGate">
+  <div class="gate-box">
+    <h2>🔒 管理员入口</h2>
+    <input type="password" id="adminPwd" placeholder="输入管理员密码" onkeydown="if(event.key==='Enter')checkAdmin()">
+    <button onclick="checkAdmin()">进入管理后台</button>
+    <div class="gate-err" id="gateErr"></div>
+  </div>
+</div>
+
+<div id="main" style="display:none">
+<h1>🔑 会员管理后台</h1>
+<p class="sub">管理授权码 · 生成配置文件 · 导出给用户</p>
+
+<!-- 生成授权码 -->
+<div class="card">
+  <h2>➕ 新增授权码</h2>
+  <div class="row">
+    <div>
+      <label>授权码（明文，用户输入这个）</label>
+      <input type="text" id="newKey" placeholder="例如 BIANVIP-2026-A001">
+    </div>
+    <div>
+      <label>备注（昵称/用途）</label>
+      <input type="text" id="newLabel" placeholder="例如 张三 · 体验版">
+    </div>
+    <div>
+      <label>有效期</label>
+      <select id="newExpire">
+        <option value="0">永久有效</option>
+        <option value="7">7天</option>
+        <option value="30">30天</option>
+        <option value="90">90天</option>
+        <option value="180">180天</option>
+        <option value="365">365天</option>
+        <option value="custom">自定义天数</option>
+      </select>
+    </div>
+    <div id="customDayBox" style="display:none">
+      <label>天数</label>
+      <input type="number" id="customDay" min="1" max="3650" value="30" style="width:80px">
+    </div>
+    <div>
+      <button class="btn btn-gold" onclick="addKey()">生成并添加</button>
+    </div>
+  </div>
+  <p class="tip">💡 授权码只显示一次（明文不存储），请立刻复制给用户。哈希值写入配置文件。</p>
+</div>
+
+<!-- 授权码列表 -->
+<div class="card">
+  <h2>📋 已有授权码（<span id="keyCount">0</span>个）</h2>
+  <table id="keyTable">
+    <thead><tr><th>备注</th><th>哈希（前16位）</th><th>到期时间</th><th>操作</th></tr></thead>
+    <tbody id="keyBody"></tbody>
+  </table>
+  <p class="tip" style="margin-top:8px" id="emptyTip">暂无授权码，请先生成</p>
+</div>
+
+<!-- 导出配置 -->
+<div class="card">
+  <h2>📤 导出 auth-config.js</h2>
+  <p style="font-size:.85em;color:#888;margin-bottom:12px">每次修改授权码后，点击生成配置，替换本地 <code style="color:#f0b90b">auth-config.js</code> 文件，用户刷新页面即生效。</p>
+  <button class="btn btn-gold" onclick="genConfig()">生成配置文件内容</button>
+  <button class="btn btn-gray" style="margin-left:8px" onclick="clearAll()">清空全部</button>
+  <div id="copyBox">
+    <pre id="configPre"></pre>
+    <button class="btn btn-gold" onclick="copyConfig()">📋 一键复制</button>
+    <span id="copiedTip" style="color:#00e676;margin-left:10px;font-size:.82em;display:none">✅ 已复制！</span>
+    <p class="tip" style="margin-top:8px">复制后替换 <strong>auth-config.js</strong> 文件内容，再重新部署/刷新。</p>
+  </div>
+</div>
+
+<!-- 说明 -->
+<div class="card">
+  <h2>📖 使用说明</h2>
+  <ol style="font-size:.85em;color:#aaa;line-height:2;padding-left:18px">
+    <li>在此页面生成授权码，把<strong style="color:#e0e0e0">明文授权码</strong>发给用户，哈希自动记录。</li>
+    <li>生成配置文件内容 → 复制 → 替换 <code style="color:#f0b90b">auth-config.js</code>。</li>
+    <li>用户打开预警页面时弹出登录框，输入授权码验证，通过后本地保存（含有效期）。</li>
+    <li>有效期到期后自动弹出，需重新输入新授权码。</li>
+    <li>本管理后台数据存在<strong style="color:#e0e0e0">本浏览器 localStorage</strong>，切换浏览器会丢失，建议导出配置做备份。</li>
+  </ol>
+</div>
+</div><!-- /main -->
+
+<script>
+// ==================== 管理员密码 ====================
+// 默认管理员密码：admin888（可自行修改下面的SHA-256哈希）
+// 生成方式：在浏览器控制台运行 crypto.subtle.digest('SHA-256', new TextEncoder().encode('你的密码')).then(b=>console.log([...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')))
+const ADMIN_PWD_HASH = '5e52fee47e6b070565f74372468cdc699de89107058b53c82f2c4b4c2ca3aba4'; // admin888
+
+async function sha256(str) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+    return [...new Uint8Array(buf)].map(x => x.toString(16).padStart(2,'0')).join('');
+}
+
+async function checkAdmin() {
+    const pwd = document.getElementById('adminPwd').value.trim();
+    if (!pwd) return;
+    const h = await sha256(pwd);
+    if (h === ADMIN_PWD_HASH) {
+        document.getElementById('adminGate').style.display = 'none';
+        document.getElementById('main').style.display = 'block';
+        loadKeys();
+    } else {
+        document.getElementById('gateErr').textContent = '❌ 密码错误';
+        setTimeout(() => { document.getElementById('gateErr').textContent = ''; }, 2000);
+    }
+}
+
+// ==================== 授权码管理 ====================
+const STORE_KEY = 'bian-admin-keys';
+
+function loadKeys() {
+    renderTable();
+}
+
+function getKeys() {
+    try { return JSON.parse(localStorage.getItem(STORE_KEY) || '[]'); } catch { return []; }
+}
+
+function saveKeys(arr) {
+    localStorage.setItem(STORE_KEY, JSON.stringify(arr));
+}
+
+document.getElementById('newExpire').addEventListener('change', function() {
+    document.getElementById('customDayBox').style.display = this.value === 'custom' ? '' : 'none';
+});
+
+async function addKey() {
+    const raw = document.getElementById('newKey').value.trim();
+    const label = document.getElementById('newLabel').value.trim() || '未命名';
+    if (!raw) { alert('请输入授权码'); return; }
+    const expSel = document.getElementById('newExpire').value;
+    let days = expSel === 'custom' ? parseInt(document.getElementById('customDay').value) : parseInt(expSel);
+    const expire = days === 0 ? 0 : Date.now() + days * 86400000;
+    const hash = await sha256(raw.toUpperCase());
+    const keys = getKeys();
+    if (keys.find(k => k.hash === hash)) { alert('该授权码已存在'); return; }
+    keys.push({ hash, expire, label, created: Date.now() });
+    saveKeys(keys);
+    renderTable();
+    // 显示明文
+    const expStr = expire === 0 ? '永久' : new Date(expire).toLocaleDateString();
+    alert(`✅ 已添加！\n\n请立刻复制明文发给用户：\n\n${raw}\n\n到期：${expStr}`);
+    document.getElementById('newKey').value = '';
+    document.getElementById('newLabel').value = '';
+}
+
+function renderTable() {
+    const keys = getKeys();
+    const tbody = document.getElementById('keyBody');
+    document.getElementById('keyCount').textContent = keys.length;
+    document.getElementById('emptyTip').style.display = keys.length ? 'none' : '';
+    tbody.innerHTML = '';
+    const now = Date.now();
+    keys.forEach((k, i) => {
+        const expired = k.expire > 0 && k.expire < now;
+        const expStr = k.expire === 0
+            ? '<span class="expire-inf">永久</span>'
+            : expired
+                ? `<span class="expire-no">已过期 ${new Date(k.expire).toLocaleDateString()}</span>`
+                : `<span class="expire-ok">${new Date(k.expire).toLocaleDateString()}</span>`;
+        tbody.innerHTML += `<tr>
+            <td>${k.label}</td>
+            <td class="hash">${k.hash.slice(0,16)}…</td>
+            <td>${expStr}</td>
+            <td><button class="btn btn-red" onclick="removeKey(${i})">删除</button></td>
+        </tr>`;
+    });
+}
+
+function removeKey(i) {
+    if (!confirm('确认删除此授权码？删除后该用户下次刷新将无法访问。')) return;
+    const keys = getKeys();
+    keys.splice(i, 1);
+    saveKeys(keys);
+    renderTable();
+}
+
+function clearAll() {
+    if (!confirm('确认清空全部授权码？')) return;
+    saveKeys([]);
+    renderTable();
+    document.getElementById('copyBox').style.display = 'none';
+}
+
+function genConfig() {
+    const keys = getKeys();
+    const entries = keys.map(k =>
+        `        { hash: "${k.hash}", expire: ${k.expire}, label: "${k.label.replace(/"/g,'')}" }`
+    ).join(',\n');
+    const config = `/**
+ * 会员授权配置 auth-config.js
+ * 由 admin.html 自动生成 · ${new Date().toLocaleString()}
+ * ⚠️ 请勿手动修改，通过 admin.html 管理
+ */
+window.AUTH_CONFIG = {
+    version: 1,
+    keys: [
+${entries}
+    ]
+};`;
+    document.getElementById('configPre').textContent = config;
+    document.getElementById('copyBox').style.display = '';
+}
+
+async function copyConfig() {
+    const text = document.getElementById('configPre').textContent;
+    await navigator.clipboard.writeText(text);
+    const tip = document.getElementById('copiedTip');
+    tip.style.display = '';
+    setTimeout(() => { tip.style.display = 'none'; }, 2500);
+}
+</script>
+</body>
+</html>

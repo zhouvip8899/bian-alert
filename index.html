@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>币安合约暴涨预警系统 v3.68</title>
+    <title>币安合约暴涨预警系统 v3.69</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box}
         body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;background:linear-gradient(135deg,#0f0f1a,#1a1a2e);min-height:100vh;color:#e0e0e0}
@@ -73,6 +73,18 @@
         @media(max-width:600px){.stats{grid-template-columns:repeat(2,1fr)}.header h1{font-size:1.4em}.stat .v{font-size:1.3em}.card{padding:10px}.info{grid-template-columns:repeat(2,1fr)}.ctrl{flex-wrap:wrap}.btn{padding:8px 16px;font-size:.85rem}}
         @media(max-width:480px){.stats{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}.header h1{font-size:1.2em}.header{padding:15px 0}.container{padding:8px}.card{font-size:.9em}.chain{font-size:.85em}}
         @media(max-width:380px){.stats{grid-template-columns:1fr}.tab{padding:6px 10px;font-size:.8rem}.card-hd{flex-wrap:wrap}.score{margin-top:4px}}
+        /* ===== 会员登录蒙层 ===== */
+        #authGate{position:fixed;inset:0;background:rgba(10,10,20,.97);display:flex;align-items:center;justify-content:center;z-index:9999;backdrop-filter:blur(6px)}
+        .auth-box{background:linear-gradient(135deg,#1a1a2e,#16213e);border:1px solid rgba(240,185,11,.25);border-radius:16px;padding:36px 32px;min-width:320px;max-width:90vw;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+        .auth-box .logo{font-size:2.4em;margin-bottom:8px}
+        .auth-box h2{font-size:1.3em;background:linear-gradient(90deg,#f0b90b,#fcd535);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:4px}
+        .auth-box .desc{color:#666;font-size:.82em;margin-bottom:24px}
+        .auth-box input{width:100%;padding:12px 14px;font-size:1em;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:#e0e0e0;border-radius:8px;outline:none;margin-bottom:12px;letter-spacing:2px}
+        .auth-box input:focus{border-color:#f0b90b}
+        .auth-box button{width:100%;padding:12px;font-size:1em;font-weight:700;background:linear-gradient(135deg,#f0b90b,#fcd535);border:none;border-radius:8px;cursor:pointer;color:#000;transition:filter .2s}
+        .auth-box button:hover{filter:brightness(1.12)}
+        .auth-err{color:#ef5350;font-size:.82em;margin-top:10px;min-height:20px}
+        .auth-expire{color:#888;font-size:.75em;margin-top:14px}
         /* 全站导航 */
         .site-nav{background:#0d0f1a;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:0;overflow-x:auto;position:sticky;top:0;z-index:100;height:40px}
         .site-nav::-webkit-scrollbar{display:none}
@@ -83,6 +95,21 @@
     </style>
 </head>
 <body>
+
+<!-- ===== 会员登录蒙层 ===== -->
+<div id="authGate" style="display:none">
+  <div class="auth-box">
+    <div class="logo">🚀</div>
+    <h2>币安合约暴涨预警</h2>
+    <p class="desc">请输入授权码以继续使用</p>
+    <input type="text" id="authInput" placeholder="XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters"
+           onkeydown="if(event.key==='Enter')doAuth()">
+    <button onclick="doAuth()">进入系统</button>
+    <div class="auth-err" id="authErr"></div>
+    <div class="auth-expire" id="authExpire"></div>
+  </div>
+</div>
+<!-- ===== /会员登录蒙层 ===== -->
 <!-- 全站导航 -->
 <nav class="site-nav">
   <a class="nav-item active" href="index.html">🚀 预警系统</a>
@@ -2830,5 +2857,110 @@ window.onload = function() {
 // 测试API
 window.testAPI = async () => { try { const d = await apiFetch('/fapi/v1/exchangeInfo'); console.log('✅ API成功', d.symbols?.length, '个交易对'); return d; } catch (e) { console.error('❌ API失败:', e.message); return null; } };
 </script>
-</body>
-</html>
+
+<!-- ===== 会员认证脚本（最后加载） ===== -->
+<script src="auth-config.js"></script>
+<script>
+(function() {
+    const LS_AUTH = 'bian-auth-v1';
+
+    async function sha256(str) {
+        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+        return [...new Uint8Array(buf)].map(x => x.toString(16).padStart(2,'0')).join('');
+    }
+
+    function getStored() {
+        try { return JSON.parse(localStorage.getItem(LS_AUTH) || 'null'); } catch { return null; }
+    }
+
+    function setStored(hash, expire) {
+        localStorage.setItem(LS_AUTH, JSON.stringify({ hash, expire, ts: Date.now() }));
+    }
+
+    function getConfig() {
+        return (window.AUTH_CONFIG && Array.isArray(window.AUTH_CONFIG.keys)) ? window.AUTH_CONFIG.keys : [];
+    }
+
+    function findKey(hash) {
+        return getConfig().find(k => k.hash === hash) || null;
+    }
+
+    function showGate(msg) {
+        const gate = document.getElementById('authGate');
+        if (gate) gate.style.display = 'flex';
+        if (msg) {
+            const el = document.getElementById('authExpire');
+            if (el) el.textContent = msg;
+        }
+    }
+
+    function hideGate(expire) {
+        const gate = document.getElementById('authGate');
+        if (gate) gate.style.display = 'none';
+        // 显示剩余时间提示
+        if (expire && expire > 0) {
+            const days = Math.ceil((expire - Date.now()) / 86400000);
+            const bar = document.getElementById('status');
+            if (bar) {
+                const old = bar.textContent;
+                setTimeout(() => {
+                    if (bar.textContent === old || bar.textContent.includes('就绪')) {
+                        bar.textContent = `✅ 已授权 · 剩余 ${days} 天`;
+                    }
+                }, 500);
+            }
+        }
+    }
+
+    async function checkAuth() {
+        const cfg = getConfig();
+        // 如果配置为空，默认放行（便于开发调试）
+        if (!cfg || cfg.length === 0) {
+            console.warn('⚠️ auth-config.js 无授权码配置，当前允许访问（调试模式）');
+            return;
+        }
+        const stored = getStored();
+        if (stored && stored.hash) {
+            const entry = findKey(stored.hash);
+            if (entry) {
+                const now = Date.now();
+                const expireOk = entry.expire === 0 || entry.expire > now;
+                if (expireOk) { hideGate(entry.expire); return; }
+                // 本地存储的密钥已在配置中过期
+                showGate('⏰ 授权码已到期，请联系管理员获取新授权码');
+                return;
+            }
+        }
+        showGate('');
+    }
+
+    window.doAuth = async function() {
+        const raw = (document.getElementById('authInput').value || '').trim().toUpperCase();
+        const errEl = document.getElementById('authErr');
+        if (!raw) { errEl.textContent = '请输入授权码'; return; }
+        errEl.textContent = '验证中…';
+        const hash = await sha256(raw);
+        const entry = findKey(hash);
+        if (!entry) {
+            errEl.textContent = '❌ 授权码无效，请检查后重试';
+            return;
+        }
+        const now = Date.now();
+        if (entry.expire > 0 && entry.expire < now) {
+            errEl.textContent = '❌ 授权码已过期，请联系管理员';
+            return;
+        }
+        setStored(hash, entry.expire);
+        errEl.textContent = '';
+        hideGate(entry.expire);
+    };
+
+    // DOM Ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', checkAuth);
+    } else {
+        checkAuth();
+    }
+})();
+</script>
+<!-- ===== /会员认证脚本 ===== -->
