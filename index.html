@@ -117,6 +117,7 @@
   <a class="nav-item" href="pro-kline.html">📈 专业K线</a>
   <a class="nav-item" href="new-coins.html">📉 新币监控</a>
 </nav>
+<div id="mainWrap">
 <div class="container">
     <div class="header">
         <h1>🚀 币安合约暴涨预警</h1>
@@ -373,6 +374,8 @@
 
 
 </div>
+
+</div><!-- /mainWrap -->
 
 <script>
 // ========== 配置 ==========
@@ -2858,109 +2861,9 @@ window.onload = function() {
 window.testAPI = async () => { try { const d = await apiFetch('/fapi/v1/exchangeInfo'); console.log('✅ API成功', d.symbols?.length, '个交易对'); return d; } catch (e) { console.error('❌ API失败:', e.message); return null; } };
 </script>
 
-<!-- ===== 会员认证脚本（最后加载） ===== -->
+<!-- ===== 会员认证脚本 ===== -->
 <script src="auth-config.js"></script>
-<script>
-(function() {
-    const LS_AUTH = 'bian-auth-v1';
-
-    async function sha256(str) {
-        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-        return [...new Uint8Array(buf)].map(x => x.toString(16).padStart(2,'0')).join('');
-    }
-
-    function getStored() {
-        try { return JSON.parse(localStorage.getItem(LS_AUTH) || 'null'); } catch { return null; }
-    }
-
-    function setStored(hash, expire) {
-        localStorage.setItem(LS_AUTH, JSON.stringify({ hash, expire, ts: Date.now() }));
-    }
-
-    function getConfig() {
-        return (window.AUTH_CONFIG && Array.isArray(window.AUTH_CONFIG.keys)) ? window.AUTH_CONFIG.keys : [];
-    }
-
-    function findKey(hash) {
-        return getConfig().find(k => k.hash === hash) || null;
-    }
-
-    function showGate(msg) {
-        const gate = document.getElementById('authGate');
-        if (gate) gate.style.display = 'flex';
-        if (msg) {
-            const el = document.getElementById('authExpire');
-            if (el) el.textContent = msg;
-        }
-    }
-
-    function hideGate(expire) {
-        const gate = document.getElementById('authGate');
-        if (gate) gate.style.display = 'none';
-        // 显示剩余时间提示
-        if (expire && expire > 0) {
-            const days = Math.ceil((expire - Date.now()) / 86400000);
-            const bar = document.getElementById('status');
-            if (bar) {
-                const old = bar.textContent;
-                setTimeout(() => {
-                    if (bar.textContent === old || bar.textContent.includes('就绪')) {
-                        bar.textContent = `✅ 已授权 · 剩余 ${days} 天`;
-                    }
-                }, 500);
-            }
-        }
-    }
-
-    async function checkAuth() {
-        const cfg = getConfig();
-        // 如果配置为空，默认放行（便于开发调试）
-        if (!cfg || cfg.length === 0) {
-            console.warn('⚠️ auth-config.js 无授权码配置，当前允许访问（调试模式）');
-            return;
-        }
-        const stored = getStored();
-        if (stored && stored.hash) {
-            const entry = findKey(stored.hash);
-            if (entry) {
-                const now = Date.now();
-                const expireOk = entry.expire === 0 || entry.expire > now;
-                if (expireOk) { hideGate(entry.expire); return; }
-                // 本地存储的密钥已在配置中过期
-                showGate('⏰ 授权码已到期，请联系管理员获取新授权码');
-                return;
-            }
-        }
-        showGate('');
-    }
-
-    window.doAuth = async function() {
-        const raw = (document.getElementById('authInput').value || '').trim().toUpperCase();
-        const errEl = document.getElementById('authErr');
-        if (!raw) { errEl.textContent = '请输入授权码'; return; }
-        errEl.textContent = '验证中…';
-        const hash = await sha256(raw);
-        const entry = findKey(hash);
-        if (!entry) {
-            errEl.textContent = '❌ 授权码无效，请检查后重试';
-            return;
-        }
-        const now = Date.now();
-        if (entry.expire > 0 && entry.expire < now) {
-            errEl.textContent = '❌ 授权码已过期，请联系管理员';
-            return;
-        }
-        setStored(hash, entry.expire);
-        errEl.textContent = '';
-        hideGate(entry.expire);
-    };
-
-    // DOM Ready
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', checkAuth);
-    } else {
-        checkAuth();
-    }
-})();
-</script>
+<script src="auth.js"></script>
 <!-- ===== /会员认证脚本 ===== -->
+</body>
+</html>

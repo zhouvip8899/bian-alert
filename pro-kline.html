@@ -182,11 +182,39 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
   .live-price .sym{font-size:13px}
   .live-price .price{font-size:15px}
 }
+/* ===== 会员登录蒙层 ===== */
+#authGate{position:fixed;inset:0;background:rgba(10,10,20,.97);display:none;align-items:center;justify-content:center;z-index:9999;backdrop-filter:blur(6px)}
+.auth-box{background:linear-gradient(135deg,#1a1a2e,#16213e);border:1px solid rgba(240,185,11,.25);border-radius:16px;padding:36px 32px;min-width:320px;max-width:90vw;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.auth-box .logo{font-size:2.4em;margin-bottom:8px}
+.auth-box h2{font-size:1.3em;background:linear-gradient(90deg,#f0b90b,#fcd535);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:4px}
+.auth-box .desc{color:#666;font-size:.82em;margin-bottom:24px}
+.auth-box input{width:100%;padding:12px 14px;font-size:1em;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:#e0e0e0;border-radius:8px;outline:none;margin-bottom:12px;letter-spacing:2px}
+.auth-box input:focus{border-color:#f0b90b}
+.auth-box button{width:100%;padding:12px;font-size:1em;font-weight:700;background:linear-gradient(135deg,#f0b90b,#fcd535);border:none;border-radius:8px;cursor:pointer;color:#000;transition:filter .2s}
+.auth-box button:hover{filter:brightness(1.12)}
+.auth-err{color:#ef5350;font-size:.82em;margin-top:10px;min-height:20px}
+.auth-expire{color:#888;font-size:.75em;margin-top:14px}
+/* ===== /会员登录蒙层 ===== */
 </style>
 </head>
 <body>
 
-<!-- 工具栏 -->
+<!-- ===== 会员登录蒙层 ===== -->
+<div id="authGate">
+  <div class="auth-box">
+    <div class="logo">🚀</div>
+    <h2>币安合约暴涨预警</h2>
+    <p class="desc">请输入授权码以继续使用</p>
+    <input type="text" id="authInput" placeholder="XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters"
+           onkeydown="if(event.key==='Enter')doAuth()">
+    <button onclick="doAuth()">进入系统</button>
+    <div class="auth-err" id="authErr"></div>
+    <div class="auth-expire" id="authExpire"></div>
+  </div>
+</div>
+<!-- ===== /会员登录蒙层 ===== -->
+
+<div id="mainWrap"><!-- 工具栏 -->
 <div class="toolbar">
   <div class="logo">📊 专业K线</div>
   <div class="sep"></div>
@@ -1761,5 +1789,11 @@ window.addEventListener('DOMContentLoaded', () => {
   setTimeout(() => loadChart(), 300);
 });
 </script>
+
+<!-- 会员认证 -->
+<script src="auth-config.js"></script>
+<script src="auth.js"></script>
+
+</div><!-- /mainWrap -->
 </body>
 </html>
