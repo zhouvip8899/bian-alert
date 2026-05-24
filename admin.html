@@ -133,7 +133,7 @@ tr:hover td{background:rgba(255,255,255,.03)}
 // ==================== 管理员密码 ====================
 // 默认管理员密码：admin888（可自行修改下面的SHA-256哈希）
 // 生成方式：在浏览器控制台运行 crypto.subtle.digest('SHA-256', new TextEncoder().encode('你的密码')).then(b=>console.log([...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')))
-const ADMIN_PWD_HASH = '5e52fee47e6b070565f74372468cdc699de89107058b53c82f2c4b4c2ca3aba4'; // admin888
+const ADMIN_PWD_HASH = '5492d0491a55f87bcc0de2ef1ec544d089585c050fd23643d2968c75d35f1319'; // zhou101122692
 
 async function sha256(str) {
     const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
