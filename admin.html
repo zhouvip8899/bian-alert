@@ -107,8 +107,13 @@ th{color:#888}
     <button class="btn-gray" id="clearBtn" style="margin-left:8px">清空全部</button>
     <div id="configBox">
       <pre id="configPre"></pre>
-      <button class="btn-gold" id="copyBtn">📋 一键复制</button>
-      <span id="copiedTip" style="color:#00e676;margin-left:10px;font-size:.82em;display:none">✅ 已复制</span>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:8px">
+        <button class="btn-gold" id="saveBtn">💾 一键写入 auth-config.js</button>
+        <button class="btn-gray" id="copyBtn">📋 复制到剪贴板</button>
+        <span id="copiedTip" style="color:#00e676;font-size:.82em;display:none">✅ 已复制</span>
+        <span id="savedTip"  style="color:#00e676;font-size:.82em;display:none">✅ 已写入文件</span>
+      </div>
+      <p style="color:#888;font-size:.75em;margin-top:6px">💡 使用本地服务器（127.0.0.1:8766）时可直接写入文件，无需手动复制</p>
     </div>
   </div>
 </div>
@@ -229,6 +234,34 @@ document.getElementById('genBtn').addEventListener('click', function() {
   document.getElementById('configPre').textContent = txt;
   document.getElementById('configBox').style.display = '';
   showMsg('✅ 配置生成成功，共 ' + keys.length + ' 条');
+});
+
+// ==================== 一键写入文件 ====================
+document.getElementById('saveBtn').addEventListener('click', function() {
+  var txt = document.getElementById('configPre').textContent;
+  if (!txt) { showErr('⚠️ 请先点击「生成配置文件内容」'); return; }
+  var btn = this;
+  btn.disabled = true;
+  btn.textContent = '写入中…';
+  fetch('http://127.0.0.1:8766/save-auth-config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content: txt })
+  }).then(function(r){ return r.json(); }).then(function(data) {
+    btn.disabled = false;
+    btn.textContent = '💾 一键写入 auth-config.js';
+    if (data.ok) {
+      document.getElementById('savedTip').style.display = '';
+      setTimeout(function(){ document.getElementById('savedTip').style.display='none'; }, 3000);
+      showMsg('✅ auth-config.js 已自动写入，刷新预警页面即生效');
+    } else {
+      showErr('❌ 写入失败：' + data.msg);
+    }
+  }).catch(function(e) {
+    btn.disabled = false;
+    btn.textContent = '💾 一键写入 auth-config.js';
+    showErr('❌ 连接本地服务器失败，请确认服务器运行中（127.0.0.1:8766）');
+  });
 });
 
 // ==================== 一键复制 ====================
