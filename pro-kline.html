@@ -730,8 +730,15 @@ let mainChart, rsiChart, macdChart;
 let candleSeries, volumeSeries;
 let maLines = {}, emaLines = {}, bbUpperLine, bbLowerLine, bbMidLine, vwapLine;
 let rsiLine, rsi70Line, rsi30Line;
-let macdDifLine, macdSignalLine, macdHistSeries, macdMarkerSeries, macdCandleForMarkers;
+let macdDifLine, macdSignalLine, macdHistSeries, macdMarkerSeries;
 let td9BuySeries, td9SellSeries;
+
+// 主图共享标记管理（TD9 + 逃顶抄底 + 金叉死叉 统一渲染到主图 K线）
+let _mainMarkers = { td9: [], vol: [], macd: [] };
+function applyMainChartMarkers() {
+  const all = [..._mainMarkers.td9, ..._mainMarkers.vol, ..._mainMarkers.macd];
+  if (candleSeries) candleSeries.setMarkers(all);
+}
 
 // ==================== 初始化图表 ====================
 function createCharts() {
@@ -817,12 +824,6 @@ function createCharts() {
   macdSignalLine = macdChart.addLineSeries({ color: '#f97316', lineWidth: 1.5, title: 'Signal' });
   macdHistSeries = macdChart.addHistogramSeries({ color: '#3b82f644', title: 'MACD' });
   macdMarkerSeries = macdChart.addLineSeries({ color: 'transparent', lineWidth: 0, crosshairMarkerVisible: false, lastValueVisible: false, priceLineVisible: false });
-  macdCandleForMarkers = macdChart.addCandlestickSeries({
-    upColor: '#0000', downColor: '#0000',
-    borderUpColor: '#0000', borderDownColor: '#0000',
-    wickUpColor: '#0000', wickDownColor: '#0000',
-    crosshairMarkerVisible: false, lastValueVisible: false, priceLineVisible: false
-  });
 
   // ========== 主图→副图 时间轴联动（副图被动跟随） ==========
   // 副图 handleScroll/handleScale=false，不会主动触发滚动/缩放
@@ -1056,13 +1057,6 @@ function renderAll(klines) {
     const lastDif = dif[dif.length - 1];
     const lastSig = signal[signal.length - 1];
     document.getElementById('macdVal').textContent = `DIF:${lastDif.toFixed(4)}  Sig:${lastSig.toFixed(4)}`;
-
-    // 设置透明蜡烛图数据（挂载MACD信号 markers 需要）
-    const dummyData = dif.map((v, i) => ({
-      time: times[start + i],
-      open: v, high: v, low: v, close: v,
-    }));
-    macdCandleForMarkers.setData(dummyData);
   }
 
   // 更新实时价格
@@ -1077,10 +1071,11 @@ function renderAll(klines) {
 }
 
 // ==================== TD9/TD13 渲染 ====================
-// 只在计数达到 9 或 13 时显示信号标记
+// 只在计数达到 9 或 13 时显示信号标记（统一渲染到主图）
 function renderTD9(times, highs, lows, closes) {
   if (!indState.td9) {
-    candleSeries.setMarkers([]);
+    _mainMarkers.td9 = [];
+    applyMainChartMarkers();
     return;
   }
   const td9 = TA.td9Array(closes);
@@ -1110,13 +1105,14 @@ function renderTD9(times, highs, lows, closes) {
       });
     }
   }
-  candleSeries.setMarkers(markers);
+  _mainMarkers.td9 = markers;
+  applyMainChartMarkers();
 }
 
 // ==================== VOL信号渲染 ====================
-// 庄家抄底(紫色▲) / 逃顶(琥珀色▼) 标记在VOL副图
+// 抄底(紫色▲) / 逃顶(琥珀色▼) — 统一渲染到主图 K线
 function renderVolSignals(opens, closes, highs, lows, vols, times) {
-  if (!indState.vol) { volumeSeries.setMarkers([]); return; }
+  if (!indState.vol) { _mainMarkers.vol = []; applyMainChartMarkers(); return; }
   const signals = TA.volSignals(opens, closes, highs, lows, vols);
   const markers = [];
   for (let i = 0; i < signals.length; i++) {
@@ -1142,15 +1138,16 @@ function renderVolSignals(opens, closes, highs, lows, vols, times) {
       });
     }
   }
-  volumeSeries.setMarkers(markers);
+  _mainMarkers.vol = markers;
+  applyMainChartMarkers();
 }
 
 // ==================== MACD信号渲染 ====================
-// 金叉(绿↑) / 死叉(红↓) / 多共振(亮绿●) / 空共振(亮红●) — 含确认机制
+// 金叉(绿↑) / 死叉(红↓) / 多共振(亮绿●) / 空共振(亮红●) — 统一渲染到主图 K线
 function renderMacdSignals(times, closes, highs, lows) {
-  if (!indState.macd) { macdCandleForMarkers.setMarkers([]); return; }
+  if (!indState.macd) { _mainMarkers.macd = []; applyMainChartMarkers(); return; }
   const macd = TA.macd(closes, 12, 26, 9);
-  if (!macd) { macdCandleForMarkers.setMarkers([]); return; }
+  if (!macd) { _mainMarkers.macd = []; applyMainChartMarkers(); return; }
   const { dif, signal, start, sigOffset } = macd;
   const markers = [];
   // RSI 数组用于共振检测（RSI从 times[14] 开始）
@@ -1211,10 +1208,9 @@ function renderMacdSignals(times, closes, highs, lows) {
       });
     }
   }
-  macdCandleForMarkers.setMarkers(markers);
+  _mainMarkers.macd = markers;
+  applyMainChartMarkers();
 }
-
-// ==================== S/R 支撑阻力位渲染 ====================
 // 用 createPriceLine 在主图左侧价格轴显示标签
 // 开关通过 indState.sr 控制，切换时由 switch case 'sr' 调用
 let _srPriceLines = [];
