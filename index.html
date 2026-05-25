@@ -1071,188 +1071,13 @@ function score(d) {
 
 
 // ========== WebSocket 实时数据管理器 (v3.30) ==========
+// 格式化工交易量
 function _fmtVol(v) {
     if (!v || isNaN(v)) return '-';
     return v >= 1e9 ? (v/1e9).toFixed(1)+'B' : v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e3 ? (v/1e3).toFixed(1)+'K' : v.toFixed(0);
 }
-// 监听币安合并流，一次连接更新所有卡片价格
-const _rt = {
-    ws: null,
-    prices: {},     // symbol -> { price, chg, c24h, high, low, vol }
-    renderTimer: null,
-    symbols: [],
-    active: false,
 
-    connect(symbols) {
-        this.close();
-        this.symbols = symbols;
-        this.prices = {};
-        this.active = true;
-        this._wsGotData = false;
-
-        // 直连币安WebSocket
-        const streams = symbols.flatMap(s => {
-            const sym = s.toLowerCase();
-            return [`${sym}@ticker`, `${sym}@kline_1m`];
-        });
-        const wsUrl = 'wss://fstream.binance.com/stream?streams=' + streams.join('/');
-        console.log('[主页WS] 直连:', wsUrl);
-
-        // 10秒无数据则启动HTTP轮询保底
-        this._fallbackTimer = setTimeout(() => {
-            if (this.active && !this._wsGotData) {
-                console.log('[主页WS] 10秒无数据，启动HTTP轮询保底');
-                this._startHttpPoll();
-            }
-        }, 10000);
-
-        try { this.ws = new WebSocket(wsUrl); }
-        catch(e) { console.warn('WebSocket连接失败', e); clearTimeout(this._fallbackTimer); this._startHttpPoll(); return; }
-
-        this.ws.onopen = () => {
-            console.log('[主页WS] 已连接，等待数据...');
-        };
-
-        this.ws.onmessage = (evt) => {
-            if (!this._wsGotData) {
-                this._wsGotData = true;
-                clearTimeout(this._fallbackTimer);
-                this._stopHttpPoll();
-                console.log('[主页WS] 开始接收数据');
-            }
-            try {
-                const msg = JSON.parse(evt.data);
-                const s = msg.stream;
-                const d = msg.data;
-
-                if (s.endsWith('@ticker')) {
-                    const sym = s.split('@')[0].toUpperCase() + 'USDT';
-                    this.prices[sym] = {
-                        price: parseFloat(d.c),
-                        chg:   parseFloat(d.p),
-                        c24h:  parseFloat(d.P),
-                        high:  parseFloat(d.h),
-                        low:   parseFloat(d.l),
-                        vol:   parseFloat(d.q),
-                        open:  parseFloat(d.o),
-                    };
-                }
-            } catch(e) {}
-        };
-
-        this.ws.onerror = () => {
-            this.wsFailCount = (this.wsFailCount || 0) + 1;
-        };
-
-        this.ws.onclose = () => {
-            clearTimeout(this._fallbackTimer);
-            if (!this.active) return;
-            console.log('[主页WS] 断开，HTTP保底+5秒重连');
-            if (!this._httpPollTimer) this._startHttpPoll();
-            setTimeout(() => { if (_rt.active) _rt.connect(_rt.symbols); }, 5000);
-        };
-
-        // 每2秒批量刷新卡片
-        if (this.renderTimer) clearInterval(this.renderTimer);
-        this.renderTimer = setInterval(() => this._refreshUI(), 2000);
-    },
-
-    _startHttpPoll() {
-        this._stopHttpPoll();
-        console.log('[主页HTTP轮询] 启动，每5秒拉取ticker');
-        this._httpPollTimer = setInterval(async () => {
-            if (!this.symbols.length) return;
-            try {
-                for (const sym of this.symbols) {
-                    const data = await apiFetch(`/fapi/v1/ticker/24hr?symbol=${sym}USDT`);
-                    if (data) {
-                        this.prices[sym + 'USDT'] = {
-                            price: parseFloat(data.c),
-                            chg:   parseFloat(data.p),
-                            c24h:  parseFloat(data.P),
-                            high:  parseFloat(data.h),
-                            low:   parseFloat(data.l),
-                            vol:   parseFloat(data.q),
-                            open:  parseFloat(data.o),
-                        };
-                    }
-                }
-            } catch(e) {}
-        }, 5000);
-    },
-
-    _stopHttpPoll() {
-        if (this._httpPollTimer) { clearInterval(this._httpPollTimer); this._httpPollTimer = null; }
-    },
-
-    // 刷新所有卡片的实时价格
-    _refreshUI() {
-        if (!this.active || !Object.keys(this.prices).length) return;
-
-        // 更新每个 tab 里的卡片价格
-        document.querySelectorAll('.card').forEach(card => {
-            const nameEl = card.querySelector('.name');
-            if (!nameEl) return;
-            const sym = nameEl.textContent.trim() + 'USDT';
-            const live = this.prices[sym];
-            if (!live) return;
-
-            const priceEl  = card.querySelector('.price');
-            const chgEl    = card.querySelector('.chg');
-            const volEl    = card.querySelector('.vol');
-            const arrowEl  = card.querySelector('.arrow');
-
-            if (priceEl) {
-                priceEl.textContent = '$' + (live.price >= 1 ? live.price.toFixed(2) : live.price.toFixed(6));
-                // 价格变色闪烁
-                const prev = parseFloat(priceEl.dataset.prev || live.price);
-                if (live.price > prev) { priceEl.style.color = '#26c281'; }
-                else if (live.price < prev) { priceEl.style.color = '#ef5350'; }
-                setTimeout(() => { if(priceEl) priceEl.style.color = ''; }, 800);
-                priceEl.dataset.prev = live.price;
-            }
-
-            if (chgEl) {
-                const c24 = live.c24h;
-                const sign = c24 >= 0 ? '+' : '';
-                chgEl.textContent = sign + c24.toFixed(2) + '%';
-                chgEl.style.color = c24 >= 0 ? '#26c281' : '#ef5350';
-            }
-
-            if (volEl) {
-                volEl.textContent = _fmtVol(live.vol);
-            }
-
-            // 涨跌箭头
-            if (arrowEl) {
-                arrowEl.textContent = live.c24h >= 0 ? '▲' : '▼';
-                arrowEl.style.color = live.c24h >= 0 ? '#26c281' : '#ef5350';
-            }
-        });
-
-        // 状态栏显示实时价格数
-        const count = Object.keys(this.prices).length;
-        const status = $('status');
-        if (status && count > 0) {
-            const prev = status.textContent;
-            if (!prev.includes('🟢实时')) {
-                status.textContent = prev.split(' | ')[0] + ` | 🟢实时(${count}) | ${new Date().toLocaleTimeString('zh-CN')}`;
-            }
-        }
-    },
-
-    close() {
-        this.active = false;
-        clearTimeout(this._fallbackTimer);
-        if (this.renderTimer) { clearInterval(this.renderTimer); this.renderTimer = null; }
-        this._stopHttpPoll();
-        if (this.ws) { this.ws.onclose = null; this.ws.close(); this.ws = null; }
-        this.prices = {};
-    }
-};
-
-
-// ========== 主分析流程 (v3.30 - 全信号共振+实时版) ==========
+// ========== 主分析流程 (v3.69 静态版) ==========
 async function runAll() {
     if (busy) return;
     busy = true;
@@ -1441,10 +1266,6 @@ async function runAll() {
 
         const whaleBullish = whaleTrack.filter(c => c.whaleLongShortRatio > 1.5).length;
         setProgress(100, '✅ 分析完成');
-
-        // v3.30：连接WebSocket实时数据
-        const allCoins = [...hot, ...preBurst, ...whaleTrack, ...watch].map(c => c.sym.replace('USDT','').toLowerCase());
-        if (allCoins.length) { _rt.connect(allCoins); }
 
         $('status').textContent = `💎 ${hot.length}暴涨 | 🔮${preBurst.length}预涨蓄力 | 🐋${whaleBullish}大户看多 | ${new Date().toLocaleTimeString('zh-CN')}`;
     } catch (e) {
