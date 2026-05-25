@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>🔑 会员管理后台 - bian-alert</title>
+<title>🔑 会员管理后台 v2.1 - bian-alert</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;background:linear-gradient(135deg,#0f0f1a,#1a1a2e);min-height:100vh;color:#e0e0e0;padding:24px}
@@ -106,7 +106,7 @@ tr:hover td{background:rgba(255,255,255,.03)}
 <div class="card">
   <h2>📤 导出 auth-config.js</h2>
   <p style="font-size:.85em;color:#888;margin-bottom:12px">每次修改授权码后，点击生成配置，替换本地 <code style="color:#f0b90b">auth-config.js</code> 文件，用户刷新页面即生效。</p>
-  <button class="btn btn-gold" onclick="genConfig()">生成配置文件内容</button>
+  <button class="btn btn-gold" onclick="genConfig()">📤 生成配置文件内容（v2.1）</button>
   <button class="btn btn-gray" style="margin-left:8px" onclick="clearAll()">清空全部</button>
   <div id="copyBox">
     <pre id="configPre"></pre>
@@ -238,31 +238,55 @@ function clearAll() {
 }
 
 function genConfig() {
-    const keys = getKeys();
-    var entries = keys.map(function(k) {
-        return '        { hash: "' + k.hash + '", expire: ' + k.expire + ', label: "' + (k.label||'').replace(/"/g,'') + '" }';
-    }).join(',\n');
-    const config = '/*\n * 会员授权配置 auth-config.js\n * 由 admin.html 自动生成 · ' + new Date().toLocaleString() + '\n * ⚠️ 请勿手动修改，通过 admin.html 管理\n */\nwindow.AUTH_CONFIG = {\n    version: 1,\n    keys: [\n' + entries + '\n    ]\n};';
-    document.getElementById('configPre').textContent = config;
-    document.getElementById('copyBox').style.display = '';
+    try {
+        const keys = getKeys();
+        if (keys.length === 0) { alert('⚠️ 暂无授权码，请先添加'); return; }
+        var lines = keys.map(function(k, idx) {
+            return '        { hash: "' + k.hash + '", expire: ' + k.expire + ', label: "' + (k.label||'').replace(/"/g,'') + '" }';
+        });
+        const config = '/*\n * 会员授权配置 auth-config.js\n * 由 admin.html 自动生成 · ' + new Date().toLocaleString() + '\n * ⚠️ 请勿手动修改，通过 admin.html 管理\n */\nwindow.AUTH_CONFIG = {\n    version: 1,\n    keys: [\n' + lines.join(',\n') + '\n    ]\n};';
+        var pre = document.getElementById('configPre');
+        if (pre) pre.textContent = config;
+        var box = document.getElementById('copyBox');
+        if (box) box.style.display = '';
+        console.log('✅ genConfig 成功，共' + keys.length + '条');
+    } catch(e) {
+        alert('❌ 生成配置失败：' + e.message);
+        console.error('genConfig error:', e);
+    }
 }
 
 async function copyConfig() {
     const text = document.getElementById('configPre').textContent;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(text);
-    } else {
+    if (!text) { alert('⚠️ 请先点击「生成配置文件内容」'); return; }
+    try {
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            await navigator.clipboard.writeText(text);
+        } else {
+            throw new Error('clipboard not available');
+        }
+    } catch(e) {
         // 降级方案
-        const ta = document.createElement('textarea');
-        ta.value = text;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+        } catch(e2) {
+            alert('❌ 复制失败，请手动复制上方内容');
+            console.error('copyConfig error:', e2);
+            return;
+        }
     }
     const tip = document.getElementById('copiedTip');
-    tip.style.display = '';
-    setTimeout(function() { tip.style.display = 'none'; }, 2500);
+    if (tip) {
+        tip.style.display = '';
+        setTimeout(function() { tip.style.display = 'none'; }, 2500);
+    }
 }
 </script>
 </body>
