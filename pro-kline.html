@@ -1189,7 +1189,7 @@ function renderMacdSignals(times, closes, highs, lows) {
       const isRes = rsiVal !== null && rsiVal < 30;
       markers.push({
         time:     t,
-        position: 'aboveBar',
+        position: 'belowBar',          // 金叉在K线下方
         color:    isRes ? '#00e676' : '#22c55e',
         shape:    isRes ? 'circle' : 'arrowUp',
         text:     isRes ? '多共振' : '金叉',
@@ -1200,7 +1200,7 @@ function renderMacdSignals(times, closes, highs, lows) {
       const isRes = rsiVal !== null && rsiVal > 70;
       markers.push({
         time:     t,
-        position: 'belowBar',
+        position: 'aboveBar',          // 死叉在K线上方
         color:    isRes ? '#ff2d55' : '#ef4444',
         shape:    isRes ? 'circle' : 'arrowDown',
         text:     isRes ? '空共振' : '死叉',
