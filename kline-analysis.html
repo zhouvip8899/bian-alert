@@ -2705,14 +2705,15 @@ async function analyzeCoin(symbol) {
     try { renderMTFPanel(ind); } catch(e) { console.error('renderMTFPanel:', e); }
     try { renderLiqZone(ind); } catch(e) { console.error('renderLiqZone:', e); }
 
-    // 更新左侧面板的雷达指标（阻力位、支撑位、量能天眼）
-    try { updateLeftPanelRadar(klines1h); } catch(e) { console.error('updateLeftPanelRadar:', e); }
-
+    // 先渲染综合评分，再更新左侧雷达面板（确保 getUnifiedSignal 能读到最新评分）
     try {
       const scoreObj = { ...calcScore(ind), ind };
       renderSignals(scoreObj);
       renderTotalScore(scoreObj);
     } catch(e) { console.error('renderSignals:', e); }
+
+    // 更新左侧面板的雷达指标（阻力位、支撑位、量能天眼）— 综合评分已渲染后再调用
+    try { updateLeftPanelRadar(klines1h); } catch(e) { console.error('updateLeftPanelRadar:', e); }
 
     // 连接WebSocket实时K线
     try { connectWebSocket(symbol); } catch(e) { console.error('WebSocket连接:', e); }
@@ -3103,12 +3104,13 @@ function updateIndicatorsRealtime(lastClose) {
   try { renderMTFPanel(ind); } catch(e) {}
   try { renderLiqZone(ind); } catch(e) {}
 
-  // 更新评分
+  // 先更新综合评分，再刷新一刀之眼/VWAP（确保 getUnifiedSignal 能读到最新评分）
   try {
     const scoreObj = { ...calcScore(ind), ind };
     renderSignals(scoreObj);
     renderTotalScore(scoreObj);
   } catch(e) {}
+  try { updateLeftPanelRadar(lastKlines); } catch(e) {}
 }
 
 // ==================== 推荐币种 ====================
