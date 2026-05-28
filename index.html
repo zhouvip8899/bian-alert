@@ -886,45 +886,45 @@ function score(d) {
         }
     }
     
-    // ========== 2. 底部反弹 (v3.70 放宽版) ==========
-    // 前提：从低点反弹1.5-25%，且RSI<38（适度放宽）
-    if (fromLow > 1.5 && fromLow < 25 && d.rsi < 38) {
+    // ========== 2. 底部反弹 (v3.71 精准版) ==========
+    // 前提：从低点反弹2-20%，且RSI<32（严格超卖），且MACD hist>0（硬性翻多）
+    const hasMacdConfirm = d.macd?.hist > 0;
+    if (fromLow > 2 && fromLow < 20 && d.rsi < 32 && hasMacdConfirm) {
         let reboundScore = 0;
-        // 超卖深度
-        if (d.rsi < 20) { reboundScore += 5; sig.push('📊RSI极度超卖'); }
-        else if (d.rsi < 26) { reboundScore += 4; sig.push('📊RSI深超卖'); }
-        else if (d.rsi < 30) { reboundScore += 3; sig.push('📊RSI超卖'); }
-        else { reboundScore += 1; }
-        // KDJ底位
-        if (d.kdj?.j < 8) { reboundScore += 3; }
-        else if (d.kdj?.j < 15) { reboundScore += 2; }
-        // 布林下轨
-        if ((d.bb?.pos || 50) < 6) { reboundScore += 3; }
-        else if ((d.bb?.pos || 50) < 14) { reboundScore += 1; }
-        // CCI弱势
-        if (d.cci < -150) { reboundScore += 2; }
-        // MACD确认（加分项，不强制）
-        const hasMacdConfirm = d.macd?.hist > 0;
-        if (hasMacdConfirm) { reboundScore += 3; sig.push('💹MACD转多'); }
-        else if (d.macd?.dif > d.macd?.dea) { reboundScore += 1; }
-        // 量比
-        if (d.vr >= 1.4 && d.vr < 4) { reboundScore += 2; }
-        if (d.chg1h > 0.6) { reboundScore += 1; }
+        // 超卖深度（RSI已<32才入场，无需兜底分）
+        if (d.rsi < 20) { reboundScore += 6; sig.push('📊RSI极度超卖'); }
+        else if (d.rsi < 25) { reboundScore += 4; sig.push('📊RSI深超卖'); }
+        else if (d.rsi < 30) { reboundScore += 2; sig.push('📊RSI超卖'); }
+        // KDJ底位（严格）
+        if (d.kdj?.j < 5) { reboundScore += 4; }
+        else if (d.kdj?.j < 10) { reboundScore += 2; }
+        // 布林下轨（严格）
+        if ((d.bb?.pos || 50) < 5) { reboundScore += 3; }
+        else if ((d.bb?.pos || 50) < 10) { reboundScore += 1; }
+        // CCI极弱
+        if (d.cci < -200) { reboundScore += 3; }
+        else if (d.cci < -150) { reboundScore += 1; }
+        // MACD确认（已是入场前提，这里加额外分）
+        reboundScore += 3; sig.push('💹MACD转多');
+        // 量比（放量反弹）
+        if (d.vr >= 1.8 && d.vr < 4) { reboundScore += 2; }
+        else if (d.vr >= 1.4) { reboundScore += 1; }
+        if (d.chg1h > 1.0) { reboundScore += 1; }
         // 强力共振加分
         if (d.divergence === 'bottom') { reboundScore += 4; sig.push('📈底背离确认'); }
         if (d.mtf?.aligned && d.mtf?.direction === 'up') { reboundScore += 2; sig.push('🔄多周期向上'); }
         if (d.wrDiv === 'bottom' || d.obvDiv === 'bottom') { reboundScore += 2; }
         // 资金确认
-        if (taker > 0.54) { reboundScore += 2; sig.push(`🟢Taker${(taker*100).toFixed(0)}%`); }
+        if (taker > 0.56) { reboundScore += 2; sig.push(`🟢Taker${(taker*100).toFixed(0)}%`); }
         
         // 三维评分
         core.tech = Math.min(Math.floor(reboundScore / 3), 4);
-        if (taker > 0.54) core.whale = 1;
+        if (taker > 0.56) core.whale = 1;
         if ((d.fr || 0) < -0.001) core.fund = 1;
         const reboundResonance = core.tech * 2 + core.fund + core.whale;
         
-        // v3.70放宽：score≥6，MACD为加分不强制
-        if (reboundScore >= 6) return { s: 20 + reboundScore * 2, sig: sig.slice(0, 6), level: '🔼底部反弹', isBottomRebound: true, isWatch, isCrash, crashSignals, core, resonanceScore: reboundResonance, isPreBurst };
+        // v3.71精准：score≥9（MACD已占3分，需额外6分才能触发）
+        if (reboundScore >= 9) return { s: 20 + reboundScore * 2, sig: sig.slice(0, 6), level: '🔼底部反弹', isBottomRebound: true, isWatch, isCrash, crashSignals, core, resonanceScore: reboundResonance, isPreBurst };
     }
     
     // ========== 3. 预涨蓄力检测 (v3.67 精准版) ==========
