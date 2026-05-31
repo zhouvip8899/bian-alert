@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>币安合约暴涨预警系统 v3.75</title>
+    <title>币安合约暴涨预警系统 v3.76</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box}
         body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;background:linear-gradient(135deg,#0f0f1a,#1a1a2e);min-height:100vh;color:#e0e0e0}
@@ -2314,7 +2314,7 @@ function _renderVolFlow(data, type) {
             <div class="card-hd">
                 <div>
                     <span class="name">${c.sym.replace('USDT','')}</span>
-                    <span class="price" style="margin-left:6px">$${fp(c.price)}</span>
+                    <span class="price" style="margin-left:6px" data-sym="${c.sym}">$${fp(_vfLivePrices[c.sym] || c.price)}</span>
                     <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:6px;color:#26c6da;font-size:.78em;text-decoration:none">📊K线</a>
                 </div>
                 <div style="text-align:right">
@@ -2333,7 +2333,7 @@ function _renderVolFlow(data, type) {
                 <div class="chain-row"><span style="color:#888">主买比</span><span style="color:${takerColor}">${c.taker.toFixed(1)}%</span></div>
                 <div class="chain-row"><span style="color:#888">1H涨跌</span>${fc(c.chg1h)}</div>
                 <div class="chain-row"><span style="color:#888">4H涨跌</span>${fc(c.chg4h)}</div>
-                <div class="chain-row"><span style="color:#888">24H涨跌</span>${fc(c.chg24h)}</div>
+                <div class="chain-row"><span style="color:#888">24H涨跌</span>${fc(_vfLiveChg24h[c.sym] != null ? _vfLiveChg24h[c.sym] : c.chg24h)}</div>
                 <div class="chain-row"><span style="color:#888">成交额(24H)</span><span style="color:#aaa">${c.vol >= 1e9 ? (c.vol/1e9).toFixed(2)+'B' : c.vol >= 1e6 ? (c.vol/1e6).toFixed(1)+'M' : (c.vol/1e3).toFixed(0)+'K'}</span></div>
             </div>
             <div class="tags" style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.05)">
@@ -2344,6 +2344,83 @@ function _renderVolFlow(data, type) {
             </div>
         </div>`;
     }).join('');
+}
+
+// ========== 换手量比实时WebSocket连接 ==========
+let _vfWs = null;
+let _vfLivePrices = {};   // { symbol: price }
+let _vfLiveChg24h = {};   // { symbol: chg24h% }
+let _vfRefreshTimer = null;
+let _vfRenderDebounce = 0;
+
+function _vfConnectWS() {
+    if (_vfWs) return;
+    try {
+        const symbols = Object.keys(_vfLivePrices);
+        if (!symbols.length) return;
+        _vfWs = new WebSocket('wss://fstream.binance.com/stream?streams=!miniTicker@arr');
+        _vfWs.onopen = () => {
+            $('status').textContent = `📊 换手量比 🟢实时 | 有效信号 ${_vfData.length} 个 | ${new Date().toLocaleTimeString('zh-CN')}`;
+        };
+        _vfWs.onmessage = (e) => {
+            try {
+                const msg = JSON.parse(e.data);
+                if (!msg.data || !Array.isArray(msg.data)) return;
+                let changed = false;
+                msg.data.forEach(t => {
+                    if (!t.s || !_vfLivePrices.hasOwnProperty(t.s)) return;
+                    const np = parseFloat(t.c);
+                    if (_vfLivePrices[t.s] !== np) { _vfLivePrices[t.s] = np; changed = true; }
+                    _vfLiveChg24h[t.s] = parseFloat(t.P) || 0;
+                });
+                if (changed) {
+                    const now = Date.now();
+                    if (now - _vfRenderDebounce > 2000) { _vfRenderDebounce = now; _renderVolFlow(_vfData, _vfCurrent); }
+                }
+            } catch {}
+        };
+        _vfWs.onclose = () => { _vfWs = null; };
+        _vfWs.onerror = () => { if (_vfWs) { _vfWs.close(); _vfWs = null; } };
+    } catch { _vfWs = null; }
+
+    // 每90秒后台刷新K线更新量比
+    if (_vfRefreshTimer) clearInterval(_vfRefreshTimer);
+    _vfRefreshTimer = setInterval(() => _vfRefreshKlines(), 90000);
+}
+
+function _vfDisconnectWS() {
+    if (_vfWs) { _vfWs.close(); _vfWs = null; }
+    if (_vfRefreshTimer) { clearInterval(_vfRefreshTimer); _vfRefreshTimer = null; }
+}
+
+async function _vfRefreshKlines() {
+    if (!_vfData.length || busy) return;
+    const symbols = [...new Set(_vfData.map(c => c.sym))].slice(0, 100);
+    const B = 20;
+    let updated = 0;
+    for (let i = 0; i < symbols.length; i += B) {
+        const batch = symbols.slice(i, i + B);
+        const br = await Promise.all(batch.map(async sym => {
+            try {
+                const k1 = await apiFetch(`/fapi/v1/klines?symbol=${sym}&interval=1h&limit=26`);
+                if (!Array.isArray(k1) || k1.length < 12) return null;
+                const vols = k1.map(x => parseFloat(x[5]));
+                const curVol = vols[vols.length - 1];
+                const avgVol = vols.slice(-21, -1).reduce((a, b) => a + b, 0) / 20;
+                const volRatio = avgVol > 0 ? curVol / avgVol : 1;
+                const closes = k1.map(x => parseFloat(x[4]));
+                const chg1h = closes.length >= 2 ? (closes[closes.length-1] - closes[closes.length-2]) / closes[closes.length-2] * 100 : 0;
+                const chg4h = closes.length >= 5 ? (closes[closes.length-1] - closes[closes.length-5]) / closes[closes.length-5] * 100 : 0;
+                return { sym, volRatio, chg1h, chg4h };
+            } catch { return null; }
+        }));
+        br.filter(Boolean).forEach(r => {
+            const idx = _vfData.findIndex(c => c.sym === r.sym);
+            if (idx >= 0) { _vfData[idx].volRatio = r.volRatio; _vfData[idx].chg1h = r.chg1h; _vfData[idx].chg4h = r.chg4h; updated++; }
+        });
+    }
+    if (updated > 0) { _vfData.sort((a, b) => b.score - a.score); _renderVolFlow(_vfData, _vfCurrent); }
+    $('status').textContent = `📊 换手量比 🟢实时 | 有效信号 ${_vfData.length} 个 | ${new Date().toLocaleTimeString('zh-CN')}`;
 }
 
 async function runVolFlow() {
@@ -2477,7 +2554,13 @@ async function runVolFlow() {
         $('vfAll').classList.add('active');
         _renderVolFlow(_vfData, 'all');
         showTab('volflow');
-        $('status').textContent = `📊 换手量比 | 有效信号 ${_vfData.length} 个 | ${new Date().toLocaleTimeString('zh-CN')}`;
+
+        // 填充实时价格缓存并连接WebSocket
+        _vfLivePrices = {};
+        _vfLiveChg24h = {};
+        _vfData.forEach(c => { _vfLivePrices[c.sym] = c.price; _vfLiveChg24h[c.sym] = c.chg24h; });
+        _vfDisconnectWS(); // 先断开旧连接
+        _vfConnectWS();
     } catch(e) { err('换手量比扫描失败: ' + e.message); }
     busy = false;
 }
@@ -2677,6 +2760,10 @@ function renderWhaleCards(id, coins) {
 }
 
 function showTab(id) {
+    // 切换离开volflow时断开WebSocket
+    const prevActive = document.querySelector('.content.active');
+    if (prevActive && prevActive.id === 'volflow' && id !== 'volflow') _vfDisconnectWS();
+
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
     document.querySelector(`.tab[onclick="showTab('${id}')"]`).classList.add('active');
@@ -2696,6 +2783,12 @@ function showTab(id) {
     if (id === 'liqzone' && !$('liqZoneList').innerHTML) runLiqZone();
     if (id === 'oi-change' && !$('oiChangeList').innerHTML) runOIChange();
     if (id === 'volflow' && !_vfData.length) runVolFlow();
+    // 切换到volflow且有数据时重连WS
+    if (id === 'volflow' && _vfData.length > 0 && !_vfWs) {
+        _vfLivePrices = {}; _vfLiveChg24h = {};
+        _vfData.forEach(c => { _vfLivePrices[c.sym] = c.price; _vfLiveChg24h[c.sym] = c.chg24h; });
+        _vfConnectWS();
+    }
     if (id === 'sigstats') sigTracker.render();
 }
 
