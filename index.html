@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>币安合约暴涨预警系统 v3.73</title>
+    <title>币安合约暴涨预警系统 v3.74</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box}
         body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;background:linear-gradient(135deg,#0f0f1a,#1a1a2e);min-height:100vh;color:#e0e0e0}
@@ -267,34 +267,34 @@
     <!-- ===== 换手量比涨跌判断 ===== -->
     <div id="volflow" class="content">
         <h3 style="margin:15px 0 8px;color:#26c6da">📊 换手量比涨跌判断</h3>
-        <p style="color:#666;font-size:.85em;margin-bottom:12px">综合量比 × 换手方向 × 价格趋势，判断当前是真实上涨/下跌还是无量虚动</p>
+        <p style="color:#666;font-size:.85em;margin-bottom:12px">换手率 × 量比四档判断：主升信号 / 警惕陷阱 / 可入场 / 防范风险</p>
         <!-- 说明卡片 -->
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-bottom:16px">
-            <div style="background:rgba(0,200,83,.08);border:1px solid rgba(0,200,83,.2);border-radius:8px;padding:10px;font-size:.78em">
-                <div style="color:#00e676;font-weight:700;margin-bottom:4px">🚀 量增价升（放量上涨）</div>
-                <div style="color:#aaa">量比≥1.5 + 主买≥55% + 价格正涨，看多信号</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;margin-bottom:16px">
+            <div style="background:rgba(239,83,80,.08);border:1px solid rgba(239,83,80,.25);border-radius:8px;padding:10px;font-size:.78em">
+                <div style="color:#ef5350;font-weight:700;margin-bottom:4px">🚨 ① 警惕陷阱</div>
+                <div style="color:#aaa">换手&gt;10% + 量比&gt;5x | 过热爆量，极易反转，谨防追高踏空</div>
             </div>
-            <div style="background:rgba(239,83,80,.08);border:1px solid rgba(239,83,80,.2);border-radius:8px;padding:10px;font-size:.78em">
-                <div style="color:#ef5350;font-weight:700;margin-bottom:4px">🔻 量增价跌（放量下跌）</div>
-                <div style="color:#aaa">量比≥1.5 + 主卖≥55% + 价格负跌，看空信号</div>
+            <div style="background:rgba(0,200,83,.08);border:1px solid rgba(0,200,83,.25);border-radius:8px;padding:10px;font-size:.78em">
+                <div style="color:#00e676;font-weight:700;margin-bottom:4px">🚀 ② 主升信号</div>
+                <div style="color:#aaa">换手5-10% + 量比3-5x | 量价最优共振区，主升浪核心位</div>
             </div>
-            <div style="background:rgba(255,152,0,.08);border:1px solid rgba(255,152,0,.2);border-radius:8px;padding:10px;font-size:.78em">
-                <div style="color:#ff9800;font-weight:700;margin-bottom:4px">⚠️ 量减价升（缩量虚涨）</div>
-                <div style="color:#aaa">量比&lt;0.8 + 价格上涨，动力不足，上涨不可信</div>
+            <div style="background:rgba(255,193,7,.08);border:1px solid rgba(255,193,7,.25);border-radius:8px;padding:10px;font-size:.78em">
+                <div style="color:#ffc107;font-weight:700;margin-bottom:4px">✅ ③ 可考虑入场</div>
+                <div style="color:#aaa">换手&gt;5% + 量比2-3x | 温和放量，方向明确可轻仓跟进</div>
             </div>
-            <div style="background:rgba(100,181,246,.08);border:1px solid rgba(100,181,246,.2);border-radius:8px;padding:10px;font-size:.78em">
-                <div style="color:#64b5f6;font-weight:700;margin-bottom:4px">🧊 量减价跌（缩量阴跌）</div>
-                <div style="color:#aaa">量比&lt;0.8 + 价格下跌，抛压轻，可能企稳</div>
+            <div style="background:rgba(100,181,246,.08);border:1px solid rgba(100,181,246,.25);border-radius:8px;padding:10px;font-size:.78em">
+                <div style="color:#64b5f6;font-weight:700;margin-bottom:4px">⚠️ ④ 防范风险</div>
+                <div style="color:#aaa">换手&gt;5% + 量比&lt;2x | 换手活跃但量能不足，防假突破</div>
             </div>
         </div>
         <!-- 过滤器 -->
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
             <span style="color:#888;font-size:.82em">筛选：</span>
             <button id="vfAll" class="tab active" style="padding:5px 12px;font-size:.8em" onclick="vfFilter('all')">全部</button>
-            <button id="vfUp" class="tab" style="padding:5px 12px;font-size:.8em;color:#00e676" onclick="vfFilter('up')">🚀 量增价升</button>
-            <button id="vfDown" class="tab" style="padding:5px 12px;font-size:.8em;color:#ef5350" onclick="vfFilter('down')">🔻 量增价跌</button>
-            <button id="vfFakeUp" class="tab" style="padding:5px 12px;font-size:.8em;color:#ff9800" onclick="vfFilter('fakeup')">⚠️ 缩量虚涨</button>
-            <button id="vfFakeDown" class="tab" style="padding:5px 12px;font-size:.8em;color:#64b5f6" onclick="vfFilter('fakedown')">🧊 缩量阴跌</button>
+            <button id="vfUp" class="tab" style="padding:5px 12px;font-size:.8em;color:#ef5350" onclick="vfFilter('trap')">🚨 警惕陷阱</button>
+            <button id="vfDown" class="tab" style="padding:5px 12px;font-size:.8em;color:#00e676" onclick="vfFilter('main')">🚀 主升信号</button>
+            <button id="vfFakeUp" class="tab" style="padding:5px 12px;font-size:.8em;color:#ffc107" onclick="vfFilter('entry')">✅ 可入场</button>
+            <button id="vfFakeDown" class="tab" style="padding:5px 12px;font-size:.8em;color:#64b5f6" onclick="vfFilter('risk')">⚠️ 防范风险</button>
             <span id="vfCount" style="color:#666;font-size:.78em;margin-left:8px"></span>
         </div>
         <div class="grid" id="volFlowList"></div>
@@ -2261,7 +2261,7 @@ let _vfCurrent = 'all';
 function vfFilter(type) {
     _vfCurrent = type;
     document.querySelectorAll('#volflow .tab').forEach(b => b.classList.remove('active'));
-    const btnMap = { all:'vfAll', up:'vfUp', down:'vfDown', fakeup:'vfFakeUp', fakedown:'vfFakeDown' };
+    const btnMap = { all:'vfAll', trap:'vfUp', main:'vfDown', entry:'vfFakeUp', risk:'vfFakeDown' };
     const el = $(btnMap[type]); if (el) el.classList.add('active');
     _renderVolFlow(_vfData, type);
 }
@@ -2278,10 +2278,10 @@ function _renderVolFlow(data, type) {
     $('volFlowList').innerHTML = filtered.map(c => {
         // 颜色 & 标签
         const typeConf = {
-            up:       { border:'#00e676', badge:'🚀 量增价升', bStyle:'background:rgba(0,200,83,.15);color:#00e676', scoreColor:'#00e676' },
-            down:     { border:'#ef5350', badge:'🔻 量增价跌', bStyle:'background:rgba(239,83,80,.15);color:#ef5350', scoreColor:'#ef5350' },
-            fakeup:   { border:'#ff9800', badge:'⚠️ 缩量虚涨', bStyle:'background:rgba(255,152,0,.15);color:#ff9800', scoreColor:'#ff9800' },
-            fakedown: { border:'#64b5f6', badge:'🧊 缩量阴跌', bStyle:'background:rgba(100,181,246,.15);color:#64b5f6', scoreColor:'#64b5f6' },
+            trap:  { border:'#ef5350', badge:'🚨 警惕陷阱',    bStyle:'background:rgba(239,83,80,.15);color:#ef5350',  scoreColor:'#ef5350' },
+            main:  { border:'#00e676', badge:'🚀 主升信号',    bStyle:'background:rgba(0,200,83,.15);color:#00e676',   scoreColor:'#00e676' },
+            entry: { border:'#ffc107', badge:'✅ 可考虑入场',  bStyle:'background:rgba(255,193,7,.15);color:#ffc107',  scoreColor:'#ffc107' },
+            risk:  { border:'#64b5f6', badge:'⚠️ 防范风险',   bStyle:'background:rgba(100,181,246,.15);color:#64b5f6', scoreColor:'#64b5f6' },
         }[c.type] || { border:'#555', badge:'➖ 中性', bStyle:'background:rgba(255,255,255,.08);color:#888', scoreColor:'#888' };
 
         const vrColor = c.volRatio >= 3 ? '#00e676' : c.volRatio >= 2 ? '#ff9800' : c.volRatio >= 1.5 ? '#fcd535' : c.volRatio < 0.8 ? '#64b5f6' : '#aaa';
@@ -2322,8 +2322,8 @@ function _renderVolFlow(data, type) {
             </div>
             <div class="tags" style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.05)">
                 <span class="tag" style="${typeConf.bStyle}">${typeConf.badge}</span>
-                ${c.volRatio >= 3 ? '<span class="tag">🔥爆量</span>' : c.volRatio >= 2 ? '<span class="tag tag-w">📊放量</span>' : ''}
-                ${c.turnoverRate >= 10 ? '<span class="tag" style="background:rgba(0,188,212,.15);color:#26c6da">💦高换手</span>' : ''}
+                ${c.volRatio > 8 ? '<span class="tag" style="background:rgba(239,83,80,.15);color:#ef5350">🔥极端爆量</span>' : c.volRatio >= 5 ? '<span class="tag">🔥爆量5x+</span>' : c.volRatio >= 3 ? '<span class="tag tag-w">📊放量3x+</span>' : ''}
+                ${c.turnoverRate > 10 ? '<span class="tag" style="background:rgba(239,83,80,.12);color:#ff7043">🔴超热换手</span>' : c.turnoverRate >= 5 ? '<span class="tag" style="background:rgba(0,188,212,.12);color:#26c6da">💦活跃换手</span>' : ''}
                 ${c.taker >= 60 ? '<span class="tag" style="background:rgba(0,200,83,.1);color:#00e676">🐂强主买</span>' : c.taker <= 40 ? '<span class="tag tag-r">🐻强主卖</span>' : ''}
             </div>
         </div>`;
@@ -2393,31 +2393,40 @@ async function runVolFlow() {
                     const chg4h  = closes.length >= 5 ? (closes[closes.length-1] - closes[closes.length-5]) / closes[closes.length-5] * 100 : 0;
                     const chg24h = parseFloat(t.priceChangePercent);
 
-                    // 判断类型
+                    // ===== 四档换手×量比判断逻辑 =====
+                    // ① 换手>10% + 量比>5 → 警惕陷阱（trap）
+                    // ② 换手5-10% + 量比3-5 → 主升信号（main）
+                    // ③ 换手>5% + 量比2-3 → 可考虑入场（entry）
+                    // ④ 换手>5% + 量比<2  → 防范风险（risk）
                     let type = 'neutral';
-                    if (volRatio >= 1.5) {
-                        if (taker >= 53 && chg1h > 0) type = 'up';
-                        else if (taker <= 47 && chg1h < 0) type = 'down';
-                        else if (chg1h > 0.3) type = 'up';
-                        else if (chg1h < -0.3) type = 'down';
-                    } else if (volRatio < 0.8) {
-                        if (chg1h > 0.2) type = 'fakeup';
-                        else if (chg1h < -0.2) type = 'fakedown';
+                    let tier = 0; // 1=trap, 2=main, 3=entry, 4=risk
+                    if (turnoverRate > 10 && volRatio > 5) {
+                        tier = 1; type = 'trap';
+                    } else if (turnoverRate >= 5 && turnoverRate <= 10 && volRatio >= 3 && volRatio <= 5) {
+                        tier = 2; type = 'main';
+                    } else if (turnoverRate > 5 && volRatio >= 2 && volRatio < 3) {
+                        tier = 3; type = 'entry';
+                    } else if (turnoverRate > 5 && volRatio < 2) {
+                        tier = 4; type = 'risk';
                     }
+                    // tier=0（不在四档范围）保留neutral，后续会被过滤
 
                     // 综合评分（0-100）
                     let score = 50;
-                    // 量比贡献（最高+30/-20）
-                    if (volRatio >= 4) score += 30;
-                    else if (volRatio >= 3) score += 22;
-                    else if (volRatio >= 2) score += 14;
-                    else if (volRatio >= 1.5) score += 8;
-                    else if (volRatio < 0.6) score -= 20;
-                    else if (volRatio < 0.8) score -= 10;
-                    // 换手率贡献（高换手+分）
-                    if (turnoverRate >= 15) score += 15;
-                    else if (turnoverRate >= 8) score += 8;
-                    else if (turnoverRate >= 3) score += 3;
+                    // 换手+量比组合档位基础分
+                    if (tier === 2) score += 30;      // 主升：最高基础分
+                    else if (tier === 3) score += 18; // 入场：中等
+                    else if (tier === 1) score -= 10; // 陷阱：降分
+                    else if (tier === 4) score -= 5;  // 防范：小降
+                    // 量比精细化贡献
+                    if (volRatio > 8) score += 5;     // 极端爆量（陷阱档额外标注）
+                    else if (volRatio >= 4) score += 8;
+                    else if (volRatio >= 3) score += 5;
+                    else if (volRatio >= 2) score += 2;
+                    // 换手率精细化贡献
+                    if (turnoverRate >= 8 && turnoverRate <= 10) score += 8; // 主升甜蜜区
+                    else if (turnoverRate >= 5 && turnoverRate < 8) score += 4;
+                    else if (turnoverRate > 10) score -= 5;                   // 过热降分
                     // 主买方向贡献
                     if (taker >= 60) score += 15;
                     else if (taker >= 55) score += 8;
@@ -2428,8 +2437,8 @@ async function runVolFlow() {
                     else if (chg4h > 1) score += 5;
                     else if (chg4h < -3) score -= 10;
                     else if (chg4h < -1) score -= 5;
-                    // 中性惩罚
-                    if (type === 'neutral') score = Math.max(score - 15, 0);
+                    // neutral惩罚
+                    if (type === 'neutral') score = Math.max(score - 20, 0);
                     score = Math.min(Math.max(Math.round(score), 0), 100);
 
                     return { sym: t.symbol, price, chg1h, chg4h, chg24h, volRatio, turnoverRate, taker, vol: qVol24h, type, score };
