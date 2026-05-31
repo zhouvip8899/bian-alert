@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>币安合约暴涨预警系统 v3.68</title>
+    <title>币安合约暴涨预警系统 v3.73</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box}
         body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;background:linear-gradient(135deg,#0f0f1a,#1a1a2e);min-height:100vh;color:#e0e0e0}
@@ -108,6 +108,7 @@
         <button class="btn btn-s" id="btnRSI">📉 RSI极值</button>
         <button class="btn btn-s" id="btnVolSpike">🔥 量能异动</button>
         <button class="btn btn-s" id="btnOIChange">📊 持仓变化</button>
+        <button class="btn btn-s" id="btnVolFlow">📊 换手量比</button>
     </div>
     
     <div class="stats">
@@ -141,6 +142,7 @@
         <button class="tab" onclick="showTab('liqzone')">💀 清算密集</button>
         <button class="tab" onclick="showTab('oi-change')">📊 持仓量变化</button>
         <button class="tab" onclick="showTab('sigstats')">📊 信号统计</button>
+        <button class="tab" onclick="showTab('volflow')">📊 换手量比</button>
     </div>
     
     <div id="sig" class="content active">
@@ -262,8 +264,43 @@
         <div class="grid" id="oiChangeList"></div>
     </div>
 
-    <div id="sigstats" class="content">
-        <h3 style="margin:15px 0 10px;color:#00bcd4">📊 信号准确率统计</h3>
+    <!-- ===== 换手量比涨跌判断 ===== -->
+    <div id="volflow" class="content">
+        <h3 style="margin:15px 0 8px;color:#26c6da">📊 换手量比涨跌判断</h3>
+        <p style="color:#666;font-size:.85em;margin-bottom:12px">综合量比 × 换手方向 × 价格趋势，判断当前是真实上涨/下跌还是无量虚动</p>
+        <!-- 说明卡片 -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-bottom:16px">
+            <div style="background:rgba(0,200,83,.08);border:1px solid rgba(0,200,83,.2);border-radius:8px;padding:10px;font-size:.78em">
+                <div style="color:#00e676;font-weight:700;margin-bottom:4px">🚀 量增价升（放量上涨）</div>
+                <div style="color:#aaa">量比≥1.5 + 主买≥55% + 价格正涨，看多信号</div>
+            </div>
+            <div style="background:rgba(239,83,80,.08);border:1px solid rgba(239,83,80,.2);border-radius:8px;padding:10px;font-size:.78em">
+                <div style="color:#ef5350;font-weight:700;margin-bottom:4px">🔻 量增价跌（放量下跌）</div>
+                <div style="color:#aaa">量比≥1.5 + 主卖≥55% + 价格负跌，看空信号</div>
+            </div>
+            <div style="background:rgba(255,152,0,.08);border:1px solid rgba(255,152,0,.2);border-radius:8px;padding:10px;font-size:.78em">
+                <div style="color:#ff9800;font-weight:700;margin-bottom:4px">⚠️ 量减价升（缩量虚涨）</div>
+                <div style="color:#aaa">量比&lt;0.8 + 价格上涨，动力不足，上涨不可信</div>
+            </div>
+            <div style="background:rgba(100,181,246,.08);border:1px solid rgba(100,181,246,.2);border-radius:8px;padding:10px;font-size:.78em">
+                <div style="color:#64b5f6;font-weight:700;margin-bottom:4px">🧊 量减价跌（缩量阴跌）</div>
+                <div style="color:#aaa">量比&lt;0.8 + 价格下跌，抛压轻，可能企稳</div>
+            </div>
+        </div>
+        <!-- 过滤器 -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+            <span style="color:#888;font-size:.82em">筛选：</span>
+            <button id="vfAll" class="tab active" style="padding:5px 12px;font-size:.8em" onclick="vfFilter('all')">全部</button>
+            <button id="vfUp" class="tab" style="padding:5px 12px;font-size:.8em;color:#00e676" onclick="vfFilter('up')">🚀 量增价升</button>
+            <button id="vfDown" class="tab" style="padding:5px 12px;font-size:.8em;color:#ef5350" onclick="vfFilter('down')">🔻 量增价跌</button>
+            <button id="vfFakeUp" class="tab" style="padding:5px 12px;font-size:.8em;color:#ff9800" onclick="vfFilter('fakeup')">⚠️ 缩量虚涨</button>
+            <button id="vfFakeDown" class="tab" style="padding:5px 12px;font-size:.8em;color:#64b5f6" onclick="vfFilter('fakedown')">🧊 缩量阴跌</button>
+            <span id="vfCount" style="color:#666;font-size:.78em;margin-left:8px"></span>
+        </div>
+        <div class="grid" id="volFlowList"></div>
+    </div>
+
+    <div id="sigstats" class="content">        <h3 style="margin:15px 0 10px;color:#00bcd4">📊 信号准确率统计</h3>
         <p style="color:#666;font-size:.85em;margin-bottom:15px">记录信号触发后的价格走势，持续优化多空判断准确率</p>
 
         <!-- 验证说明 -->
@@ -2217,6 +2254,209 @@ async function runOIChange() {
     busy = false;
 }
 
+// ========== 换手量比涨跌判断 ==========
+let _vfData = [];   // 缓存数据，供过滤器复用
+let _vfCurrent = 'all';
+
+function vfFilter(type) {
+    _vfCurrent = type;
+    document.querySelectorAll('#volflow .tab').forEach(b => b.classList.remove('active'));
+    const btnMap = { all:'vfAll', up:'vfUp', down:'vfDown', fakeup:'vfFakeUp', fakedown:'vfFakeDown' };
+    const el = $(btnMap[type]); if (el) el.classList.add('active');
+    _renderVolFlow(_vfData, type);
+}
+
+function _renderVolFlow(data, type) {
+    const filtered = type === 'all' ? data : data.filter(c => c.type === type);
+    $('vfCount').textContent = `共 ${filtered.length} 个`;
+
+    if (!filtered.length) {
+        $('volFlowList').innerHTML = '<p style="color:#666;text-align:center;padding:20px">暂无符合条件的币种</p>';
+        return;
+    }
+
+    $('volFlowList').innerHTML = filtered.map(c => {
+        // 颜色 & 标签
+        const typeConf = {
+            up:       { border:'#00e676', badge:'🚀 量增价升', bStyle:'background:rgba(0,200,83,.15);color:#00e676', scoreColor:'#00e676' },
+            down:     { border:'#ef5350', badge:'🔻 量增价跌', bStyle:'background:rgba(239,83,80,.15);color:#ef5350', scoreColor:'#ef5350' },
+            fakeup:   { border:'#ff9800', badge:'⚠️ 缩量虚涨', bStyle:'background:rgba(255,152,0,.15);color:#ff9800', scoreColor:'#ff9800' },
+            fakedown: { border:'#64b5f6', badge:'🧊 缩量阴跌', bStyle:'background:rgba(100,181,246,.15);color:#64b5f6', scoreColor:'#64b5f6' },
+        }[c.type] || { border:'#555', badge:'➖ 中性', bStyle:'background:rgba(255,255,255,.08);color:#888', scoreColor:'#888' };
+
+        const vrColor = c.volRatio >= 3 ? '#00e676' : c.volRatio >= 2 ? '#ff9800' : c.volRatio >= 1.5 ? '#fcd535' : c.volRatio < 0.8 ? '#64b5f6' : '#aaa';
+        const takerColor = c.taker >= 58 ? '#00e676' : c.taker >= 52 ? '#8bc34a' : c.taker <= 42 ? '#ef5350' : c.taker <= 48 ? '#ff7043' : '#888';
+        const scoreCls = c.score >= 80 ? 's-h' : c.score >= 55 ? 's-w' : 's-c';
+
+        // 换手率颜色
+        const hrColor = c.turnoverRate >= 15 ? '#00e676' : c.turnoverRate >= 8 ? '#fcd535' : c.turnoverRate >= 3 ? '#aaa' : '#64b5f6';
+
+        // 量比进度条（最高5x）
+        const vrBarW = Math.min(c.volRatio / 5 * 100, 100).toFixed(0);
+
+        return `<div class="card" style="border-color:${typeConf.border}30;border-width:1px">
+            <div class="card-hd">
+                <div>
+                    <span class="name">${c.sym.replace('USDT','')}</span>
+                    <span class="price" style="margin-left:6px">$${fp(c.price)}</span>
+                    <a href="kline-analysis.html?symbol=${c.sym.replace('USDT','')}" target="_blank" style="margin-left:6px;color:#26c6da;font-size:.78em;text-decoration:none">📊K线</a>
+                </div>
+                <div style="text-align:right">
+                    <span class="score ${scoreCls}">${c.score}分</span>
+                </div>
+            </div>
+            <div class="chain">
+                <div class="chain-row">
+                    <span style="color:#888">量比</span>
+                    <span style="color:${vrColor};font-weight:700">${c.volRatio.toFixed(2)}x</span>
+                </div>
+                <div style="background:rgba(255,255,255,.04);border-radius:3px;height:4px;margin:-2px 0 4px;overflow:hidden">
+                    <div style="height:100%;width:${vrBarW}%;background:${vrColor};transition:width .3s"></div>
+                </div>
+                <div class="chain-row"><span style="color:#888">换手率</span><span style="color:${hrColor}">${c.turnoverRate.toFixed(2)}%</span></div>
+                <div class="chain-row"><span style="color:#888">主买比</span><span style="color:${takerColor}">${c.taker.toFixed(1)}%</span></div>
+                <div class="chain-row"><span style="color:#888">1H涨跌</span>${fc(c.chg1h)}</div>
+                <div class="chain-row"><span style="color:#888">4H涨跌</span>${fc(c.chg4h)}</div>
+                <div class="chain-row"><span style="color:#888">24H涨跌</span>${fc(c.chg24h)}</div>
+                <div class="chain-row"><span style="color:#888">成交额(24H)</span><span style="color:#aaa">${c.vol >= 1e9 ? (c.vol/1e9).toFixed(2)+'B' : c.vol >= 1e6 ? (c.vol/1e6).toFixed(1)+'M' : (c.vol/1e3).toFixed(0)+'K'}</span></div>
+            </div>
+            <div class="tags" style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.05)">
+                <span class="tag" style="${typeConf.bStyle}">${typeConf.badge}</span>
+                ${c.volRatio >= 3 ? '<span class="tag">🔥爆量</span>' : c.volRatio >= 2 ? '<span class="tag tag-w">📊放量</span>' : ''}
+                ${c.turnoverRate >= 10 ? '<span class="tag" style="background:rgba(0,188,212,.15);color:#26c6da">💦高换手</span>' : ''}
+                ${c.taker >= 60 ? '<span class="tag" style="background:rgba(0,200,83,.1);color:#00e676">🐂强主买</span>' : c.taker <= 40 ? '<span class="tag tag-r">🐻强主卖</span>' : ''}
+            </div>
+        </div>`;
+    }).join('');
+}
+
+async function runVolFlow() {
+    if (busy) return;
+    busy = true;
+    currentProxyIndex = 0;
+    $('status').textContent = '⏳ 正在分析换手量比...';
+    $('progress').style.display = 'block';
+    setProgress(5, '获取行情数据...');
+    try {
+        const [tickers, exchangeInfo] = await Promise.all([
+            apiFetch('/fapi/v1/ticker/24hr'),
+            apiFetch('/fapi/v1/exchangeInfo')
+        ]);
+        const activeSymbols = new Set(exchangeInfo.symbols.filter(s => s.status === 'TRADING').map(s => s.symbol));
+
+        // 过滤：USDT合约，非主流，成交额≥1M，价格>0
+        const coins = tickers.filter(t =>
+            t.symbol.endsWith('USDT') &&
+            activeSymbols.has(t.symbol) &&
+            parseFloat(t.quoteVolume) >= 1000000 &&
+            parseFloat(t.lastPrice) > 0
+        ).sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
+         .slice(0, 200); // 只取成交额Top200节省请求
+
+        setProgress(15, `筛出 ${coins.length} 个，加载K线...`);
+
+        const BATCH = 20;
+        const results = [];
+        for (let i = 0; i < coins.length; i += BATCH) {
+            const batch = coins.slice(i, i + BATCH);
+            const br = await Promise.all(batch.map(async t => {
+                try {
+                    const k1 = await apiFetch(`/fapi/v1/klines?symbol=${t.symbol}&interval=1h&limit=26`);
+                    if (!Array.isArray(k1) || k1.length < 12) return null;
+
+                    const vols1h  = k1.map(x => parseFloat(x[5]));         // base vol
+                    const closes  = k1.map(x => parseFloat(x[4]));
+                    const highs   = k1.map(x => parseFloat(x[2]));
+                    const lows    = k1.map(x => parseFloat(x[3]));
+
+                    // 量比：最近1根 vs 前20根均量
+                    const curVol = vols1h[vols1h.length - 1];
+                    const avgVol = vols1h.slice(-21, -1).reduce((a, b) => a + b, 0) / 20;
+                    const volRatio = avgVol > 0 ? curVol / avgVol : 1;
+
+                    // 换手率 = 最近1小时成交量(base) / 总供应量估算
+                    // 用 24H quoteVol / 价格 ≈ 日成交base量，再估算流通供应 = 总持仓 / price
+                    // 简化：以24H base vol 近似日换手，再取1H占比
+                    const qVol24h = parseFloat(t.quoteVolume);   // 24H USDT成交额
+                    const price   = parseFloat(t.lastPrice);
+                    const baseVol24h = qVol24h / price;           // 24H 成交base量
+                    // 用 openInterest 估算流通（无OI时用 24H成交额*5 兜底）
+                    const oiBase = 0; // 本次不额外请求OI，用24H成交*turnover因子
+                    // 换手率 ≈ 当前1H成交量 / (24H成交量/24) * 100  => 相对换手率
+                    const turnoverRate = baseVol24h > 0 ? (curVol / (baseVol24h / 24)) * 100 : 0;
+
+                    // 主买比
+                    const taker = calcTakerRatio(t) * 100;
+
+                    // 1H / 4H / 24H 涨跌
+                    const chg1h  = closes.length >= 2 ? (closes[closes.length-1] - closes[closes.length-2]) / closes[closes.length-2] * 100 : 0;
+                    const chg4h  = closes.length >= 5 ? (closes[closes.length-1] - closes[closes.length-5]) / closes[closes.length-5] * 100 : 0;
+                    const chg24h = parseFloat(t.priceChangePercent);
+
+                    // 判断类型
+                    let type = 'neutral';
+                    if (volRatio >= 1.5) {
+                        if (taker >= 53 && chg1h > 0) type = 'up';
+                        else if (taker <= 47 && chg1h < 0) type = 'down';
+                        else if (chg1h > 0.3) type = 'up';
+                        else if (chg1h < -0.3) type = 'down';
+                    } else if (volRatio < 0.8) {
+                        if (chg1h > 0.2) type = 'fakeup';
+                        else if (chg1h < -0.2) type = 'fakedown';
+                    }
+
+                    // 综合评分（0-100）
+                    let score = 50;
+                    // 量比贡献（最高+30/-20）
+                    if (volRatio >= 4) score += 30;
+                    else if (volRatio >= 3) score += 22;
+                    else if (volRatio >= 2) score += 14;
+                    else if (volRatio >= 1.5) score += 8;
+                    else if (volRatio < 0.6) score -= 20;
+                    else if (volRatio < 0.8) score -= 10;
+                    // 换手率贡献（高换手+分）
+                    if (turnoverRate >= 15) score += 15;
+                    else if (turnoverRate >= 8) score += 8;
+                    else if (turnoverRate >= 3) score += 3;
+                    // 主买方向贡献
+                    if (taker >= 60) score += 15;
+                    else if (taker >= 55) score += 8;
+                    else if (taker <= 40) score -= 15;
+                    else if (taker <= 45) score -= 8;
+                    // 价格趋势贡献
+                    if (chg4h > 3) score += 10;
+                    else if (chg4h > 1) score += 5;
+                    else if (chg4h < -3) score -= 10;
+                    else if (chg4h < -1) score -= 5;
+                    // 中性惩罚
+                    if (type === 'neutral') score = Math.max(score - 15, 0);
+                    score = Math.min(Math.max(Math.round(score), 0), 100);
+
+                    return { sym: t.symbol, price, chg1h, chg4h, chg24h, volRatio, turnoverRate, taker, vol: qVol24h, type, score };
+                } catch { return null; }
+            }));
+            results.push(...br.filter(Boolean));
+            setProgress(15 + (i + BATCH) / coins.length * 75, `已分析 ${Math.min(i+BATCH,coins.length)}/${coins.length}...`);
+        }
+
+        // 排序：同类型中按评分倒序
+        _vfData = results
+            .filter(c => c.type !== 'neutral')
+            .sort((a, b) => b.score - a.score);
+
+        setProgress(100, '完成');
+        setTimeout(() => { $('progress').style.display = 'none'; $('bar').style.width = '0'; }, 600);
+
+        _vfCurrent = 'all';
+        document.querySelectorAll('#volflow .tab').forEach(b => b.classList.remove('active'));
+        $('vfAll').classList.add('active');
+        _renderVolFlow(_vfData, 'all');
+        showTab('volflow');
+        $('status').textContent = `📊 换手量比 | 有效信号 ${_vfData.length} 个 | ${new Date().toLocaleTimeString('zh-CN')}`;
+    } catch(e) { err('换手量比扫描失败: ' + e.message); }
+    busy = false;
+}
+
 async function runRank() {
     if (busy) return;
     busy = true;
@@ -2430,6 +2670,7 @@ function showTab(id) {
     if (id === 'mtf' && !$('mtfList').innerHTML) runMTF();
     if (id === 'liqzone' && !$('liqZoneList').innerHTML) runLiqZone();
     if (id === 'oi-change' && !$('oiChangeList').innerHTML) runOIChange();
+    if (id === 'volflow' && !_vfData.length) runVolFlow();
     if (id === 'sigstats') sigTracker.render();
 }
 
@@ -2654,6 +2895,7 @@ window.onload = function() {
     $('btnRSI').onclick = runRSI;
     $('btnVolSpike').onclick = runVolSpike;
     $('btnOIChange').onclick = runOIChange;
+    $('btnVolFlow').onclick = runVolFlow;
     $('status').textContent = '✅ 准备就绪，点击按钮开始分析';
 };
 
